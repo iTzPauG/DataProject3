@@ -1,5 +1,7 @@
 # GADO — Guía Maestra
 
+Hola
+
 GADO es una plataforma premium de descubrimiento de lugares y reportes ciudadanos en tiempo real, diseñada para Valencia y optimizada para la velocidad y la honestidad brutal.
 
 ## ✨ Características Principales
