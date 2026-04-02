@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Gado",
+    "slug": "gado",
+    "version": "1.0.0",
+    "scheme": "gado",
+    "orientation": "portrait",
+    "icon": "./assets/gado-logo.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/gado-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4AABB3"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gado.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/gado-logo.png",
+        "backgroundColor": "#4AABB3"
+      },
+      "package": "com.gado.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/gado-logo.png"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

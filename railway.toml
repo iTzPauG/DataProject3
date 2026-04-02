@@ -1,0 +1,4 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+dockerBuildArgs = ["EXPO_PUBLIC_BACKEND_URL", "EXPO_PUBLIC_SUPABASE_URL", "EXPO_PUBLIC_SUPABASE_ANON_KEY"]

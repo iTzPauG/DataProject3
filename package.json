@@ -1,0 +1,13 @@
+{
+  "name": "gado-project",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cd main/frontend && npm install --legacy-peer-deps && npx expo export --platform web && cp -r dist ../dist",
+    "dev:frontend": "cd main/frontend && npm start",
+    "dev:backend": "cd main/backend && uvicorn main:app --reload",
+    "build:web": "cd main/frontend && npm install --legacy-peer-deps && npm run build:web"
+  },
+  "dependencies": {
+    "lucide-react-native": "^1.7.0"
+  }
+}

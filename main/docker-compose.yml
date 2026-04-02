@@ -1,0 +1,36 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: gado-app-backend
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: gado-app-frontend
+    depends_on:
+      - backend
+    env_file:
+      - ./frontend/.env
+    environment:
+      - EXPO_NO_TELEMETRY=1
+      - CI=1
+      - CHOKIDAR_USEPOLLING=1
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "19000:19000"
+      - "19001:19001"
+      - "19002:19002"
+      - "19006:19006"
+      - "8081:8081"
+    restart: unless-stopped

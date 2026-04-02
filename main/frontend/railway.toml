@@ -1,0 +1,8 @@
+[build]
+buildCommand = "npm install --legacy-peer-deps && echo '=== ENV CHECK ===' && echo \"BACKEND_URL set: $([ -n \"$EXPO_PUBLIC_BACKEND_URL\" ] && echo YES || echo NO)\" && echo \"SUPABASE_URL set: $([ -n \"$EXPO_PUBLIC_SUPABASE_URL\" ] && echo YES || echo NO)\" && echo \"SUPABASE_KEY set: $([ -n \"$EXPO_PUBLIC_SUPABASE_ANON_KEY\" ] && echo YES || echo NO)\" && printenv | grep EXPO_PUBLIC_ > .env && npx expo export --platform web"
+
+[deploy]
+# Railpack serves the built dist/ as a static SPA
+# Make sure RAILPACK_SPA_OUTPUT_DIR=dist is set as an env var in Railway
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
