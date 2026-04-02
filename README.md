@@ -9,7 +9,7 @@ GADO es una plataforma premium de descubrimiento de lugares y reportes ciudadano
 - **Estética Premium Glass**: Interfaz moderna con modo oscuro/claro dinámico y sistema de capas de mapa.
 - **Reportes en Vivo**: Avisa a la comunidad sobre incidencias, eventos o peligros al instante.
 - **Datos en Tiempo Real**: Precios de gasolineras (Ministerio de Industria), farmacias de guardia y más.
-
+- 
 ---
 
 ## 🚀 Inicio Rápido (Local)
