@@ -1,5 +1,5 @@
 import { Restaurant } from '../types/restaurant';
-import { supabase } from './supabase';
+import { auth } from './supabase';
 import { storage } from '../utils/storage';
 import { Category, CommunityReport, MapItem, ReportType, SavedItem } from '../types';
 import { FALLBACK_CATEGORIES } from './mapService';
@@ -821,7 +821,8 @@ export interface CreateReportInput {
 
 export async function createReport(input: CreateReportInput): Promise<{ report: CommunityReport }> {
   console.log('[API] Starting report creation...');
-  const { data: { session } } = await supabase.auth.getSession();
+  const token = await auth.currentUser?.getIdToken() ?? null;
+  const session = token ? { access_token: token } : null;
   console.log('[API] Session obtained:', session ? 'User logged in' : 'Anonymous');
 
   const { lat: currentLat, lng: currentLng } = await getCurrentLocation();
@@ -873,7 +874,8 @@ export async function toggleBookmark(
   itemType: 'place' | 'event' | 'report',
   isBookmarked: boolean
 ): Promise<void> {
-  const { data: { session } } = await supabase.auth.getSession();
+  const token = await auth.currentUser?.getIdToken() ?? null;
+  const session = token ? { access_token: token } : null;
   if (!session) throw new Error('Authentication required');
 
   const headers = {
@@ -899,7 +901,8 @@ export async function toggleBookmark(
 
 export async function getBookmarks(): Promise<SavedItem[]> {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const token = await auth.currentUser?.getIdToken() ?? null;
+  const session = token ? { access_token: token } : null;
     if (!session) return [];
 
     const res = await fetch(`${BASE_URL}/bookmarks`, {
@@ -917,7 +920,8 @@ export async function getBookmarks(): Promise<SavedItem[]> {
 
 export async function checkBookmark(itemId: string): Promise<boolean> {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const token = await auth.currentUser?.getIdToken() ?? null;
+  const session = token ? { access_token: token } : null;
     if (!session) return false;
 
     const res = await fetch(`${BASE_URL}/bookmarks/${itemId}/check`, {
@@ -933,7 +937,8 @@ export async function checkBookmark(itemId: string): Promise<boolean> {
 
 export async function getMyReports(): Promise<CommunityReport[]> {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const token = await auth.currentUser?.getIdToken() ?? null;
+  const session = token ? { access_token: token } : null;
     if (!session) return [];
 
     const res = await fetch(`${BASE_URL}/reports/me`, {

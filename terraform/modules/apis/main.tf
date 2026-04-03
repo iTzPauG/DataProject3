@@ -4,6 +4,12 @@ resource "google_project_service" "required" {
     "artifactregistry.googleapis.com",
     "run.googleapis.com",
     "cloudresourcemanager.googleapis.com",
+    "firestore.googleapis.com",
+    "bigquery.googleapis.com",
+    "firebase.googleapis.com",
+    "identitytoolkit.googleapis.com",
+    "secretmanager.googleapis.com",
+    "sqladmin.googleapis.com",
   ])
 
   project            = var.project_id

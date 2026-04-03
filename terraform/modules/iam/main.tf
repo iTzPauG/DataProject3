@@ -5,3 +5,10 @@ resource "google_cloud_run_v2_service_iam_member" "public_invoker" {
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
+
+# Allow Cloud Run SA to read secrets from Secret Manager
+resource "google_project_iam_member" "secret_accessor" {
+  project = var.project_id
+  role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:cloud-run-api@${var.project_id}.iam.gserviceaccount.com"
+}
