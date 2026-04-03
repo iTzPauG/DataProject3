@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Plan Recommendation — Flujo de la App</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 40px 20px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    margin-bottom: 6px;
+    color: #f8fafc;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: .85rem;
+    color: #94a3b8;
+    margin-bottom: 48px;
+  }
+
+  /* ── Layout columns ── */
+  .diagram {
+    display: flex;
+    gap: 0;
+    align-items: flex-start;
+    justify-content: center;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    flex: 1;
+  }
+  .col-label {
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 20px;
+    margin-bottom: 20px;
+  }
+  .col-frontend .col-label { background: #1e3a5f; color: #60a5fa; }
+  .col-backend  .col-label { background: #1a2e1a; color: #4ade80; }
+  .col-llm      .col-label { background: #2d1a3d; color: #c084fc; }
+  .col-ext      .col-label { background: #2d1f0a; color: #fb923c; }
+
+  /* ── Connector arrows between cols ── */
+  .arrow-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    padding-top: 46px;
+    gap: 0;
+    flex-shrink: 0;
+  }
+  .h-arrow {
+    font-size: 1.4rem;
+    color: #475569;
+    line-height: 1;
+    margin-top: 14px;
+  }
+
+  /* ── Nodes ── */
+  .node {
+    border-radius: 12px;
+    padding: 12px 16px;
+    width: 190px;
+    text-align: center;
+    position: relative;
+    margin-bottom: 0;
+  }
+  .node-title {
+    font-size: .78rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+    letter-spacing: .02em;
+  }
+  .node-desc {
+    font-size: .68rem;
+    color: #94a3b8;
+    line-height: 1.4;
+  }
+  .node-badge {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: .6rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    letter-spacing: .05em;
+    white-space: nowrap;
+  }
+
+  /* frontend nodes */
+  .node-fe { background: #0f2340; border: 1px solid #1e3a5f; }
+  .node-fe .node-title { color: #93c5fd; }
+  .node-fe .node-badge { background: #1e3a5f; color: #60a5fa; }
+
+  /* backend nodes */
+  .node-be { background: #0f1f0f; border: 1px solid #1a3a1a; }
+  .node-be .node-title { color: #86efac; }
+  .node-be .node-badge { background: #1a3a1a; color: #4ade80; }
+
+  /* llm nodes */
+  .node-llm { background: #1a0f2e; border: 1px solid #3b1f5e; }
+  .node-llm .node-title { color: #d8b4fe; }
+  .node-llm .node-badge { background: #2d1a3d; color: #c084fc; }
+
+  /* external api nodes */
+  .node-ext { background: #1f1200; border: 1px solid #3d2800; }
+  .node-ext .node-title { color: #fdba74; }
+  .node-ext .node-badge { background: #2d1f0a; color: #fb923c; }
+
+  /* parallel group */
+  .parallel-group {
+    border: 1.5px dashed #334155;
+    border-radius: 14px;
+    padding: 14px 10px 10px;
+    position: relative;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .parallel-label {
+    position: absolute;
+    top: -11px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e293b;
+    font-size: .6rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: #64748b;
+    padding: 1px 10px;
+    border-radius: 8px;
+    white-space: nowrap;
+  }
+
+  /* vertical connector */
+  .v-connector {
+    width: 2px;
+    background: #334155;
+    flex-shrink: 0;
+  }
+  .v-short  { height: 14px; }
+  .v-medium { height: 22px; }
+
+  /* timing bar */
+  .timing {
+    font-size: .62rem;
+    font-weight: 600;
+    text-align: center;
+    margin-top: 5px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    letter-spacing: .03em;
+  }
+  .timing-fast   { background:#052e16; color:#4ade80; }
+  .timing-medium { background:#1c1917; color:#fbbf24; }
+  .timing-slow   { background:#2d0c0c; color:#f87171; }
+  .timing-llm    { background:#1a0f2e; color:#c084fc; }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    margin-top: 44px;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: .75rem;
+    color: #94a3b8;
+  }
+  .legend-dot {
+    width: 12px; height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  /* ── Totals bar ── */
+  .totals {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    margin-top: 40px;
+    flex-wrap: wrap;
+  }
+  .total-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 14px 22px;
+    text-align: center;
+    min-width: 120px;
+  }
+  .total-card .val {
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -.02em;
+  }
+  .total-card .lbl {
+    font-size: .7rem;
+    color: #64748b;
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+  .val-green  { color: #4ade80; }
+  .val-yellow { color: #fbbf24; }
+  .val-purple { color: #c084fc; }
+  .val-orange { color: #fb923c; }
+  .val-red    { color: #f87171; }
+
+  /* ── Full-width parallel band ── */
+  .full-parallel {
+    max-width: 1100px;
+    margin: 0 auto 0;
+    border: 1.5px dashed #334155;
+    border-radius: 14px;
+    padding: 18px 24px 14px;
+    position: relative;
+  }
+  .full-parallel .parallel-label {
+    top: -12px;
+    font-size: .65rem;
+  }
+  .full-parallel-inner {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .full-parallel-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 160px;
+  }
+
+  /* ── Section separators ── */
+  .section-row {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0;
+    flex-direction: column;
+  }
+
+  @media (max-width: 700px) {
+    .diagram { flex-direction: column; align-items: center; }
+    .arrow-col { flex-direction: row; width: auto; padding-top: 0; }
+    .h-arrow { transform: rotate(90deg); }
+  }
+</style>
+</head>
+<body>
+
+<h1>🗺️ Plan Recommendation — Flujo de la App</h1>
+<p class="subtitle">De la selección del usuario a los 5 restaurantes recomendados</p>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- ROW 0 — Usuario -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="section-row">
+  <div style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap; max-width:900px; margin:0 auto;">
+    <div class="node node-fe" style="width:160px; margin-top:14px;">
+      <span class="node-badge">USUARIO</span>
+      <div class="node-title">📱 React Native / Expo</div>
+      <div class="node-desc">Web + iOS + Android<br/>expo start --web</div>
+    </div>
+    <div class="node node-fe" style="width:160px; margin-top:14px;">
+      <span class="node-badge">PASO 1</span>
+      <div class="node-title">🍽️ Categoría</div>
+      <div class="node-desc">pizza, sushi, burgers…</div>
+    </div>
+    <div class="node node-fe" style="width:160px; margin-top:14px;">
+      <span class="node-badge">PASO 2</span>
+      <div class="node-title">😊 Estado de ánimo</div>
+      <div class="node-desc">texto libre del usuario</div>
+    </div>
+    <div class="node node-fe" style="width:160px; margin-top:14px;">
+      <span class="node-badge">PASO 3</span>
+      <div class="node-title">💶 Precio</div>
+      <div class="node-desc">1 = budget · 2 = medio<br/>3 = upscale</div>
+    </div>
+    <div class="node node-fe" style="width:160px; margin-top:14px;">
+      <span class="node-badge">PASO 4</span>
+      <div class="node-title">📍 Ubicación</div>
+      <div class="node-desc">GPS o Valencia centro<br/>fallback</div>
+    </div>
+  </div>
+
+  <div class="v-connector v-medium" style="margin:10px auto;"></div>
+  <div style="font-size:.7rem; color:#60a5fa; background:#0f2340; border:1px solid #1e3a5f; border-radius:8px; padding:4px 14px;">
+    POST /recommend → FastAPI :8000
+  </div>
+  <div class="v-connector v-medium" style="margin:10px auto;"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- PASO A — Search Places -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="section-row">
+  <div style="display:flex; gap:24px; align-items:center; justify-content:center;">
+    <div class="node node-be" style="width:210px; margin-top:14px;">
+      <span class="node-badge">A · Python</span>
+      <div class="node-title">🔍 search_places</div>
+      <div class="node-desc">Google Places Text Search<br/>15 candidatos raw</div>
+      <div class="timing timing-fast">~1.2s</div>
+    </div>
+    <div style="font-size:1.2rem; color:#475569; margin-top:14px;">⟷</div>
+    <div class="node node-ext" style="width:190px; margin-top:14px;">
+      <span class="node-badge">API EXTERNA</span>
+      <div class="node-title">🗺️ Google Places API</div>
+      <div class="node-desc">textQuery + locationBias<br/>+ priceLevels filter</div>
+    </div>
+  </div>
+
+  <div class="v-connector v-medium" style="margin:10px auto;"></div>
+
+  <div class="node node-be" style="width:240px;">
+    <span class="node-badge">B · Python</span>
+    <div class="node-title">⚙️ pre_filter</div>
+    <div class="node-desc">Rating, precio, popularidad<br/>15 → 6 candidatos</div>
+    <div class="timing timing-fast">~0s</div>
+  </div>
+
+  <div class="v-connector v-medium" style="margin:10px auto;"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- PASO C+D — Parallel band -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="full-parallel" style="margin-bottom:0;">
+  <span class="parallel-label">⚡ C + D — PARALELO (~6s)</span>
+  <div class="full-parallel-inner">
+
+    <div class="full-parallel-col">
+      <div class="node node-be" style="width:100%;">
+        <span class="node-badge">C · Python (asyncio.gather × 6)</span>
+        <div class="node-title">📝 fetch_all_reviews</div>
+        <div class="node-desc">Por cada candidato, en paralelo:</div>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center; width:100%;">
+        <div class="node node-ext" style="width:130px;">
+          <div class="node-title" style="font-size:.7rem;">🗺️ Google Details</div>
+          <div class="node-desc">teléfono, fotos<br/>5 reseñas</div>
+        </div>
+        <div class="node node-ext" style="width:130px;">
+          <div class="node-title" style="font-size:.7rem;">🧳 TripAdvisor</div>
+          <div class="node-desc">search + reviews<br/>2 llamadas HTTP</div>
+        </div>
+        <div class="node node-ext" style="width:130px;">
+          <div class="node-title" style="font-size:.7rem;">⭐ Yelp</div>
+          <div class="node-desc">search + reviews<br/>2 llamadas HTTP</div>
+        </div>
+      </div>
+      <div class="timing timing-medium" style="align-self:center;">~2-4s por restaurante (en paralelo)</div>
+    </div>
+
+    <div style="width:1.5px; background:#334155; align-self:stretch; flex-shrink:0;"></div>
+
+    <div class="full-parallel-col" style="justify-content:center;">
+      <div class="node node-llm" style="width:100%;">
+        <span class="node-badge">D · LLM — Gemini 2.0 Flash</span>
+        <div class="node-title">🧠 translate_mood</div>
+        <div class="node-desc">
+          Texto libre → prefs estructuradas<br/>
+          <code style="font-size:.65rem; color:#a78bfa;">{ romantic, lively, outdoor… }</code><br/>
+          220 tokens · ~6s
+        </div>
+        <div class="timing timing-llm">~6s (marca el tiempo)</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="v-connector v-medium" style="margin:10px auto;"></div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- PASO F pre-rank -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="section-row">
+  <div class="node node-be" style="width:260px;">
+    <span class="node-badge">F · Python</span>
+    <div class="node-title">📊 pre_rank (sin signals)</div>
+    <div class="node-desc">
+      rating × log(reviews) × price_match<br/>
+      Señales neutras → orden provisional
+    </div>
+    <div class="timing timing-fast">~0s</div>
+  </div>
+  <div class="v-connector v-medium" style="margin:10px auto;"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- PASO E+G — Parallel band -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="full-parallel" style="margin-bottom:0;">
+  <span class="parallel-label">⚡ E + G — PARALELO · SLOWEST (~7-10s est.)</span>
+  <div class="full-parallel-inner">
+
+    <div class="full-parallel-col">
+      <div class="node node-llm" style="width:100%;">
+        <span class="node-badge">E · LLM — Gemini 2.0 Flash</span>
+        <div class="node-title">🔎 extract_signals</div>
+        <div class="node-desc">
+          Reseñas (todos los candidatos) →<br/>
+          atmosphere_tags, red_flags,<br/>
+          sentiment_score por restaurante<br/>
+          ~4200 tokens · batch única
+        </div>
+        <div class="timing timing-llm">~4-5s</div>
+      </div>
+    </div>
+
+    <div style="width:1.5px; background:#334155; align-self:stretch; flex-shrink:0;"></div>
+
+    <div class="full-parallel-col">
+      <div class="node node-llm" style="width:100%;">
+        <span class="node-badge">G · 5× LLM en paralelo — Gemini 2.0 Flash</span>
+        <div class="node-title">✨ enrich_top5</div>
+        <div class="node-desc">
+          1 llamada por restaurante (asyncio.gather)<br/>
+          tagline · why · tags<br/>
+          ~700 tokens c/u · antes: 3500 batch
+        </div>
+        <div class="timing timing-llm">~5-7s (la más lenta marca)</div>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center; width:100%;">
+        <div class="node node-llm" style="width:90px; padding:8px;">
+          <div class="node-title" style="font-size:.65rem;">Rest. 1</div>
+          <div class="node-desc">~700 tok</div>
+        </div>
+        <div class="node node-llm" style="width:90px; padding:8px;">
+          <div class="node-title" style="font-size:.65rem;">Rest. 2</div>
+          <div class="node-desc">~700 tok</div>
+        </div>
+        <div class="node node-llm" style="width:90px; padding:8px;">
+          <div class="node-title" style="font-size:.65rem;">Rest. 3</div>
+          <div class="node-desc">~700 tok</div>
+        </div>
+        <div class="node node-llm" style="width:90px; padding:8px;">
+          <div class="node-title" style="font-size:.65rem;">Rest. 4</div>
+          <div class="node-desc">~700 tok</div>
+        </div>
+        <div class="node node-llm" style="width:90px; padding:8px;">
+          <div class="node-title" style="font-size:.65rem;">Rest. 5</div>
+          <div class="node-desc">~700 tok</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="v-connector v-medium" style="margin:10px auto;"></div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- PASO F re-rank + resultado -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="section-row">
+  <div class="node node-be" style="width:280px;">
+    <span class="node-badge">F · Python</span>
+    <div class="node-title">📊 re_rank (con signals reales)</div>
+    <div class="node-desc">
+      Reordenar en memoria con signals reales<br/>
+      Top 5 definitivo · sin LLM extra
+    </div>
+    <div class="timing timing-fast">~0s</div>
+  </div>
+
+  <div class="v-connector v-medium" style="margin:10px auto;"></div>
+
+  <div style="font-size:.7rem; color:#60a5fa; background:#0f2340; border:1px solid #1e3a5f; border-radius:8px; padding:4px 14px;">
+    { "top": [ …5 restaurantes enriquecidos… ] }
+  </div>
+
+  <div class="v-connector v-medium" style="margin:10px auto;"></div>
+
+  <!-- Frontend result -->
+  <div style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap; max-width:900px;">
+    <div class="node node-fe" style="width:160px; margin-top:14px;">
+      <span class="node-badge">RESULTADO</span>
+      <div class="node-title">🃏 Results Screen</div>
+      <div class="node-desc">Tarjetas con tagline,<br/>why, tags, fotos</div>
+    </div>
+    <div class="node node-fe" style="width:160px; margin-top:14px;">
+      <span class="node-badge">RESULTADO</span>
+      <div class="node-title">🗺️ Map Screen</div>
+      <div class="node-desc">Pins interactivos<br/>sobre el mapa</div>
+    </div>
+    <div class="node node-fe" style="width:160px; margin-top:14px;">
+      <span class="node-badge">DETALLE</span>
+      <div class="node-title">📄 Details Screen</div>
+      <div class="node-desc">Fotos · reseñas<br/>teléfono · dirección</div>
+    </div>
+    <div class="node node-fe" style="width:160px; margin-top:14px;">
+      <span class="node-badge">EXTRA</span>
+      <div class="node-title">📤 Share</div>
+      <div class="node-desc">Compartir plan<br/>con amigos</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- TOTALS -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="totals">
+  <div class="total-card">
+    <div class="val val-green">~1.2s</div>
+    <div class="lbl">Step A</div>
+  </div>
+  <div class="total-card">
+    <div class="val val-yellow">~6s</div>
+    <div class="lbl">Step C+D</div>
+  </div>
+  <div class="total-card">
+    <div class="val val-red">~7-10s</div>
+    <div class="lbl">Step E+G</div>
+  </div>
+  <div class="total-card">
+    <div class="val val-purple">7</div>
+    <div class="lbl">Llamadas LLM</div>
+  </div>
+  <div class="total-card">
+    <div class="val val-orange">18+</div>
+    <div class="lbl">Llamadas HTTP</div>
+  </div>
+  <div class="total-card">
+    <div class="val val-green">~15-18s</div>
+    <div class="lbl">Total estimado</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- LEGEND -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="legend">
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#1e3a5f;border:1px solid #60a5fa;"></div>
+    Frontend (React Native / Expo)
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#1a3a1a;border:1px solid #4ade80;"></div>
+    Backend Python (FastAPI)
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#3b1f5e;border:1px solid #c084fc;"></div>
+    LLM (Gemini 2.0 Flash)
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#3d2800;border:1px solid #fb923c;"></div>
+    APIs Externas (Google / TripAdvisor / Yelp)
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#334155; border:1.5px dashed #64748b;"></div>
+    Ejecución en paralelo (asyncio.gather)
+  </div>
+</div>
+
+</body>
+</html>

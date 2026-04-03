@@ -17,3 +17,5 @@ venv/
 service-account*.json
 credentials*.json
 *-sa-key.json
+
+node_modules
