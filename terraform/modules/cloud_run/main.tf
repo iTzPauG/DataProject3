@@ -35,6 +35,28 @@ resource "google_cloud_run_v2_service" "api" {
         value = "gemini"
       }
 
+      dynamic "env" {
+        for_each = {
+          "GOOGLE_MAPS_API_KEY"  = "google-maps-api-key"
+          "GOOGLE_GENAI_API_KEY" = "google-genai-api-key"
+          "GEOAPIFY_API_KEY"     = "geoapify-api-key"
+          "TRIPADVISOR_API_KEY"  = "tripadvisor-api-key"
+          "YELP_API_KEY"         = "yelp-api-key"
+          "HERE_API_KEY"         = "here-api-key"
+          "OPENROUTER_API_KEY"   = "openrouter-api-key"
+          "GROQ_API_KEY"         = "groq-api-key"
+        }
+        content {
+          name = env.key
+          value_source {
+            secret_key_ref {
+              secret  = env.value
+              version = "latest"
+            }
+          }
+        }
+      }
+
       resources {
         limits = {
           cpu    = "1"

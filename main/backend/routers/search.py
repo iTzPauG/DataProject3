@@ -9,7 +9,7 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Query
 from fastapi.responses import StreamingResponse
 from services.brain_service import ask_brain, ask_brain_stream
-from database import get_supabase
+from database import get_db
 from services.cache_service import cache_get, cache_set
 from services.geoapify_service import search_geoapify_places
 from services.google_places_service import search_places as search_google_places
@@ -28,54 +28,52 @@ async def _search_local(
     lat: float,
     lng: float,
 ) -> list[dict]:
-    sb = get_supabase()
+    if len(query) < 2:
+        return []
+
     q = f"%{query}%"
     results: list[dict] = []
 
-    if len(query) < 2:
-        return results
-
-    def fetch_places():
-        places_query = (
-            sb.table("places")
-            .select("id,name,lat,lng,address,category_id,photo_url,price_level,rating,source,opening_hours,amenity")
-            .ilike("name", q)
-            .limit(30)
+    async with get_db() as db:
+        places_sql = (
+            "SELECT id,name,lat,lng,address,category_id,photo_url,price_level,rating,source,opening_hours,amenity "
+            "FROM places WHERE name ILIKE $1"
         )
-        if category:
-            places_query = places_query.eq("category_id", category)
-        return places_query.execute().data or []
-
-    def fetch_events():
-        events_query = (
-            sb.table("events")
-            .select("id,title,lat,lng,address,category_id,photo_url,starts_at,ends_at,price_info,status")
-            .ilike("title", q)
-            .limit(20)
+        events_sql = (
+            "SELECT id,title,lat,lng,address,category_id,photo_url,starts_at,ends_at,price_info,status "
+            "FROM events WHERE title ILIKE $1"
         )
-        if category:
-            events_query = events_query.eq("category_id", category)
-        return events_query.execute().data or []
 
-    def fetch_reports():
-        if category in (None, "report"):
-            reports_query = (
-                sb.table("community_reports")
-                .select("id,title,lat,lng,report_type,confidence,confirmations,denials,expires_at,description,photo_urls,is_active")
-                .ilike("title", q)
-                .limit(20)
+        if category:
+            places_coro = db.fetch(places_sql + " AND category_id=$2 LIMIT 30", q, category)
+            events_coro = db.fetch(events_sql + " AND category_id=$2 LIMIT 20", q, category)
+        else:
+            places_coro = db.fetch(places_sql + " LIMIT 30", q)
+            events_coro = db.fetch(events_sql + " LIMIT 20", q)
+
+        async def _empty():
+            return []
+
+        reports_coro = (
+            db.fetch(
+                "SELECT id,title,lat,lng,report_type,confidence,confirmations,denials,expires_at,description,photo_urls,is_active "
+                "FROM community_reports WHERE title ILIKE $1 LIMIT 20",
+                q,
             )
-            return reports_query.execute().data or []
-        return []
-
-    try:
-        places, events, reports = await asyncio.gather(
-            asyncio.to_thread(fetch_places),
-            asyncio.to_thread(fetch_events),
-            asyncio.to_thread(fetch_reports)
+            if category in (None, "report")
+            else _empty()
         )
-    except Exception:
-        places, events, reports = [], [], []
+
+        try:
+            places_rows, events_rows, reports_rows = await asyncio.gather(
+                places_coro, events_coro, reports_coro
+            )
+        except Exception:
+            return []
+
+    places = [dict(r) for r in places_rows]
+    events = [dict(r) for r in events_rows]
+    reports = [dict(r) for r in reports_rows]
 
     for row in places:
         results.append(

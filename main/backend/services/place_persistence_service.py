@@ -1,9 +1,10 @@
 """Persistence helpers for provider-sourced places."""
 from __future__ import annotations
 
+import json
 from typing import Iterable
 
-from database import get_supabase
+from database import get_db
 
 
 def _canonical_place_row(item: dict, *, fallback_category: str | None = None) -> dict | None:
@@ -42,16 +43,30 @@ def _canonical_place_row(item: dict, *, fallback_category: str | None = None) ->
     }
 
 
-def upsert_provider_places(items: Iterable[dict], *, fallback_category: str | None = None) -> int:
-    rows = []
-    for item in items:
-        row = _canonical_place_row(item, fallback_category=fallback_category)
-        if row:
-            rows.append(row)
-
+async def upsert_provider_places(items: Iterable[dict], *, fallback_category: str | None = None) -> int:
+    rows = [r for item in items if (r := _canonical_place_row(item, fallback_category=fallback_category))]
     if not rows:
         return 0
 
-    sb = get_supabase()
-    sb.table("places").upsert(rows, on_conflict="source,external_id").execute()
+    async with get_db() as db:
+        await db.executemany(
+            """INSERT INTO places
+               (external_id, source, category_id, subcategory, amenity, name, address,
+                photo_url, rating, price_level, lat, lng, location, opening_hours, metadata, is_verified)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,ST_GeomFromText($13,4326),$14,$15,$16)
+               ON CONFLICT (source, external_id) DO UPDATE SET
+                 name=EXCLUDED.name, address=EXCLUDED.address, photo_url=EXCLUDED.photo_url,
+                 rating=EXCLUDED.rating, price_level=EXCLUDED.price_level,
+                 lat=EXCLUDED.lat, lng=EXCLUDED.lng, location=EXCLUDED.location,
+                 opening_hours=EXCLUDED.opening_hours, metadata=EXCLUDED.metadata""",
+            [
+                (
+                    r["external_id"], r["source"], r["category_id"], r["subcategory"], r["amenity"],
+                    r["name"], r["address"], r["photo_url"], r["rating"], r["price_level"],
+                    r["lat"], r["lng"], r["location"], r["opening_hours"],
+                    json.dumps(r["metadata"]), r["is_verified"],
+                )
+                for r in rows
+            ],
+        )
     return len(rows)
