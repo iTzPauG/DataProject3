@@ -459,8 +459,10 @@ export interface VoteResponse {
   status: string;
   vote: number;
   userVote: number;
-  total_likes: number;
-  total_dislikes: number;
+  likes: number;
+  dislikes: number;
+  total_likes?: number;
+  total_dislikes?: number;
 }
 
 export async function castVote(
@@ -468,9 +470,13 @@ export async function castVote(
   itemType: 'place' | 'event',
   vote: 1 | -1,
 ): Promise<VoteResponse> {
+  const token = await auth.currentUser?.getIdToken() ?? null;
   const res = await fetch(`${BASE_URL}/vote`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({ item_id: itemId, item_type: itemType, vote }),
   });
   if (!res.ok) {

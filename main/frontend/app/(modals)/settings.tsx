@@ -44,7 +44,7 @@ const LANGUAGE_OPTIONS = [
 
 export default function SettingsModal() {
   const { colors, radii, typography, shadows } = useTheme();
-  const { session } = useAuth();
+  const { idToken } = useAuth();
   const { mapPreferences, setMapPreferences } = useAppState();
   const [syncState, setSyncState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [remoteLoaded, setRemoteLoaded] = useState(false);
@@ -212,14 +212,14 @@ export default function SettingsModal() {
 
   useEffect(() => {
     async function loadRemote() {
-      if (!session?.access_token) {
+      if (!idToken) {
         setRemoteLoaded(true);
         return;
       }
       try {
         const res = await fetch(`${BASE_URL}/preferences/me`, {
           headers: {
-            Authorization: `Bearer ${session.access_token}`,
+            Authorization: `Bearer ${idToken}`,
           },
         });
         if (!res.ok) return;
@@ -242,18 +242,18 @@ export default function SettingsModal() {
 
     void loadRemote();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.access_token]);
+  }, [idToken]);
 
   useEffect(() => {
     async function syncRemote() {
-      if (!session?.access_token || !remoteLoaded) return;
+      if (!idToken || !remoteLoaded) return;
       setSyncState('saving');
       try {
         const res = await fetch(`${BASE_URL}/preferences/me`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
+            Authorization: `Bearer ${idToken}`,
           },
           body: JSON.stringify({
             map_style: mapPreferences.mapStyle === 'minimal' ? 'standard' : mapPreferences.mapStyle,
@@ -273,10 +273,10 @@ export default function SettingsModal() {
     }
 
     void syncRemote();
-  }, [mapPreferences, remoteLoaded, session?.access_token]);
+  }, [mapPreferences, remoteLoaded, idToken]);
 
   const syncLabel = useMemo(() => {
-    if (!session?.access_token) return 'Local preference only';
+    if (!idToken) return 'Local preference only';
     switch (syncState) {
       case 'saving':
         return 'Sincronizando...';
@@ -287,7 +287,7 @@ export default function SettingsModal() {
       default:
         return 'Conectado a la nube';
     }
-  }, [session?.access_token, syncState]);
+  }, [idToken, syncState]);
 
   return (
     <SafeAreaView style={dynamicStyles.safe}>

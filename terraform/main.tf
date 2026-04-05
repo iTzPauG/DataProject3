@@ -43,11 +43,12 @@ module "registry" {
 }
 
 module "cloud_run" {
-  source     = "./modules/cloud_run"
-  region     = var.region
-  image      = module.registry.image
-  build_id   = module.registry.build_id
-  depends_on = [module.apis, module.cloud_sql]
+  source               = "./modules/cloud_run"
+  region               = var.region
+  image                = module.registry.image
+  build_id             = module.registry.build_id
+  cloud_sql_connection = module.cloud_sql.connection_name
+  depends_on           = [module.apis, module.cloud_sql]
 }
 
 module "databases" {

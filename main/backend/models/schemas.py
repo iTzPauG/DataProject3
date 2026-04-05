@@ -131,13 +131,11 @@ class UserPreferencesResponse(BaseModel):
     map_style: str = "standard"
     map_minimal: bool = False
     map_preset: str = "classic"
-    gado_overlay_on: bool = Field(
-        default=True,
-        serialization_alias="gado_overlay",
-        validation_alias="gado_overlay",
-    )
+    gado_overlay_on: bool = Field(default=True, serialization_alias="gado_overlay", validation_alias="gado_overlay")
     notifications_on: bool = True
     language: str = "es"
+    theme: str = "system"
+    show_real_time_events: bool = True
 
 
 class UserPreferencesUpdate(BaseModel):
@@ -148,13 +146,11 @@ class UserPreferencesUpdate(BaseModel):
     map_style: Optional[str] = None
     map_minimal: Optional[bool] = None
     map_preset: Optional[str] = None
-    gado_overlay_on: Optional[bool] = Field(
-        default=None,
-        serialization_alias="gado_overlay",
-        validation_alias="gado_overlay",
-    )
+    gado_overlay_on: Optional[bool] = Field(default=None, serialization_alias="gado_overlay", validation_alias="gado_overlay")
     notifications_on: Optional[bool] = None
     language: Optional[str] = None
+    theme: Optional[str] = None
+    show_real_time_events: Optional[bool] = None
 
 
 # ── Events ───────────────────────────────────────────────────────────────────

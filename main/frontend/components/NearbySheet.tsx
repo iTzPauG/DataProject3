@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { router } from 'expo-router';
 import { useDeviceType } from '../hooks/useDeviceType';
 import { MapItem } from '../types/map';
 import { formatDistance } from '../utils/format';
@@ -56,6 +57,7 @@ interface Props {
   selectedId: string | null;
   onSelectItem: (id: string) => void;
   loading?: boolean;
+  hasSearched?: boolean;
 }
 
 // ─── Item row ─────────────────────────────────────────────────────────────────
@@ -64,10 +66,12 @@ function NearbyItem({
   item,
   selected,
   onPress,
+  onNavigate,
 }: {
   item: MapItem;
   selected: boolean;
   onPress: () => void;
+  onNavigate: () => void;
 }) {
   const { colors, radii, typography } = useTheme();
   const catStyle = CATEGORY_STYLES[item.category_id] ?? DEFAULT_STYLE;
@@ -147,17 +151,34 @@ function NearbyItem({
           ) : null}
         </View>
       </View>
+      {selected && (
+        <TouchableOpacity
+          onPress={onNavigate}
+          style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: colors.brand, borderRadius: 8 }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Ver →</Text>
+        </TouchableOpacity>
+      )}
     </TouchableOpacity>
   );
 }
 
 // ─── Sheet ────────────────────────────────────────────────────────────────────
 
-export default function NearbySheet({ items, selectedId, onSelectItem, loading }: Props) {
+export default function NearbySheet({ items, selectedId, onSelectItem, loading, hasSearched }: Props) {
   const { colors, radii, shadows, typography } = useTheme();
   const { isDesktop } = useDeviceType();
   const [expanded, setExpanded] = useState(false);
   const animHeight = useRef(new Animated.Value(COLLAPSED_HEIGHT)).current;
+
+  // Auto-expand when an item is selected
+  React.useEffect(() => {
+    if (selectedId) {
+      setExpanded(true);
+      Animated.spring(animHeight, { toValue: EXPANDED_HEIGHT, useNativeDriver: false, friction: 10 }).start();
+    }
+  }, [selectedId]);
 
   const styles = useMemo(() => StyleSheet.create({
     container: {
@@ -238,6 +259,10 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading }
         item={item}
         selected={selectedId === item.item_id}
         onPress={() => onSelectItem(item.item_id)}
+        onNavigate={() => {
+          const pathname = item.item_type === 'event' ? '/(modals)/event-details' : '/(modals)/place-details';
+          router.push({ pathname: pathname as any, params: { id: item.item_id, type: item.item_type } });
+        }}
       />
     ),
     [selectedId, onSelectItem],
@@ -245,6 +270,8 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading }
 
   const desktopWidth = 360;
   const desktopLeft = 24;
+
+  if (!selectedId && !hasSearched && (!items || items.length === 0) && !loading) return null;
 
   return (
     <Animated.View
@@ -274,7 +301,7 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading }
               ? 'Buscando...'
               : (items && items.length > 0)
                 ? `${items.length} cerca de ti`
-                : 'Sin resultados'}
+                : (hasSearched ? 'Sin resultados' : '')}
           </Text>
         </TouchableOpacity>
       </View>

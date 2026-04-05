@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { Platform, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import { FlatList, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
 import Map from '../../components/map/Map';
@@ -12,8 +12,11 @@ import { useAppState } from '../../hooks/useAppState';
 import { useDeviceType } from '../../hooks/useDeviceType';
 import { useLocation } from '../../hooks/useLocation';
 import { fetchNearbyItems, fetchCategories } from '../../services/mapService';
+import { BASE_URL } from '../../services/api';
 import { Category, MapItem } from '../../types';
 import { useTheme } from '../../utils/theme';
+
+type AutocompleteResult = { display: string; lat: number; lng: number; id?: string; address?: string; raw?: any };
 
 export default function MapTab() {
   const { colors, theme, shadows } = useTheme();
@@ -35,7 +38,10 @@ export default function MapTab() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [acResults, setAcResults] = useState<AutocompleteResult[]>([]);
+  const [selectedSearchItem, setSelectedSearchItem] = useState<AutocompleteResult | null>(null);
   const hasAutoCentered = useRef(false);
+  const acTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const dynamicStyles = useMemo(() => StyleSheet.create({
     container: {
@@ -63,38 +69,112 @@ export default function MapTab() {
       opacity: 0.5,
       marginHorizontal: 16,
     },
+    dropdown: {
+      position: 'absolute',
+      top: '100%',
+      left: 0,
+      right: 0,
+      marginTop: 4,
+      borderRadius: 16,
+      overflow: 'hidden',
+      backgroundColor: theme === 'dark' ? 'rgba(23, 27, 41, 0.97)' : 'rgba(255, 255, 255, 0.97)',
+      borderWidth: 1,
+      borderColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.07)',
+      ...shadows.soft,
+      zIndex: 20,
+    },
+    dropdownItem: {
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.stroke,
+    },
+    dropdownName: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.ink,
+    },
+    dropdownAddress: {
+      fontSize: 12,
+      color: colors.inkMuted,
+      marginTop: 2,
+    },
   }), [colors, theme, shadows]);
 
-  const filteredItems = useMemo(() => {
-    if (!searchQuery.trim()) return nearbyItems;
-    const query = searchQuery.toLowerCase();
-    return nearbyItems.filter((item) => {
-      const titleMatch = item.title?.toLowerCase().includes(query);
-      const categoryMatch = item.category_id?.toLowerCase().includes(query);
-      return titleMatch || categoryMatch;
-    });
-  }, [nearbyItems, searchQuery]);
-
   const fetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Autocomplete ───────────────────────────────────────────────────────────
+
+  const handleSearchChange = useCallback((text: string) => {
+    setSearchQuery(text);
+    setSelectedSearchItem(null);
+    if (acTimer.current) clearTimeout(acTimer.current);
+    if (text.length < 1) { setAcResults([]); return; }
+    acTimer.current = setTimeout(async () => {
+      try {
+        const lat = location.lat ?? mapRegion?.lat ?? 39.4699;
+        const lng = location.lng ?? mapRegion?.lng ?? -0.3763;
+        const res = await fetch(
+          `${BASE_URL}/search/universal?q=${encodeURIComponent(text)}&lat=${lat}&lng=${lng}&radius_m=5000&use_brain=false`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const results: AutocompleteResult[] = (data.results ?? [])
+            .filter((r: any) => r.name && r.lat && r.lng)
+            .slice(0, 5)
+            .map((r: any) => ({
+              display: r.name,
+              lat: r.lat,
+              lng: r.lng,
+              id: r.id,
+              address: r.address ?? r.metadata?.address,
+              raw: r,
+            }));
+          setAcResults(results);
+        }
+      } catch {}
+    }, 300);
+  }, [location.lat, location.lng, mapRegion]);
+
+  const handleSelectResult = useCallback((item: AutocompleteResult) => {
+    setSearchQuery(item.display);
+    setAcResults([]);
+    setSelectedSearchItem(item);
+    setMapRegion({ lat: item.lat, lng: item.lng, latDelta: 0.008, lngDelta: 0.008 });
+    if (item.id && item.raw) {
+      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://restaurant-api-gcfbpra65a-ew.a.run.app';
+      const photoUrl = item.raw.metadata?.photo_url;
+      const mapItem = {
+        item_id: item.id,
+        item_type: 'place',
+        title: item.display,
+        category_id: item.raw.category_id ?? 'food',
+        lat: item.lat,
+        lng: item.lng,
+        distance_m: 0,
+        metadata: {
+          ...item.raw.metadata,
+          photo_url: photoUrl?.startsWith('/') ? `${backendUrl}${photoUrl}` : photoUrl,
+          address: item.address,
+          google_reviews: item.raw.google_reviews ?? [],
+        },
+      } as any;
+      setNearbyItems(prev => {
+        const without = prev.filter(i => i.item_id !== item.id);
+        return [mapItem, ...without];
+      });
+      setSelectedId(item.id);
+    }
+  }, [setMapRegion, setNearbyItems]);
+      });
+    }
+  }, [setMapRegion]);
 
   // ── Callbacks ─────────────────────────────────────────────────────────────
 
   const handleSheetItemPress = useCallback((id: string) => {
     setSelectedId(id);
-    const item = nearbyItems.find((i) => i.item_id === id);
-    if (item) {
-      const pathname = item.item_type === 'report' 
-        ? '/(modals)/report-details' 
-        : item.item_type === 'event'
-          ? '/(modals)/event-details'
-          : '/(modals)/place-details';
-          
-      router.push({
-        pathname: pathname as any,
-        params: { id: item.item_id, type: item.item_type },
-      });
-    }
-  }, [nearbyItems]);
+  }, []);
 
   const handleRegionChange = useCallback(
     (lat: number, lng: number, latDelta: number, lngDelta: number) => {
@@ -105,27 +185,50 @@ export default function MapTab() {
 
   const handleCenterOnUser = useCallback(() => {
     if (location.lat && location.lng) {
-      setMapRegion({
-        lat: location.lat,
-        lng: location.lng,
-        latDelta: 0.015,
-        lngDelta: 0.015,
-      });
+      setMapRegion({ lat: location.lat, lng: location.lng, latDelta: 0.015, lngDelta: 0.015 });
     }
   }, [location, setMapRegion]);
 
   const handleCategorySelect = useCallback(
-    (categoryId: string | null) => {
-      setSelectedCategory(categoryId);
-    },
+    (categoryId: string | null) => { setSelectedCategory(categoryId); },
     [setSelectedCategory],
   );
 
   // ── Effects ────────────────────────────────────────────────────────────────
 
+  // Fetch full place data when a marker is selected but metadata is missing
+  useEffect(() => {
+    if (!selectedId) return;
+    const item = nearbyItems.find(i => i.item_id === selectedId);
+    if (item?.metadata?.photo_url && item?.metadata?.google_reviews) return; // already have data
+    const lat = item?.lat ?? mapRegion?.lat ?? 39.4699;
+    const lng = item?.lng ?? mapRegion?.lng ?? -0.3763;
+    const q = item?.title ?? selectedId;
+    const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://restaurant-api-gcfbpra65a-ew.a.run.app';
+    fetch(`${backendUrl}/search/universal?q=${encodeURIComponent(q)}&lat=${lat}&lng=${lng}&radius_m=300&use_brain=false`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const found = (data?.results ?? []).find((r: any) => r.id === selectedId || r.name === q);
+        if (!found) return;
+        const photoUrl = found.metadata?.photo_url;
+        setNearbyItems(prev => prev.map(i => i.item_id === selectedId ? {
+          ...i,
+          metadata: {
+            ...i.metadata,
+            ...found.metadata,
+            photo_url: photoUrl?.startsWith('/') ? `${backendUrl}${photoUrl}` : photoUrl,
+            address: found.address ?? found.metadata?.address ?? i.metadata?.address,
+            google_reviews: found.google_reviews ?? found.metadata?.google_reviews ?? [],
+          },
+        } : i));
+      })
+      .catch(() => {});
+  }, [selectedId]);
+
   useEffect(() => {
     fetchCategories().then(setCategories).catch(() => {});
-  },[]);
+    setSelectedCategory(null); // always start with "Todos"
+  }, []);
 
   useEffect(() => {
     if (params.category && params.category !== selectedCategory) {
@@ -135,19 +238,19 @@ export default function MapTab() {
 
   useEffect(() => {
     if (!location.loading && !location.error && !hasAutoCentered.current && location.lat && location.lng) {
-      // ONLY center once on initial load
       handleCenterOnUser();
       hasAutoCentered.current = true;
     }
   }, [location.loading, location.error, location.lat, location.lng, handleCenterOnUser]);
 
   useEffect(() => {
-    if (location.loading && !mapRegion) return;
-    
-    // Browse priority: use map center if user has moved, otherwise GPS
+    if (!selectedCategory) {
+      setNearbyItems([]);
+      return;
+    }
+
     const searchLat = mapRegion?.lat ?? location.lat;
     const searchLng = mapRegion?.lng ?? location.lng;
-    
     if (searchLat === null || searchLng === null) return;
 
     if (fetchTimer.current) clearTimeout(fetchTimer.current);
@@ -155,72 +258,44 @@ export default function MapTab() {
       setLoading(true);
       try {
         const lang = mapPreferences.language === 'system' ? 'es' : mapPreferences.language;
-        // Always send 'place'; conditionally add events/reports based on toggle
-        const itemTypes: string[] = [];
-        if (mapPreferences.showRealTimeEvents) {
-          itemTypes.push('event', 'report');
-        }
-        
-        let items: MapItem[] = [];
-        if (itemTypes.length > 0) {
-          items = await fetchNearbyItems(searchLat, searchLng, mapPreferences.defaultRadiusM, selectedCategory, lang, itemTypes);
-        }
-        
-        // Fetch full bookmarks details
-        try {
-          const { supabase } = require('../../services/supabase');
-          const { data: bData } = await supabase.from('saved_items').select('item_id, item_type');
-          
-          if (bData && bData.length > 0) {
-             const placeIds = bData.filter((b: any) => b.item_type === 'place').map((b: any) => b.item_id);
-             
-             if (placeIds.length > 0) {
-                // Fetch basic place data for these IDs from our backend or just pass them
-                const bookmarksRaw = await fetchNearbyItems(searchLat, searchLng, 50000, null, lang, ['place']);
-                const bookmarkedPlaces = bookmarksRaw.filter((p: any) => placeIds.includes(p.item_id));
-                
-                const existingIds = new Set(items.map(i => i.item_id));
-                bookmarkedPlaces.forEach((b: any) => {
-                  if (!existingIds.has(b.item_id)) {
-                    b.metadata = { ...b.metadata, is_favorite: true };
-                    items.push(b);
-                  }
-                });
-             }
-          }
-        } catch (err) {}
-        
+        const itemTypes: string[] = ['place'];
+        if (mapPreferences.showRealTimeEvents) itemTypes.push('event', 'report');
+        const items = await fetchNearbyItems(searchLat, searchLng, mapPreferences.defaultRadiusM, selectedCategory, lang, itemTypes);
         setNearbyItems(items);
       } catch {
       } finally {
         setLoading(false);
       }
-    }, 800); // 800ms debounce allows smooth panning
+    }, 300);
 
-    return () => {
-      if (fetchTimer.current) clearTimeout(fetchTimer.current);
-    };
-  },[
-    mapRegion?.lat,
-    mapRegion?.lng,
-    selectedCategory,
-    setNearbyItems,
-    mapPreferences.defaultRadiusM,
-    mapPreferences.showRealTimeEvents,
-    // location.lat/lng removed to prevent periodic re-centering bugs
-  ]);
+    return () => { if (fetchTimer.current) clearTimeout(fetchTimer.current); };
+  }, [selectedCategory]); // only re-fetch when category changes
 
   const desktopWidth = Math.min(windowWidth - 40, 600);
   const leftOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 16;
   const rightOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 16;
-
   const minimalist = mapPreferences.mapStyle === 'minimal';
+
+  // Merge selected search item as a pin on the map
+  const displayItems = useMemo(() => {
+    if (!selectedSearchItem) return nearbyItems;
+    const pin: MapItem = {
+      item_id: '__search_pin__',
+      item_type: 'place',
+      title: selectedSearchItem.display,
+      lat: selectedSearchItem.lat,
+      lng: selectedSearchItem.lng,
+      category_id: null,
+      metadata: {},
+    } as any;
+    return [pin, ...nearbyItems.filter(i => i.item_id !== '__search_pin__')];
+  }, [nearbyItems, selectedSearchItem]);
 
   return (
     <AnimatedTabScene>
     <View style={dynamicStyles.container}>
       <Map
-        items={filteredItems}
+        items={displayItems}
         selectedId={selectedId}
         onSelectItem={handleSheetItemPress}
         onRegionChange={handleRegionChange}
@@ -253,30 +328,22 @@ export default function MapTab() {
               placeholder="Buscar lugares o eventos..."
               placeholderTextColor={colors.inkMuted}
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={handleSearchChange}
               clearButtonMode="while-editing"
               accessibilityLabel="Campo de búsqueda"
             />
 
-            {searchQuery.length > 0 && Platform.OS === 'android' && (
-              <TouchableOpacity 
-                onPress={() => setSearchQuery('')} 
-                style={styles.iconBtn}
-                accessibilityLabel="Limpiar búsqueda"
-                accessibilityRole="button"
-              >
-                <Ionicons name="close-circle" size={18} color={colors.inkMuted} />
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.iconBtn}
               activeOpacity={0.7}
-              onPress={() => router.push('/(modals)/settings')}
-              accessibilityLabel="Abrir ajustes"
+              onPress={() => { setSearchQuery(''); setAcResults([]); setSelectedSearchItem(null); }}
+              accessibilityLabel="Limpiar búsqueda"
               accessibilityRole="button"
             >
-              <Ionicons name="options-outline" size={20} color={colors.brand} />
+              {searchQuery.length > 0
+                ? <Ionicons name="close-circle" size={20} color={colors.inkMuted} />
+                : <Ionicons name="close-circle-outline" size={20} color={colors.stroke} />
+              }
             </TouchableOpacity>
           </View>
 
@@ -290,13 +357,37 @@ export default function MapTab() {
             />
           </View>
         </BlurView>
+
+        {acResults.length > 0 && (
+          <View style={dynamicStyles.dropdown}>
+            <FlatList
+              data={acResults}
+              keyExtractor={(_, i) => String(i)}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item, index }) => (
+                <TouchableOpacity
+                  style={[
+                    dynamicStyles.dropdownItem,
+                    index === acResults.length - 1 && { borderBottomWidth: 0 },
+                  ]}
+                  onPress={() => handleSelectResult(item)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={dynamicStyles.dropdownName} numberOfLines={1}>{item.display}</Text>
+                  {item.address ? <Text style={dynamicStyles.dropdownAddress} numberOfLines={1}>{item.address}</Text> : null}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        )}
       </View>
 
       <NearbySheet
-        items={filteredItems}
+        items={nearbyItems}
         selectedId={selectedId}
         onSelectItem={handleSheetItemPress}
         loading={loading}
+        hasSearched={selectedCategory !== null}
       />
     </View>
     </AnimatedTabScene>

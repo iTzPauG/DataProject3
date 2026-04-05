@@ -21,6 +21,7 @@ export default function RegisterModal() {
   const { colors, typography } = useTheme();
   const router = useRouter();
   const { signUpWithEmail } = useAuth();
+  const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -122,12 +123,8 @@ export default function RegisterModal() {
 
     setLoading(true);
     try {
-      await signUpWithEmail(email, password);
-      Alert.alert(
-        'Registro enviado',
-        'Por favor revisa tu email para confirmar tu cuenta',
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
+      await signUpWithEmail(email, password, displayName || undefined);
+      router.replace('/(tabs)');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Error al registrarse');
     } finally {
@@ -143,7 +140,7 @@ export default function RegisterModal() {
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
+            <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} style={styles.closeButton}>
               <Ionicons name="close" size={24} color={colors.ink} />
             </TouchableOpacity>
             <Text style={styles.title}>Crear cuenta</Text>
@@ -161,6 +158,18 @@ export default function RegisterModal() {
                 onChangeText={setEmail}
                 autoCapitalize="none"
                 keyboardType="email-address"
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Ionicons name="person-outline" size={20} color={colors.inkMuted} style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Nombre de usuario (opcional)"
+                placeholderTextColor={colors.inkMuted}
+                value={displayName}
+                onChangeText={setDisplayName}
+                autoCapitalize="words"
               />
             </View>
 

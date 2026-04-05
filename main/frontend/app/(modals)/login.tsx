@@ -167,7 +167,7 @@ export default function LoginModal() {
     setLoading(true);
     try {
       await signInWithEmail(email, password);
-      router.back();
+      router.replace('/(tabs)');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Error al iniciar sesión');
     } finally {
@@ -194,7 +194,7 @@ export default function LoginModal() {
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
+            <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} style={styles.closeButton}>
               <Text style={styles.closeIcon}>✕</Text>
             </TouchableOpacity>
             <Text style={styles.title}>Bienvenido</Text>

@@ -131,6 +131,8 @@ CREATE TABLE IF NOT EXISTS public.user_preferences (
   gado_overlay_on   BOOLEAN DEFAULT true,
   notifications_on  BOOLEAN DEFAULT true,
   language          TEXT DEFAULT 'es',
+  theme             TEXT DEFAULT 'system',
+  show_real_time_events BOOLEAN DEFAULT true,
   updated_at        TIMESTAMPTZ DEFAULT now()
 );
 
