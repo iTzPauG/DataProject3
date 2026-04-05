@@ -72,7 +72,15 @@ export async function fetchNearbyItems(
     });
     if (!res.ok) throw new Error(`Failed to fetch nearby items: ${res.status}`);
     const data = await res.json() as { items?: MapItem[] };
-    return data.items ?? [];
+    const items = data.items ?? [];
+    // Prefix relative photo URLs with backend base URL
+    items.forEach(item => {
+      const p = item.metadata?.photo_url as string | undefined;
+      if (p && p.startsWith('/')) {
+        (item.metadata as any).photo_url = `${BASE_URL}${p}`;
+      }
+    });
+    return items;
   } catch (error) {
     console.warn('[mapService] Error fetching nearby items:', error);
     return [];

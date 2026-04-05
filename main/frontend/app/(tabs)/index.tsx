@@ -16,7 +16,7 @@ import { BASE_URL } from '../../services/api';
 import { Category, MapItem } from '../../types';
 import { useTheme } from '../../utils/theme';
 
-type AutocompleteResult = { display: string; lat: number; lng: number };
+type AutocompleteResult = { display: string; lat: number; lng: number; id?: string; address?: string; raw?: any };
 
 export default function MapTab() {
   const { colors, theme, shadows } = useTheme();
@@ -109,15 +109,28 @@ export default function MapTab() {
     setSearchQuery(text);
     setSelectedSearchItem(null);
     if (acTimer.current) clearTimeout(acTimer.current);
-    if (text.length < 2) { setAcResults([]); return; }
+    if (text.length < 1) { setAcResults([]); return; }
     acTimer.current = setTimeout(async () => {
       try {
         const lat = location.lat ?? mapRegion?.lat ?? 39.4699;
         const lng = location.lng ?? mapRegion?.lng ?? -0.3763;
-        const res = await fetch(`${BASE_URL}/search/autocomplete?q=${encodeURIComponent(text)}&lat=${lat}&lng=${lng}`);
+        const res = await fetch(
+          `${BASE_URL}/search/universal?q=${encodeURIComponent(text)}&lat=${lat}&lng=${lng}&radius_m=5000&use_brain=false`
+        );
         if (res.ok) {
-          const data: AutocompleteResult[] = await res.json();
-          setAcResults(data.slice(0, 5));
+          const data = await res.json();
+          const results: AutocompleteResult[] = (data.results ?? [])
+            .filter((r: any) => r.name && r.lat && r.lng)
+            .slice(0, 5)
+            .map((r: any) => ({
+              display: r.name,
+              lat: r.lat,
+              lng: r.lng,
+              id: r.id,
+              address: r.address ?? r.metadata?.address,
+              raw: r,
+            }));
+          setAcResults(results);
         }
       } catch {}
     }, 300);
@@ -127,26 +140,41 @@ export default function MapTab() {
     setSearchQuery(item.display);
     setAcResults([]);
     setSelectedSearchItem(item);
-    setMapRegion({ lat: item.lat, lng: item.lng, latDelta: 0.01, lngDelta: 0.01 });
+    setMapRegion({ lat: item.lat, lng: item.lng, latDelta: 0.008, lngDelta: 0.008 });
+    if (item.id && item.raw) {
+      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://restaurant-api-gcfbpra65a-ew.a.run.app';
+      const photoUrl = item.raw.metadata?.photo_url;
+      const mapItem = {
+        item_id: item.id,
+        item_type: 'place',
+        title: item.display,
+        category_id: item.raw.category_id ?? 'food',
+        lat: item.lat,
+        lng: item.lng,
+        distance_m: 0,
+        metadata: {
+          ...item.raw.metadata,
+          photo_url: photoUrl?.startsWith('/') ? `${backendUrl}${photoUrl}` : photoUrl,
+          address: item.address,
+          google_reviews: item.raw.google_reviews ?? [],
+        },
+      } as any;
+      setNearbyItems(prev => {
+        const without = prev.filter(i => i.item_id !== item.id);
+        return [mapItem, ...without];
+      });
+      setSelectedId(item.id);
+    }
+  }, [setMapRegion, setNearbyItems]);
+      });
+    }
   }, [setMapRegion]);
 
   // ── Callbacks ─────────────────────────────────────────────────────────────
 
   const handleSheetItemPress = useCallback((id: string) => {
     setSelectedId(id);
-    const item = nearbyItems.find((i) => i.item_id === id);
-    if (item) {
-      const pathname = item.item_type === 'report' 
-        ? '/(modals)/report-details' 
-        : item.item_type === 'event'
-          ? '/(modals)/event-details'
-          : '/(modals)/place-details';
-      router.push({
-        pathname: pathname as any,
-        params: { id: item.item_id, type: item.item_type },
-      });
-    }
-  }, [nearbyItems]);
+  }, []);
 
   const handleRegionChange = useCallback(
     (lat: number, lng: number, latDelta: number, lngDelta: number) => {
@@ -168,7 +196,39 @@ export default function MapTab() {
 
   // ── Effects ────────────────────────────────────────────────────────────────
 
-  useEffect(() => { fetchCategories().then(setCategories).catch(() => {}); }, []);
+  // Fetch full place data when a marker is selected but metadata is missing
+  useEffect(() => {
+    if (!selectedId) return;
+    const item = nearbyItems.find(i => i.item_id === selectedId);
+    if (item?.metadata?.photo_url && item?.metadata?.google_reviews) return; // already have data
+    const lat = item?.lat ?? mapRegion?.lat ?? 39.4699;
+    const lng = item?.lng ?? mapRegion?.lng ?? -0.3763;
+    const q = item?.title ?? selectedId;
+    const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://restaurant-api-gcfbpra65a-ew.a.run.app';
+    fetch(`${backendUrl}/search/universal?q=${encodeURIComponent(q)}&lat=${lat}&lng=${lng}&radius_m=300&use_brain=false`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const found = (data?.results ?? []).find((r: any) => r.id === selectedId || r.name === q);
+        if (!found) return;
+        const photoUrl = found.metadata?.photo_url;
+        setNearbyItems(prev => prev.map(i => i.item_id === selectedId ? {
+          ...i,
+          metadata: {
+            ...i.metadata,
+            ...found.metadata,
+            photo_url: photoUrl?.startsWith('/') ? `${backendUrl}${photoUrl}` : photoUrl,
+            address: found.address ?? found.metadata?.address ?? i.metadata?.address,
+            google_reviews: found.google_reviews ?? found.metadata?.google_reviews ?? [],
+          },
+        } : i));
+      })
+      .catch(() => {});
+  }, [selectedId]);
+
+  useEffect(() => {
+    fetchCategories().then(setCategories).catch(() => {});
+    setSelectedCategory(null); // always start with "Todos"
+  }, []);
 
   useEffect(() => {
     if (params.category && params.category !== selectedCategory) {
@@ -184,7 +244,11 @@ export default function MapTab() {
   }, [location.loading, location.error, location.lat, location.lng, handleCenterOnUser]);
 
   useEffect(() => {
-    if (location.loading && !mapRegion) return;
+    if (!selectedCategory) {
+      setNearbyItems([]);
+      return;
+    }
+
     const searchLat = mapRegion?.lat ?? location.lat;
     const searchLng = mapRegion?.lng ?? location.lng;
     if (searchLat === null || searchLng === null) return;
@@ -194,29 +258,18 @@ export default function MapTab() {
       setLoading(true);
       try {
         const lang = mapPreferences.language === 'system' ? 'es' : mapPreferences.language;
-        const itemTypes: string[] = [];
+        const itemTypes: string[] = ['place'];
         if (mapPreferences.showRealTimeEvents) itemTypes.push('event', 'report');
-
-        let items: MapItem[] = [];
-        if (itemTypes.length > 0) {
-          items = await fetchNearbyItems(searchLat, searchLng, mapPreferences.defaultRadiusM, selectedCategory, lang, itemTypes);
-        }
+        const items = await fetchNearbyItems(searchLat, searchLng, mapPreferences.defaultRadiusM, selectedCategory, lang, itemTypes);
         setNearbyItems(items);
       } catch {
       } finally {
         setLoading(false);
       }
-    }, 800);
+    }, 300);
 
     return () => { if (fetchTimer.current) clearTimeout(fetchTimer.current); };
-  }, [
-    mapRegion?.lat,
-    mapRegion?.lng,
-    selectedCategory,
-    setNearbyItems,
-    mapPreferences.defaultRadiusM,
-    mapPreferences.showRealTimeEvents,
-  ]);
+  }, [selectedCategory]); // only re-fetch when category changes
 
   const desktopWidth = Math.min(windowWidth - 40, 600);
   const leftOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 16;
@@ -280,25 +333,17 @@ export default function MapTab() {
               accessibilityLabel="Campo de búsqueda"
             />
 
-            {searchQuery.length > 0 && Platform.OS === 'android' && (
-              <TouchableOpacity
-                onPress={() => { setSearchQuery(''); setAcResults([]); setSelectedSearchItem(null); }}
-                style={styles.iconBtn}
-                accessibilityLabel="Limpiar búsqueda"
-                accessibilityRole="button"
-              >
-                <Ionicons name="close-circle" size={18} color={colors.inkMuted} />
-              </TouchableOpacity>
-            )}
-
             <TouchableOpacity
               style={styles.iconBtn}
               activeOpacity={0.7}
-              onPress={() => router.push('/(modals)/settings')}
-              accessibilityLabel="Abrir ajustes"
+              onPress={() => { setSearchQuery(''); setAcResults([]); setSelectedSearchItem(null); }}
+              accessibilityLabel="Limpiar búsqueda"
               accessibilityRole="button"
             >
-              <Ionicons name="options-outline" size={20} color={colors.brand} />
+              {searchQuery.length > 0
+                ? <Ionicons name="close-circle" size={20} color={colors.inkMuted} />
+                : <Ionicons name="close-circle-outline" size={20} color={colors.stroke} />
+              }
             </TouchableOpacity>
           </View>
 
@@ -329,6 +374,7 @@ export default function MapTab() {
                   activeOpacity={0.7}
                 >
                   <Text style={dynamicStyles.dropdownName} numberOfLines={1}>{item.display}</Text>
+                  {item.address ? <Text style={dynamicStyles.dropdownAddress} numberOfLines={1}>{item.address}</Text> : null}
                 </TouchableOpacity>
               )}
             />
@@ -341,6 +387,7 @@ export default function MapTab() {
         selectedId={selectedId}
         onSelectItem={handleSheetItemPress}
         loading={loading}
+        hasSearched={selectedCategory !== null}
       />
     </View>
     </AnimatedTabScene>

@@ -34,13 +34,39 @@ const DEFAULT_STYLE = { color: '#9E9E9E', icon: '📍', label: 'Lugar' };
 
 export default function PlaceDetailsModal() {
   const { colors, radii, shadows, typography } = useTheme();
-  const { id } = useLocalSearchParams<{ id: string; type: string }>();
+  const { id, place_data } = useLocalSearchParams<{ id: string; type: string; place_data?: string }>();
   const { nearbyItems } = useAppState();
   const { user } = useAuth();
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [loadingBookmark, setLoadingBookmark] = useState(false);
   const [voteData, setVoteData] = useState<VoteData | undefined>();
   const [liveData, setLiveData] = useState<LiveDataResult | null>(null);
+
+  // Parse place_data param if provided (from search results)
+  const parsedPlaceData = useMemo(() => {
+    if (!place_data) return null;
+    try {
+      const r = JSON.parse(place_data);
+      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://restaurant-api-gcfbpra65a-ew.a.run.app';
+      const photoUrl = r.metadata?.photo_url;
+      return {
+        item_id: r.id,
+        item_type: r.item_type ?? 'place',
+        title: r.name,
+        category_id: r.category_id ?? 'food',
+        lat: r.lat,
+        lng: r.lng,
+        distance_m: 0,
+        metadata: {
+          ...r.metadata,
+          photo_url: photoUrl?.startsWith('/') ? `${backendUrl}${photoUrl}` : photoUrl,
+          rating: r.metadata?.rating,
+          address: r.address ?? r.metadata?.address,
+          google_reviews: r.google_reviews ?? r.metadata?.google_reviews ?? [],
+        },
+      };
+    } catch { return null; }
+  }, [place_data]);
 
   const dynamicStyles = useMemo(() => StyleSheet.create({
     safe: {
@@ -197,7 +223,7 @@ export default function PlaceDetailsModal() {
     }
   }
 
-  const item = nearbyItems.find((i) => i.item_id === id);
+  const item = nearbyItems.find((i) => i.item_id === id) ?? parsedPlaceData;
   const catStyle = CATEGORY_STYLES[item?.category_id ?? ''] ?? DEFAULT_STYLE;
 
   const photoUrl = item?.metadata?.photo_url as string | undefined;
@@ -223,12 +249,8 @@ export default function PlaceDetailsModal() {
   if (!item) {
     return (
       <SafeAreaView style={[dynamicStyles.safe, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.brand} />
         <Text style={{ marginTop: 20, color: colors.ink }}>Lugar no encontrado</Text>
-        <TouchableOpacity 
-          style={{ marginTop: 40, padding: 12 }} 
-          onPress={() => router.back()}
-        >
+        <TouchableOpacity style={{ marginTop: 40, padding: 12 }} onPress={() => router.back()}>
           <Text style={{ color: colors.brand }}>Cerrar</Text>
         </TouchableOpacity>
       </SafeAreaView>
