@@ -674,10 +674,8 @@ async def recommend_stream(
             await result_queue.put(None)  # signal this task is done (failed)
 
     async def _run_all() -> None:
-        """Process candidates sequentially — each result arrives as soon as it's
-        ready, giving the user a true one-by-one progressive experience."""
-        for c in candidates:
-            await _process_one(c)
+        """Process all candidates in parallel — results arrive as each finishes."""
+        await asyncio.gather(*[_process_one(c) for c in candidates])
 
     # Start the producer in the background
     producer = asyncio.ensure_future(_run_all())

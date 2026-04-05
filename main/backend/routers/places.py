@@ -1,15 +1,11 @@
-from datetime import datetime, timezone
 """Map / Places endpoints — nearby items and place details."""
-from typing import Optional, List
+from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from database import get_supabase
-from services.recommendation.category_flow import get_flow_definition
-from services.recommendation.tools import (
-    search_generic_category_places,
-    get_place_details,
-)
+from database import get_db
+from services.recommendation.tools import search_generic_category_places
 from services.live_data_service import get_live_data
 
 router = APIRouter(prefix="/places", tags=["places"])
@@ -25,8 +21,6 @@ async def nearby_items(
     item_types: list[str] = Query(["place", "event", "report"]),
 ):
     try:
-        # 1. Search places using tools
-        # tools.search_generic_category_places handles the radius and category filtering
         places = []
         if "place" in item_types:
             places = await search_generic_category_places(
@@ -38,39 +32,29 @@ async def nearby_items(
                 language=language,
             )
 
-        # 2. Get community reports from Supabase
-        # We also need reports from the community_reports table
-        sb = get_supabase()
         reports = []
-        if "report" in item_types:
-            reports_res = (
-                sb.table("community_reports")
-                .select("*")
-                .filter("lat", "gte", lat - 0.05)
-                .filter("lat", "lte", lat + 0.05)
-                .filter("lng", "gte", lng - 0.05)
-                .filter("lng", "lte", lng + 0.05)
-                .gte("expires_at", datetime.now(timezone.utc).isoformat())
-                .execute()
-            )
-            reports = reports_res.data or []
-
-        # 3. Get active events
         events = []
-        if "event" in item_types:
-            events_res = (
-                sb.table("events")
-                .select("*")
-                .filter("lat", "gte", lat - 0.05)
-                .filter("lat", "lte", lat + 0.05)
-                .filter("lng", "gte", lng - 0.05)
-                .filter("lng", "lte", lng + 0.05)
-                .gte("ends_at", datetime.now(timezone.utc).isoformat())
-                .execute()
-            )
-            events = events_res.data or []
+        now_iso = datetime.now(timezone.utc)
 
-        # 4. Merge results into a common MapItem format
+        async with get_db() as db:
+            if "report" in item_types:
+                rows = await db.fetch(
+                    """SELECT * FROM community_reports
+                       WHERE lat BETWEEN $1 AND $2 AND lng BETWEEN $3 AND $4
+                         AND expires_at >= $5""",
+                    lat - 0.05, lat + 0.05, lng - 0.05, lng + 0.05, now_iso,
+                )
+                reports = [dict(r) for r in rows]
+
+            if "event" in item_types:
+                rows = await db.fetch(
+                    """SELECT * FROM events
+                       WHERE lat BETWEEN $1 AND $2 AND lng BETWEEN $3 AND $4
+                         AND ends_at >= $5""",
+                    lat - 0.05, lat + 0.05, lng - 0.05, lng + 0.05, now_iso,
+                )
+                events = [dict(r) for r in rows]
+
         map_items = []
 
         for p in places:
@@ -90,7 +74,7 @@ async def nearby_items(
                     "subcategory": p.get("subcategory", ""),
                     "google_reviews": p.get("google_reviews", []),
                     "review_summary": p.get("review_summary", ""),
-                }
+                },
             })
 
         for r in reports:
@@ -107,7 +91,7 @@ async def nearby_items(
                     "confidence": r["confidence"],
                     "confirmations": r["confirmations"],
                     "expires_at": r["expires_at"],
-                }
+                },
             })
 
         for e in events:
@@ -124,7 +108,7 @@ async def nearby_items(
                     "ends_at": e["ends_at"],
                     "description": e["description"],
                     "price_info": e["price_info"],
-                }
+                },
             })
 
         return {"items": map_items}
@@ -144,13 +128,7 @@ async def place_live_data(
     name: Optional[str] = None,
     city: Optional[str] = None,
 ):
-    """Fetch live data (prices, duty status) for a specific place."""
     try:
-        # If lat/lng missing, try to resolve from place search
-        if lat is None or lng is None:
-            # We don't have place details here, but live_data service handles it
-            pass
-
         data = await get_live_data(
             category=category,
             subcategory=subcategory,

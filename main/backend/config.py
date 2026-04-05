@@ -22,13 +22,11 @@ def _load_env_files() -> None:
 
 _load_env_files()
 
-# Supabase
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
-SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
-# Used for server-side JWT signature verification.
-# Found in: Supabase Dashboard → Project Settings → API → JWT Secret
-SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
+# Cloud SQL
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+# Firebase
+FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH", "")
 
 # External APIs
 GEOAPIFY_API_KEY = os.getenv("GEOAPIFY_API_KEY", "mock")

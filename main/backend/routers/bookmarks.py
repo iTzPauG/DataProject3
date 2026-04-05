@@ -1,93 +1,98 @@
 """Bookmarks endpoints — user-saved items."""
 from fastapi import APIRouter, HTTPException, Query, Request
-from auth import get_optional_user
-from database import get_supabase
 from pydantic import BaseModel
+
+from auth import get_optional_user
+from database import get_db
 
 router = APIRouter(prefix="/bookmarks", tags=["bookmarks"])
 VALID_ITEM_TYPES = {"place", "event", "report"}
+
 
 class BookmarkRequest(BaseModel):
     item_type: str
     item_id: str
 
+
 @router.get("")
 async def get_bookmarks(request: Request):
-    """Get all bookmarks for the current user."""
     user_id = get_optional_user(request)
     if not user_id:
         raise HTTPException(status_code=401, detail="Authentication required")
 
-    sb = get_supabase()
-    try:
-        # Fetch bookmarks and join with places/events if needed
-        # For simplicity, we just return the bookmark list
-        result = sb.table("saved_items").select("*").eq("user_id", user_id).execute()
-        return {"bookmarks": result.data or []}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    async with get_db() as db:
+        try:
+            rows = await db.fetch("SELECT * FROM saved_items WHERE user_id=$1", user_id)
+            return {"bookmarks": [dict(r) for r in rows]}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("")
 async def add_bookmark(req: BookmarkRequest, request: Request):
-    """Save an item."""
     user_id = get_optional_user(request)
     if not user_id:
         raise HTTPException(status_code=401, detail="Authentication required")
     if req.item_type not in VALID_ITEM_TYPES:
         raise HTTPException(status_code=400, detail="Invalid item_type")
 
-    sb = get_supabase()
-    try:
-        row = {
-            "user_id": user_id,
-            "item_type": req.item_type,
-            "item_id": req.item_id
-        }
-        result = sb.table("saved_items").insert(row).execute()
-        return {"status": "ok", "bookmark": result.data[0] if result.data else row}
-    except Exception as e:
-        # Handle unique constraint violation (already bookmarked)
-        if "unique_violation" in str(e).lower() or "already exists" in str(e).lower():
-             return {"status": "ok", "message": "Already bookmarked"}
-        raise HTTPException(status_code=500, detail=str(e))
+    async with get_db() as db:
+        try:
+            row = await db.fetchrow(
+                """INSERT INTO saved_items (user_id, item_type, item_id)
+                   VALUES ($1, $2, $3)
+                   ON CONFLICT DO NOTHING
+                   RETURNING *""",
+                user_id, req.item_type, req.item_id,
+            )
+            if row is None:
+                return {"status": "ok", "message": "Already bookmarked"}
+            return {"status": "ok", "bookmark": dict(row)}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/{item_id}/check")
 async def check_bookmark(item_id: str, request: Request, item_type: str | None = Query(default=None)):
-    """Check whether a single item is bookmarked by the current user."""
     user_id = get_optional_user(request)
     if not user_id:
         return {"bookmarked": False}
 
-    sb = get_supabase()
-    try:
-        query = (
-            sb.table("saved_items")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("item_id", item_id)
-            .limit(1)
-        )
-        if item_type:
-            query = query.eq("item_type", item_type)
-        result = query.execute()
-        return {"bookmarked": bool(result.data)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    async with get_db() as db:
+        try:
+            if item_type:
+                row = await db.fetchrow(
+                    "SELECT id FROM saved_items WHERE user_id=$1 AND item_id=$2 AND item_type=$3 LIMIT 1",
+                    user_id, item_id, item_type,
+                )
+            else:
+                row = await db.fetchrow(
+                    "SELECT id FROM saved_items WHERE user_id=$1 AND item_id=$2 LIMIT 1",
+                    user_id, item_id,
+                )
+            return {"bookmarked": row is not None}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/{item_id}")
 async def remove_bookmark(item_id: str, request: Request, item_type: str | None = Query(default=None)):
-    """Remove a bookmark."""
     user_id = get_optional_user(request)
     if not user_id:
         raise HTTPException(status_code=401, detail="Authentication required")
 
-    sb = get_supabase()
-    try:
-        query = sb.table("saved_items").delete().eq("user_id", user_id).eq("item_id", item_id)
-        if item_type:
-            query = query.eq("item_type", item_type)
-        query.execute()
-        return {"status": "ok"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    async with get_db() as db:
+        try:
+            if item_type:
+                await db.execute(
+                    "DELETE FROM saved_items WHERE user_id=$1 AND item_id=$2 AND item_type=$3",
+                    user_id, item_id, item_type,
+                )
+            else:
+                await db.execute(
+                    "DELETE FROM saved_items WHERE user_id=$1 AND item_id=$2",
+                    user_id, item_id,
+                )
+            return {"status": "ok"}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))

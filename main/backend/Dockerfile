@@ -31,7 +31,6 @@ RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.t
 
 COPY . .
 
-EXPOSE 8000
+EXPOSE 8080
 
-# Railway injects $PORT — fall back to 8000 for local use
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

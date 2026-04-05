@@ -3,11 +3,10 @@ from fastapi import APIRouter, HTTPException, Request
 
 from auth import get_optional_user
 from config import DEFAULT_MAP_RADIUS_M
-from database import get_supabase
+from database import get_db
 from models.schemas import UserPreferencesResponse, UserPreferencesUpdate
 
 router = APIRouter(prefix="/preferences", tags=["preferences"])
-
 
 DEFAULT_PREFERENCES = {
     "default_radius_m": DEFAULT_MAP_RADIUS_M,
@@ -20,6 +19,8 @@ DEFAULT_PREFERENCES = {
     "language": "es",
 }
 
+_PREF_COLS = "default_radius_m,favorite_cats,map_style,map_minimal,map_preset,gado_overlay_on,notifications_on,language"
+
 
 def _require_user(request: Request) -> str:
     user_id = get_optional_user(request)
@@ -31,41 +32,42 @@ def _require_user(request: Request) -> str:
 @router.get("/me", response_model=UserPreferencesResponse)
 async def get_preferences(request: Request):
     user_id = _require_user(request)
-    sb = get_supabase()
-
-    result = (
-        sb.table("user_preferences")
-        .select(
-            "default_radius_m,favorite_cats,map_style,map_minimal,map_preset,gado_overlay_on,notifications_on,language"
+    async with get_db() as db:
+        row = await db.fetchrow(
+            f"SELECT {_PREF_COLS} FROM user_preferences WHERE user_id=$1 LIMIT 1",
+            user_id,
         )
-        .eq("user_id", user_id)
-        .limit(1)
-        .execute()
-    )
-    row = (result.data or [{}])[0]
-    return UserPreferencesResponse(**{**DEFAULT_PREFERENCES, **row})
+    data = dict(row) if row else {}
+    return UserPreferencesResponse(**{**DEFAULT_PREFERENCES, **data})
 
 
 @router.put("/me", response_model=UserPreferencesResponse)
 async def update_preferences(payload: UserPreferencesUpdate, request: Request):
     user_id = _require_user(request)
-    sb = get_supabase()
-
     data = payload.model_dump(exclude_unset=True)
-    if not data:
-        current = (
-            sb.table("user_preferences")
-            .select(
-                "default_radius_m,favorite_cats,map_style,map_minimal,map_preset,gado_overlay_on,notifications_on,language"
-            )
-            .eq("user_id", user_id)
-            .limit(1)
-            .execute()
-        )
-        row = (current.data or [{}])[0]
-        return UserPreferencesResponse(**{**DEFAULT_PREFERENCES, **row})
 
-    data["user_id"] = user_id
-    result = sb.table("user_preferences").upsert(data, on_conflict="user_id").execute()
-    row = (result.data or [{}])[0]
-    return UserPreferencesResponse(**{**DEFAULT_PREFERENCES, **row})
+    async with get_db() as db:
+        if not data:
+            row = await db.fetchrow(
+                f"SELECT {_PREF_COLS} FROM user_preferences WHERE user_id=$1 LIMIT 1",
+                user_id,
+            )
+            existing = dict(row) if row else {}
+            return UserPreferencesResponse(**{**DEFAULT_PREFERENCES, **existing})
+
+        # Build dynamic upsert
+        cols = ["user_id"] + list(data.keys())
+        vals = [user_id] + list(data.values())
+        placeholders = ", ".join(f"${i+1}" for i in range(len(vals)))
+        col_names = ", ".join(cols)
+        updates = ", ".join(f"{c}=EXCLUDED.{c}" for c in data.keys())
+
+        row = await db.fetchrow(
+            f"""INSERT INTO user_preferences ({col_names}) VALUES ({placeholders})
+                ON CONFLICT (user_id) DO UPDATE SET {updates}
+                RETURNING {_PREF_COLS}""",
+            *vals,
+        )
+
+    saved = dict(row) if row else {}
+    return UserPreferencesResponse(**{**DEFAULT_PREFERENCES, **saved})

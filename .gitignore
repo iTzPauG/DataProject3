@@ -1,1 +1,22 @@
+# Terraform
+**/.terraform/
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+*.tfvars
+# terraform.lock.hcl should be committed (pins provider versions)
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+.venv/
+venv/
+
+# Secrets / credentials
+*.json.key
+service-account*.json
+credentials*.json
+*-sa-key.json
+
 node_modules
