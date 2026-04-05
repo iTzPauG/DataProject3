@@ -26,13 +26,6 @@ interface ProfileMenuItem {
 
 const MENU_ITEMS: ProfileMenuItem[] = [
   {
-    id: 'my_reports',
-    label: 'Mis Reportes',
-    icon: 'megaphone-outline',
-    description: 'Revisa tus reportes enviados',
-    route: '/(modals)/my-reports',
-  },
-  {
     id: 'saved',
     label: 'Guardados',
     icon: 'bookmark-outline',
@@ -302,6 +295,12 @@ export default function ProfileTab() {
   }
 
   function handleSignOut() {
+    if (typeof window !== 'undefined') {
+      if (window.confirm('¿Estás seguro de que quieres cerrar sesión?')) {
+        signOut();
+      }
+      return;
+    }
     Alert.alert('Cerrar sesión', '¿Estás seguro de que quieres salir?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Salir', style: 'destructive', onPress: signOut },

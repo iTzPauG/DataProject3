@@ -12,3 +12,10 @@ resource "google_project_iam_member" "secret_accessor" {
   role    = "roles/secretmanager.secretAccessor"
   member  = "serviceAccount:cloud-run-api@${var.project_id}.iam.gserviceaccount.com"
 }
+
+# Allow Cloud Run SA to connect to Cloud SQL
+resource "google_project_iam_member" "cloudsql_client" {
+  project = var.project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:cloud-run-api@${var.project_id}.iam.gserviceaccount.com"
+}

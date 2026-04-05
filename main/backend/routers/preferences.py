@@ -17,22 +17,32 @@ DEFAULT_PREFERENCES = {
     "gado_overlay_on": True,
     "notifications_on": True,
     "language": "es",
+    "theme": "system",
+    "show_real_time_events": True,
 }
 
-_PREF_COLS = "default_radius_m,favorite_cats,map_style,map_minimal,map_preset,gado_overlay_on,notifications_on,language"
+_PREF_COLS = "default_radius_m,favorite_cats,map_style,map_minimal,map_preset,gado_overlay_on,notifications_on,language,theme,show_real_time_events"
 
 
-def _require_user(request: Request) -> str:
-    user_id = get_optional_user(request)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    return user_id
+async def _get_profile_id(db, firebase_uid: str) -> str:
+    """Resolve firebase_uid to the profile UUID. Creates profile if missing."""
+    row = await db.fetchrow("SELECT id FROM profiles WHERE firebase_uid=$1", firebase_uid)
+    if not row:
+        row = await db.fetchrow(
+            "INSERT INTO profiles (firebase_uid) VALUES ($1) ON CONFLICT (firebase_uid) DO UPDATE SET firebase_uid=EXCLUDED.firebase_uid RETURNING id",
+            firebase_uid,
+        )
+    return str(row["id"])
 
 
 @router.get("/me", response_model=UserPreferencesResponse)
 async def get_preferences(request: Request):
-    user_id = _require_user(request)
+    firebase_uid = get_optional_user(request)
+    if not firebase_uid:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
     async with get_db() as db:
+        user_id = await _get_profile_id(db, firebase_uid)
         row = await db.fetchrow(
             f"SELECT {_PREF_COLS} FROM user_preferences WHERE user_id=$1 LIMIT 1",
             user_id,
@@ -43,19 +53,22 @@ async def get_preferences(request: Request):
 
 @router.put("/me", response_model=UserPreferencesResponse)
 async def update_preferences(payload: UserPreferencesUpdate, request: Request):
-    user_id = _require_user(request)
+    firebase_uid = get_optional_user(request)
+    if not firebase_uid:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
     data = payload.model_dump(exclude_unset=True)
 
     async with get_db() as db:
+        user_id = await _get_profile_id(db, firebase_uid)
+
         if not data:
             row = await db.fetchrow(
                 f"SELECT {_PREF_COLS} FROM user_preferences WHERE user_id=$1 LIMIT 1",
                 user_id,
             )
-            existing = dict(row) if row else {}
-            return UserPreferencesResponse(**{**DEFAULT_PREFERENCES, **existing})
+            return UserPreferencesResponse(**{**DEFAULT_PREFERENCES, **(dict(row) if row else {})})
 
-        # Build dynamic upsert
         cols = ["user_id"] + list(data.keys())
         vals = [user_id] + list(data.values())
         placeholders = ", ".join(f"${i+1}" for i in range(len(vals)))
@@ -69,5 +82,4 @@ async def update_preferences(payload: UserPreferencesUpdate, request: Request):
             *vals,
         )
 
-    saved = dict(row) if row else {}
-    return UserPreferencesResponse(**{**DEFAULT_PREFERENCES, **saved})
+    return UserPreferencesResponse(**{**DEFAULT_PREFERENCES, **(dict(row) if row else {})})

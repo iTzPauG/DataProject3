@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from config import ALLOWED_ORIGINS
-from routers import health, recommend, votes, places, events, reports, categories, bookmarks, search, brain, photos, preferences, compare, deals, reservations, interactions, internal
+from routers import health, recommend, votes, places, events, reports, categories, bookmarks, search, brain, photos, preferences, compare, deals, reservations, interactions, internal, auth
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,7 @@ app.add_middleware(
 
 # ── Routers ──────────────────────────────────────────────────────────────────
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(recommend.router)
 app.include_router(votes.router)
 app.include_router(categories.router)

@@ -11,7 +11,8 @@ resource "google_cloud_run_v2_service" "api" {
     service_account = google_service_account.cloud_run.email
 
     annotations = {
-      "build-id" = var.build_id
+      "build-id"                                  = var.build_id
+      "run.googleapis.com/cloudsql-instances"     = var.cloud_sql_connection
     }
 
     containers {
