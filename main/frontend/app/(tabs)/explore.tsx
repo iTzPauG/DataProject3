@@ -17,6 +17,9 @@ import GADOIcon from '../../components/GADOIcon';
 import { ExploreCategory, getExploreCategories } from '../../services/api';
 import { useTheme } from '../../utils/theme';
 
+// 1. IMPORTAMOS EL NUEVO CARRUSEL AQUÍ:
+import LiveDealsCarousel from '../../components/LiveDealsCarousel';
+
 export default function ExploreTab() {
   const { colors, typography, radii, shadows } = useTheme();
   const [categories, setCategories] = useState<ExploreCategory[]>([]);
@@ -161,6 +164,9 @@ export default function ExploreTab() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* 2. AÑADIMOS EL CARRUSEL AQUÍ (Aparecerá el primero si hay ofertas) */}
+          <LiveDealsCarousel />
+
           {/* Upcoming Events Section */}
           <View style={styles.sectionHeader}>
             <Text style={dynamicStyles.sectionTitle}>Próximos Eventos</Text>
