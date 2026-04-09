@@ -3,5 +3,5 @@ output "connection_name" {
 }
 
 output "database_url_secret" {
-  value = "projects/${var.project_id}/secrets/database-url/versions/latest"
+  value = "projects/${var.project_id}/secrets/database-url-${terraform.workspace}/versions/latest"
 }
