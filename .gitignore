@@ -20,3 +20,6 @@ credentials*.json
 *-sa-key.json
 
 node_modules
+JOURNAL.md
+DATABASE_ARCHITECTURE.md
+PROJECT_STRUCTURE.md
