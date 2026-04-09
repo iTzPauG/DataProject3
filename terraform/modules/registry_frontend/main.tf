@@ -1,8 +1,17 @@
 locals {
-  image = "${var.region}-docker.pkg.dev/${var.project_id}/restaurant-api/frontend:latest"
+  repo  = "frontend-${terraform.workspace}"
+  image = "${var.region}-docker.pkg.dev/${var.project_id}/${local.repo}/frontend:latest"
+}
+
+resource "google_artifact_registry_repository" "frontend" {
+  repository_id = local.repo
+  format        = "DOCKER"
+  location      = var.region
 }
 
 resource "null_resource" "docker_build_push" {
+  depends_on = [google_artifact_registry_repository.frontend]
+
   triggers = {
     src_hash = sha256(join("", [
       filesha256("${path.module}/../../../main/frontend/Dockerfile"),
