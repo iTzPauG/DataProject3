@@ -1,5 +1,5 @@
 resource "google_sql_database_instance" "main" {
-  name             = "gado-postgres"
+  name             = "gado-postgres-${terraform.workspace}"
   database_version = "POSTGRES_15"
   region           = var.region
 
@@ -8,14 +8,8 @@ resource "google_sql_database_instance" "main" {
     availability_type = "ZONAL"
     disk_size         = 10
     disk_autoresize   = true
-
-    backup_configuration {
-      enabled = true
-    }
-
-    ip_configuration {
-      ipv4_enabled = true
-    }
+    backup_configuration { enabled = true }
+    ip_configuration { ipv4_enabled = true }
   }
 
   deletion_protection = false
@@ -38,7 +32,7 @@ resource "random_password" "db_password" {
 }
 
 resource "google_secret_manager_secret" "database_url" {
-  secret_id = "database-url"
+  secret_id = "database-url-${terraform.workspace}"
   replication {
     auto {}
   }
