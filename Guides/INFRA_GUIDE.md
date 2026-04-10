@@ -1,6 +1,6 @@
 # Guía de Infraestructura Multi-Entorno
 
-## 1. Despliegue por entorno
+## 1. Despliegue por entorno.
 
 ### Requisitos previos
 - Terraform instalado
