@@ -1,0 +1,184 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# GADO — Zero-downtime deploy to Cloud Run (main workspace)
+#
+# Triggers on every push/merge to main.
+# Builds backend + frontend images, deploys them with --no-traffic so the old
+# revision keeps serving until the new one is healthy, then migrates traffic.
+#
+# ┌─ To migrate to a different GCP project, change only these variables: ──────
+# │  GCP_PROJECT_ID   → your GCP project ID
+# │  GCP_REGION       → Cloud Run / Artifact Registry region
+# │  BACKEND_SERVICE  → Cloud Run service name for the backend
+# │  FRONTEND_SERVICE → Cloud Run service name for the frontend
+# │  BACKEND_REPO     → Artifact Registry repo for the backend image
+# │  FRONTEND_REPO    → Artifact Registry repo for the frontend image
+# │  CLOUD_SQL_CONN   → Cloud SQL connection name (project:region:instance)
+# └────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Deploy to Cloud Run (main)
+
+on:
+  push:
+    branches: [main]
+
+env:
+  # ── Change these to migrate to another GCP project ──────────────────────────
+  GCP_PROJECT_ID:   pruebas-edem-dataproject3
+  GCP_REGION:       europe-west1
+  BACKEND_SERVICE:  restaurant-api-main
+  FRONTEND_SERVICE: gado-frontend-main
+  BACKEND_REPO:     restaurant-api
+  FRONTEND_REPO:    frontend-main
+  CLOUD_SQL_CONN:   pruebas-edem-dataproject3:europe-west1:gado-postgres-main
+  # ────────────────────────────────────────────────────────────────────────────
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # required for Workload Identity Federation
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Authenticate to GCP ───────────────────────────────────────────────
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account:            ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      # ── 3. Set up gcloud + Docker auth ───────────────────────────────────────
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      # ── 4. Build & push backend ──────────────────────────────────────────────
+      - name: Build & push backend image
+        run: |
+          IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.BACKEND_REPO }}/api:${{ github.sha }}"
+          docker build \
+            --platform linux/amd64 \
+            --provenance=false \
+            -t "$IMAGE" \
+            main/backend
+          docker push "$IMAGE"
+          # Also tag as :latest for convenience
+          docker tag "$IMAGE" \
+            "${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.BACKEND_REPO }}/api:latest"
+          docker push \
+            "${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.BACKEND_REPO }}/api:latest"
+          echo "BACKEND_IMAGE=$IMAGE" >> $GITHUB_ENV
+
+      # ── 5. Build & push frontend ─────────────────────────────────────────────
+      - name: Build & push frontend image
+        run: |
+          IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.FRONTEND_REPO }}/frontend:${{ github.sha }}"
+          docker build \
+            --platform linux/amd64 \
+            --provenance=false \
+            --build-arg EXPO_PUBLIC_BACKEND_URL="https://$(gcloud run services describe ${{ env.BACKEND_SERVICE }} --region=${{ env.GCP_REGION }} --project=${{ env.GCP_PROJECT_ID }} --format='value(status.url)' | sed 's|https://||')" \
+            --build-arg EXPO_PUBLIC_FIREBASE_API_KEY="${{ secrets.FIREBASE_API_KEY }}" \
+            --build-arg EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN="${{ secrets.FIREBASE_AUTH_DOMAIN }}" \
+            --build-arg EXPO_PUBLIC_FIREBASE_PROJECT_ID="${{ env.GCP_PROJECT_ID }}" \
+            --build-arg EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET="${{ secrets.FIREBASE_STORAGE_BUCKET }}" \
+            --build-arg EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}" \
+            --build-arg EXPO_PUBLIC_FIREBASE_APP_ID="${{ secrets.FIREBASE_APP_ID }}" \
+            -t "$IMAGE" \
+            main/frontend
+          docker push "$IMAGE"
+          docker tag "$IMAGE" \
+            "${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.FRONTEND_REPO }}/frontend:latest"
+          docker push \
+            "${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.FRONTEND_REPO }}/frontend:latest"
+          echo "FRONTEND_IMAGE=$IMAGE" >> $GITHUB_ENV
+
+      # ── 6. Deploy backend (zero-downtime) ────────────────────────────────────
+      - name: Deploy backend — new revision (no traffic)
+        run: |
+          gcloud run deploy ${{ env.BACKEND_SERVICE }} \
+            --image "${{ env.BACKEND_IMAGE }}" \
+            --region ${{ env.GCP_REGION }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --no-traffic \
+            --tag canary \
+            --add-cloudsql-instances ${{ env.CLOUD_SQL_CONN }} \
+            --quiet
+
+      - name: Wait for backend revision to be healthy
+        run: |
+          CANARY_URL=$(gcloud run services describe ${{ env.BACKEND_SERVICE }} \
+            --region=${{ env.GCP_REGION }} \
+            --project=${{ env.GCP_PROJECT_ID }} \
+            --format="value(status.traffic[?tag='canary'].url)" 2>/dev/null || \
+            gcloud run services describe ${{ env.BACKEND_SERVICE }} \
+            --region=${{ env.GCP_REGION }} \
+            --project=${{ env.GCP_PROJECT_ID }} \
+            --format="value(status.address.url)")
+          echo "Checking health at $CANARY_URL/health"
+          for i in $(seq 1 24); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$CANARY_URL/health" || echo "000")
+            echo "Attempt $i: $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "Backend is healthy"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Backend did not become healthy in time" && exit 1
+
+      - name: Migrate 100% traffic to new backend revision
+        run: |
+          gcloud run services update-traffic ${{ env.BACKEND_SERVICE }} \
+            --region ${{ env.GCP_REGION }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --to-latest \
+            --quiet
+
+      # ── 7. Deploy frontend (zero-downtime) ───────────────────────────────────
+      - name: Deploy frontend — new revision (no traffic)
+        run: |
+          gcloud run deploy ${{ env.FRONTEND_SERVICE }} \
+            --image "${{ env.FRONTEND_IMAGE }}" \
+            --region ${{ env.GCP_REGION }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --no-traffic \
+            --tag canary \
+            --quiet
+
+      - name: Wait for frontend revision to be healthy
+        run: |
+          CANARY_URL=$(gcloud run services describe ${{ env.FRONTEND_SERVICE }} \
+            --region=${{ env.GCP_REGION }} \
+            --project=${{ env.GCP_PROJECT_ID }} \
+            --format="value(status.traffic[?tag='canary'].url)" 2>/dev/null || \
+            gcloud run services describe ${{ env.FRONTEND_SERVICE }} \
+            --region=${{ env.GCP_REGION }} \
+            --project=${{ env.GCP_PROJECT_ID }} \
+            --format="value(status.address.url)")
+          echo "Checking frontend at $CANARY_URL"
+          for i in $(seq 1 24); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$CANARY_URL" || echo "000")
+            echo "Attempt $i: $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "Frontend is healthy"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Frontend did not become healthy in time" && exit 1
+
+      - name: Migrate 100% traffic to new frontend revision
+        run: |
+          gcloud run services update-traffic ${{ env.FRONTEND_SERVICE }} \
+            --region ${{ env.GCP_REGION }} \
+            --project ${{ env.GCP_PROJECT_ID }} \
+            --to-latest \
+            --quiet
