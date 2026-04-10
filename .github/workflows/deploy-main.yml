@@ -117,11 +117,16 @@ jobs:
           CANARY_URL=$(gcloud run services describe ${{ env.BACKEND_SERVICE }} \
             --region=${{ env.GCP_REGION }} \
             --project=${{ env.GCP_PROJECT_ID }} \
-            --format="value(status.traffic[?tag='canary'].url)" 2>/dev/null || \
-            gcloud run services describe ${{ env.BACKEND_SERVICE }} \
-            --region=${{ env.GCP_REGION }} \
-            --project=${{ env.GCP_PROJECT_ID }} \
-            --format="value(status.address.url)")
+            --format=json \
+            | python3 -c "
+import sys, json
+svc = json.load(sys.stdin)
+for t in svc.get('status', {}).get('traffic', []):
+    if t.get('tag') == 'canary' and t.get('url'):
+        print(t['url'])
+        sys.exit(0)
+print(svc['status']['address']['url'])
+")
           echo "Checking health at $CANARY_URL/health"
           for i in $(seq 1 24); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$CANARY_URL/health" || echo "000")
@@ -158,11 +163,16 @@ jobs:
           CANARY_URL=$(gcloud run services describe ${{ env.FRONTEND_SERVICE }} \
             --region=${{ env.GCP_REGION }} \
             --project=${{ env.GCP_PROJECT_ID }} \
-            --format="value(status.traffic[?tag='canary'].url)" 2>/dev/null || \
-            gcloud run services describe ${{ env.FRONTEND_SERVICE }} \
-            --region=${{ env.GCP_REGION }} \
-            --project=${{ env.GCP_PROJECT_ID }} \
-            --format="value(status.address.url)")
+            --format=json \
+            | python3 -c "
+import sys, json
+svc = json.load(sys.stdin)
+for t in svc.get('status', {}).get('traffic', []):
+    if t.get('tag') == 'canary' and t.get('url'):
+        print(t['url'])
+        sys.exit(0)
+print(svc['status']['address']['url'])
+")
           echo "Checking frontend at $CANARY_URL"
           for i in $(seq 1 24); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$CANARY_URL" || echo "000")

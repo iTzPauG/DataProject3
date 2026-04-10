@@ -49,6 +49,25 @@ module "databases" {
   region     = "europe-west1"
 }
 
+# ── GitHub Actions CI/CD permissions ─────────────────────────────────────────
+resource "google_project_iam_member" "github_actions_registry" {
+  project = "pruebas-edem-dataproject3"
+  role    = "roles/artifactregistry.writer"
+  member  = "serviceAccount:github-actions@pruebas-edem-dataproject3.iam.gserviceaccount.com"
+}
+
+resource "google_project_iam_member" "github_actions_run_admin" {
+  project = "pruebas-edem-dataproject3"
+  role    = "roles/run.admin"
+  member  = "serviceAccount:github-actions@pruebas-edem-dataproject3.iam.gserviceaccount.com"
+}
+
+resource "google_project_iam_member" "github_actions_sa_user" {
+  project = "pruebas-edem-dataproject3"
+  role    = "roles/iam.serviceAccountUser"
+  member  = "serviceAccount:github-actions@pruebas-edem-dataproject3.iam.gserviceaccount.com"
+}
+
 # ── Outputs para que los workspaces puedan leerlos ───────────────────────────
 output "registry_image" {
   value = module.registry.image
