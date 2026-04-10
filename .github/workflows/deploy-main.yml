@@ -114,27 +114,13 @@ jobs:
 
       - name: Wait for backend revision to be healthy
         run: |
-          CANARY_URL=$(gcloud run services describe ${{ env.BACKEND_SERVICE }} \
-            --region=${{ env.GCP_REGION }} \
-            --project=${{ env.GCP_PROJECT_ID }} \
-            --format=json \
-            | python3 -c "
-import sys, json
-svc = json.load(sys.stdin)
-for t in svc.get('status', {}).get('traffic', []):
-    if t.get('tag') == 'canary' and t.get('url'):
-        print(t['url'])
-        sys.exit(0)
-print(svc['status']['address']['url'])
-")
+          CANARY_URL=$(gcloud run services describe ${{ env.BACKEND_SERVICE }} --region=${{ env.GCP_REGION }} --project=${{ env.GCP_PROJECT_ID }} --format="value(status.traffic.url)" | tr ';' '\n' | grep canary | head -1)
+          [ -z "$CANARY_URL" ] && CANARY_URL=$(gcloud run services describe ${{ env.BACKEND_SERVICE }} --region=${{ env.GCP_REGION }} --project=${{ env.GCP_PROJECT_ID }} --format="value(status.url)")
           echo "Checking health at $CANARY_URL/health"
           for i in $(seq 1 24); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$CANARY_URL/health" || echo "000")
             echo "Attempt $i: $STATUS"
-            if [ "$STATUS" = "200" ]; then
-              echo "Backend is healthy"
-              exit 0
-            fi
+            if [ "$STATUS" = "200" ]; then echo "Backend is healthy" && exit 0; fi
             sleep 10
           done
           echo "Backend did not become healthy in time" && exit 1
@@ -160,27 +146,13 @@ print(svc['status']['address']['url'])
 
       - name: Wait for frontend revision to be healthy
         run: |
-          CANARY_URL=$(gcloud run services describe ${{ env.FRONTEND_SERVICE }} \
-            --region=${{ env.GCP_REGION }} \
-            --project=${{ env.GCP_PROJECT_ID }} \
-            --format=json \
-            | python3 -c "
-import sys, json
-svc = json.load(sys.stdin)
-for t in svc.get('status', {}).get('traffic', []):
-    if t.get('tag') == 'canary' and t.get('url'):
-        print(t['url'])
-        sys.exit(0)
-print(svc['status']['address']['url'])
-")
+          CANARY_URL=$(gcloud run services describe ${{ env.FRONTEND_SERVICE }} --region=${{ env.GCP_REGION }} --project=${{ env.GCP_PROJECT_ID }} --format="value(status.traffic.url)" | tr ';' '\n' | grep canary | head -1)
+          [ -z "$CANARY_URL" ] && CANARY_URL=$(gcloud run services describe ${{ env.FRONTEND_SERVICE }} --region=${{ env.GCP_REGION }} --project=${{ env.GCP_PROJECT_ID }} --format="value(status.url)")
           echo "Checking frontend at $CANARY_URL"
           for i in $(seq 1 24); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$CANARY_URL" || echo "000")
             echo "Attempt $i: $STATUS"
-            if [ "$STATUS" = "200" ]; then
-              echo "Frontend is healthy"
-              exit 0
-            fi
+            if [ "$STATUS" = "200" ]; then echo "Frontend is healthy" && exit 0; fi
             sleep 10
           done
           echo "Frontend did not become healthy in time" && exit 1
