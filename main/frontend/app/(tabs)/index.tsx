@@ -166,9 +166,6 @@ export default function MapTab() {
       setSelectedId(item.id);
     }
   }, [setMapRegion, setNearbyItems]);
-      });
-    }
-  }, [setMapRegion]);
 
   // ── Callbacks ─────────────────────────────────────────────────────────────
 

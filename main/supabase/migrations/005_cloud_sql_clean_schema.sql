@@ -2,6 +2,17 @@
 
 CREATE EXTENSION IF NOT EXISTS postgis;
 
+-- Categories (must exist before places/events reference it)
+CREATE TABLE IF NOT EXISTS public.categories (
+  id         TEXT PRIMARY KEY,
+  label      TEXT NOT NULL,
+  icon       TEXT NOT NULL,
+  color      TEXT NOT NULL,
+  sort_order INT DEFAULT 0,
+  is_active  BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Profiles (standalone, no auth.users FK)
 CREATE TABLE IF NOT EXISTS public.profiles (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -248,6 +259,16 @@ INSERT INTO public.categories (id, label, icon, color, sort_order) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- Seed: report types
+CREATE TABLE IF NOT EXISTS public.report_types (
+  id         TEXT PRIMARY KEY,
+  label      TEXT NOT NULL,
+  icon       TEXT NOT NULL,
+  color      TEXT DEFAULT '#FF4444',
+  duration_h INT DEFAULT 4,
+  sort_order INT DEFAULT 0,
+  is_active  BOOLEAN DEFAULT true
+);
+
 INSERT INTO public.report_types (id, label, icon, color, duration_h, sort_order) VALUES
   ('traffic','Tráfico cortado','🚧','#FF4444',2,1),
   ('accident','Accidente','💥','#FF4444',3,2),

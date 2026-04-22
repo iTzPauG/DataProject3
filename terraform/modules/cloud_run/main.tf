@@ -4,7 +4,7 @@ resource "google_service_account" "cloud_run" {
 }
 
 resource "google_cloud_run_v2_service" "api" {
-  name     = "restaurant-api"
+  name     = "restaurant-api-${terraform.workspace}"
   location = var.region
 
   template {
@@ -26,7 +26,7 @@ resource "google_cloud_run_v2_service" "api" {
         name = "DATABASE_URL"
         value_source {
           secret_key_ref {
-            secret  = "database-url"
+            secret  = "database-url-${terraform.workspace}"
             version = "latest"
           }
         }
