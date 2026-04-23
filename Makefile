@@ -23,7 +23,7 @@ help:
 build:
 	@echo "Construyendo backend..."
 	docker build -t $(BACKEND_IMAGE) $(BACKEND_DIR)
-	@echo "Construyendo frontend..."
+	@echo "Construyendo frontend (esto puede tardar 5-10 minutos la primera vez)..."
 	docker build --build-arg EXPO_PUBLIC_BACKEND_URL=$(BACKEND_URL) -t $(FRONTEND_IMAGE) $(FRONTEND_DIR)
 
 run:
