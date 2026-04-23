@@ -26,7 +26,7 @@ build:
 	@echo "Construyendo frontend (esto puede tardar 5-10 minutos la primera vez)..."
 	docker build --build-arg EXPO_PUBLIC_BACKEND_URL=$(BACKEND_URL) -t $(FRONTEND_IMAGE) $(FRONTEND_DIR)
 
-run:
+run: stop
 	@echo "Creando red..."
 	docker network create $(CONTAINER_NETWORK) 2>/dev/null || true
 	@echo "Asegurando que la base de datos local existe..."
