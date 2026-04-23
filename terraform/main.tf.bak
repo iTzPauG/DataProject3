@@ -91,12 +91,12 @@ module "registry_frontend" {
   source                       = "./modules/registry_frontend"
   project_id                   = var.project_id
   region                       = var.region
-  firebase_api_key             = var.firebase_api_key
-  firebase_auth_domain         = var.firebase_auth_domain
+  firebase_api_key             = data.google_secret_manager_secret_version.firebase_api_key.secret_data
+  firebase_auth_domain         = data.google_secret_manager_secret_version.firebase_auth_domain.secret_data
   firebase_project_id          = var.project_id
-  firebase_storage_bucket      = var.firebase_storage_bucket
-  firebase_messaging_sender_id = var.firebase_messaging_sender_id
-  firebase_app_id              = var.firebase_app_id
+  firebase_storage_bucket      = data.google_secret_manager_secret_version.firebase_storage_bucket.secret_data
+  firebase_messaging_sender_id = data.google_secret_manager_secret_version.firebase_messaging_sender_id.secret_data
+  firebase_app_id              = data.google_secret_manager_secret_version.firebase_app_id.secret_data
   backend_url                  = module.cloud_run.url
   depends_on                   = [module.cloud_run]
 }
@@ -107,12 +107,12 @@ module "cloud_run_frontend" {
   image                        = module.registry_frontend.image
   build_id                     = module.registry_frontend.build_id
   project_id                   = var.project_id
-  firebase_api_key             = var.firebase_api_key
-  firebase_auth_domain         = var.firebase_auth_domain
+  firebase_api_key             = data.google_secret_manager_secret_version.firebase_api_key.secret_data
+  firebase_auth_domain         = data.google_secret_manager_secret_version.firebase_auth_domain.secret_data
   firebase_project_id          = var.project_id
-  firebase_storage_bucket      = var.firebase_storage_bucket
-  firebase_messaging_sender_id = var.firebase_messaging_sender_id
-  firebase_app_id              = var.firebase_app_id
+  firebase_storage_bucket      = data.google_secret_manager_secret_version.firebase_storage_bucket.secret_data
+  firebase_messaging_sender_id = data.google_secret_manager_secret_version.firebase_messaging_sender_id.secret_data
+  firebase_app_id              = data.google_secret_manager_secret_version.firebase_app_id.secret_data
   backend_url                  = module.cloud_run.url
   depends_on                   = [module.apis, module.registry_frontend]
 }

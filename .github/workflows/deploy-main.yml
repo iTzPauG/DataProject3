@@ -24,13 +24,13 @@ on:
 
 env:
   # ── Change these to migrate to another GCP project ──────────────────────────
-  GCP_PROJECT_ID:   pruebas-edem-dataproject3
+  GCP_PROJECT_ID:   project1grupo7
   GCP_REGION:       europe-west1
   BACKEND_SERVICE:  restaurant-api-main
   FRONTEND_SERVICE: gado-frontend-main
   BACKEND_REPO:     restaurant-api
   FRONTEND_REPO:    frontend-main
-  CLOUD_SQL_CONN:   pruebas-edem-dataproject3:europe-west1:gado-postgres-main
+  CLOUD_SQL_CONN:   project1grupo7:europe-west1:gado-postgres-main
   # ────────────────────────────────────────────────────────────────────────────
 
 jobs:
