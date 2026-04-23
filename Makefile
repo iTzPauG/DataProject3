@@ -1,4 +1,3 @@
-# Makefile for GADO Project
 
 # Variables
 BACKEND_DIR=main/backend
@@ -10,7 +9,9 @@ CONTAINER_NETWORK=gado-network
 # Build args for frontend (Update these as needed)
 BACKEND_URL=http://localhost:8080
 
-.PHONY: help build run stop clean
+.PHONY: all help build run stop clean
+
+all: build run
 
 help:
 	@echo "Comandos disponibles:"
