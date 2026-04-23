@@ -1,8 +1,14 @@
 /**
- * CategoryFilter — horizontal scrollable pills for map category filtering.
+ * CategoryFilter — horizontal editorial chips.
+ *
+ * Pills are now text-first: no leading emoji, no filled brand background on
+ * the active chip.  The active state is a subtle ink-filled pill with a
+ * contrasting label — the emoji/icon in front of each label has been
+ * removed entirely because it previously came from an unescaped Unicode
+ * glyph that leaked through as "🍴 Comida y bebida".
  */
 import React, { useMemo } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Category } from '../types';
 import { useTheme } from '../utils/theme';
 
@@ -13,85 +19,78 @@ interface Props {
 }
 
 export default function CategoryFilter({ categories, selected, onSelect }: Props) {
-  const { colors, typography, shadows, radii } = useTheme();
+  const { colors, typography } = useTheme();
 
-  const dynamicStyles = useMemo(() => StyleSheet.create({
-    pill: {
-      backgroundColor: colors.surface,
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: radii.pill,
-      borderWidth: 1,
-      borderColor: colors.stroke,
-      ...shadows.soft,
-    },
-    pillActive: {
-      backgroundColor: colors.brand,
-      borderColor: colors.brand,
-    },
-    pillText: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: colors.ink,
-      fontFamily: typography.heading,
-    },
-    pillTextActive: {
-      color: '#FFFFFF',
-    },
-  }), [colors, typography, shadows, radii]);
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        scroll: {
+          paddingHorizontal: 4,
+          paddingVertical: 2,
+          gap: 6,
+        },
+        pill: {
+          paddingHorizontal: 14,
+          paddingVertical: 7,
+          borderRadius: 999,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.stroke,
+          backgroundColor: 'transparent',
+        },
+        pillActive: {
+          backgroundColor: colors.ink,
+          borderColor: colors.ink,
+        },
+        label: {
+          fontSize: 13,
+          fontWeight: '500',
+          letterSpacing: -0.1,
+          color: colors.inkMuted,
+          fontFamily: typography.body,
+        },
+        labelActive: {
+          color: colors.shell,
+          fontWeight: '600',
+        },
+      }),
+    [colors, typography],
+  );
+
+  const chip = (
+    key: string,
+    label: string,
+    isActive: boolean,
+    onPress: () => void,
+  ) => (
+    <TouchableOpacity
+      key={key}
+      style={[styles.pill, isActive && styles.pillActive]}
+      onPress={onPress}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityState={{ selected: isActive }}
+      accessibilityLabel={label}
+    >
+      <Text style={[styles.label, isActive && styles.labelActive]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
 
   return (
-    <View style={styles.wrapper}>
+    <View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
       >
-        {/* "Todos" pill */}
-        <TouchableOpacity
-          style={[dynamicStyles.pill, !selected && dynamicStyles.pillActive]}
-          onPress={() => onSelect(null)}
-          activeOpacity={0.7}
-        >
-          <Text style={[dynamicStyles.pillText, !selected && dynamicStyles.pillTextActive]}>
-            Todos
-          </Text>
-        </TouchableOpacity>
-
-        {categories.map((cat) => {
-          const isActive = selected === cat.id;
-          return (
-            <TouchableOpacity
-              key={cat.id}
-              style={[
-                dynamicStyles.pill,
-                isActive && { backgroundColor: cat.color || colors.brand, borderColor: cat.color || colors.brand },
-              ]}
-              onPress={() => onSelect(isActive ? null : cat.id)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  dynamicStyles.pillText,
-                  isActive && dynamicStyles.pillTextActive,
-                ]}
-              >
-                {cat.icon} {cat.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+        {chip('__all__', 'Todo', selected === null, () => onSelect(null))}
+        {categories.map((cat) =>
+          chip(cat.id, cat.label, selected === cat.id, () =>
+            onSelect(selected === cat.id ? null : cat.id),
+          ),
+        )}
       </ScrollView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: {
-  },
-  scroll: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    gap: 8,
-  },
-});

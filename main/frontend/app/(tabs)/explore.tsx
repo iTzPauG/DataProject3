@@ -1,10 +1,8 @@
-import { Ionicons } from '../../components/SafeIonicons';
 import { router } from 'expo-router';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,121 +11,244 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
-import GADOIcon from '../../components/GADOIcon';
+import CategoryMonogram from '../../components/CategoryMonogram';
+import Icon from '../../components/Icon';
 import { ExploreCategory, getExploreCategories } from '../../services/api';
 import { useTheme } from '../../utils/theme';
 
+/**
+ * Explore — editorial index.
+ *
+ * Replaces the colored-icon grid with a magazine-style contents list:
+ * featured lede at top, numbered index of categories below, a quiet report
+ * CTA at the bottom.  No emoji, no tint-box icons — category identity is
+ * carried by its monogram ring.
+ */
 export default function ExploreTab() {
-  const { colors, typography, radii, shadows } = useTheme();
+  const { colors, typography } = useTheme();
   const [categories, setCategories] = useState<ExploreCategory[]>([]);
-  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [loading, setLoading] = useState(true);
 
-  const dynamicStyles = useMemo(() => StyleSheet.create({
-    safe: {
-      flex: 1,
-      backgroundColor: colors.shell,
-    },
-    sectionTitle: {
-      fontSize: 20,
-      fontWeight: '700',
-      color: colors.ink,
-      fontFamily: typography.heading,
-    },
-    seeAllText: {
-      fontSize: 14,
-      color: colors.brand,
-      fontWeight: '600',
-      fontFamily: typography.heading,
-    },
-    eventsPromo: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginHorizontal: 18,
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 16,
-      marginBottom: 8,
-      gap: 14,
-      ...shadows.soft,
-    },
-    eventsPromoIcon: {
-      width: 56,
-      height: 56,
-      borderRadius: 16,
-      backgroundColor: colors.chip,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-    },
-    eventsPromoTitle: {
-      fontSize: 15,
-      fontWeight: '700',
-      color: colors.ink,
-      marginBottom: 4,
-      fontFamily: typography.heading,
-    },
-    eventsPromoSub: {
-      fontSize: 12,
-      color: colors.inkMuted,
-      fontFamily: typography.body,
-      lineHeight: 16,
-    },
-    title: {
-      fontSize: 28,
-      fontWeight: '800',
-      color: colors.ink,
-      marginBottom: 4,
-      fontFamily: typography.heading,
-    },
-    subtitle: {
-      fontSize: 15,
-      color: colors.inkMuted,
-      lineHeight: 22,
-      fontFamily: typography.body,
-    },
-    card: {
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.stroke,
-      borderRadius: 18,
-      padding: 16,
-      minHeight: 150,
-      ...shadows.soft,
-    },
-    cardIcon: {
-      width: 52,
-      height: 52,
-      borderRadius: 16,
-      backgroundColor: colors.chip,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 8,
-    },
-    cardLabel: {
-      fontSize: 14,
-      fontWeight: '700',
-      color: colors.ink,
-      marginBottom: 4,
-      fontFamily: typography.heading,
-    },
-    cardDescription: {
-      fontSize: 12,
-      color: colors.inkMuted,
-      lineHeight: 16,
-      fontFamily: typography.body,
-    },
-  }), [colors, typography, radii, shadows]);
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        safe: { flex: 1, backgroundColor: colors.shell },
+        container: {
+          flex: 1,
+          maxWidth: 620,
+          width: '100%',
+          alignSelf: 'center',
+        },
+        scrollContent: { paddingBottom: 64 },
+
+        // ── masthead ────────────────────────────────────────────
+        masthead: {
+          paddingHorizontal: 24,
+          paddingTop: 32,
+          paddingBottom: 28,
+        },
+        issueLine: {
+          fontSize: 11,
+          letterSpacing: 2.2,
+          textTransform: 'uppercase',
+          color: colors.inkFaint,
+          fontFamily: typography.body,
+          fontWeight: '600',
+          marginBottom: 14,
+        },
+        masterHead: {
+          fontSize: 42,
+          lineHeight: 46,
+          letterSpacing: -1.2,
+          color: colors.ink,
+          fontFamily: typography.heading,
+          fontWeight: '500',
+        },
+        masterHeadAccent: {
+          color: colors.brand,
+          fontStyle: 'italic',
+          fontWeight: '500',
+        },
+        deck: {
+          fontSize: 15,
+          lineHeight: 23,
+          color: colors.inkMuted,
+          marginTop: 14,
+          maxWidth: 460,
+          fontFamily: typography.body,
+        },
+
+        ruleBlock: {
+          marginHorizontal: 24,
+          height: StyleSheet.hairlineWidth,
+          backgroundColor: colors.stroke,
+        },
+
+        // ── featured events strip ───────────────────────────────
+        featured: {
+          marginHorizontal: 24,
+          marginTop: 28,
+          marginBottom: 32,
+        },
+        featuredEyebrow: {
+          fontSize: 10,
+          letterSpacing: 2,
+          textTransform: 'uppercase',
+          color: colors.inkFaint,
+          fontFamily: typography.body,
+          fontWeight: '600',
+          marginBottom: 12,
+        },
+        featuredRow: {
+          flexDirection: 'row',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 24,
+        },
+        featuredTextBlock: {
+          flex: 1,
+          gap: 8,
+        },
+        featuredTitle: {
+          fontSize: 22,
+          lineHeight: 28,
+          letterSpacing: -0.4,
+          color: colors.ink,
+          fontFamily: typography.heading,
+          fontWeight: '500',
+        },
+        featuredBody: {
+          fontSize: 14,
+          lineHeight: 21,
+          color: colors.inkMuted,
+          fontFamily: typography.body,
+        },
+        featuredAction: {
+          marginTop: 12,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
+        },
+        featuredActionText: {
+          fontSize: 13,
+          letterSpacing: 0.3,
+          color: colors.brand,
+          fontFamily: typography.body,
+          fontWeight: '600',
+        },
+
+        // ── index list ─────────────────────────────────────────
+        sectionHeader: {
+          paddingHorizontal: 24,
+          marginBottom: 16,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        },
+        sectionTitle: {
+          fontSize: 11,
+          letterSpacing: 2.2,
+          textTransform: 'uppercase',
+          color: colors.inkFaint,
+          fontFamily: typography.body,
+          fontWeight: '600',
+        },
+        sectionCount: {
+          fontSize: 11,
+          letterSpacing: 1.5,
+          color: colors.inkWhisper,
+          fontFamily: typography.body,
+          fontWeight: '500',
+        },
+        row: {
+          paddingHorizontal: 24,
+          paddingVertical: 18,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 18,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: colors.stroke,
+        },
+        rowLast: {
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: colors.stroke,
+        },
+        rowNumber: {
+          width: 28,
+          fontSize: 12,
+          color: colors.inkWhisper,
+          fontFamily: typography.mono,
+          fontWeight: '500',
+          letterSpacing: 0.5,
+        },
+        rowBody: { flex: 1, gap: 4 },
+        rowTitle: {
+          fontSize: 17,
+          lineHeight: 22,
+          color: colors.ink,
+          fontFamily: typography.heading,
+          fontWeight: '500',
+          letterSpacing: -0.2,
+        },
+        rowDescription: {
+          fontSize: 13,
+          lineHeight: 18,
+          color: colors.inkMuted,
+          fontFamily: typography.body,
+        },
+        rowMeta: {
+          fontSize: 11,
+          letterSpacing: 1.4,
+          textTransform: 'uppercase',
+          color: colors.inkWhisper,
+          fontFamily: typography.body,
+          fontWeight: '600',
+          marginLeft: 12,
+        },
+        rowInactive: { opacity: 0.48 },
+
+        // ── report CTA ─────────────────────────────────────────
+        reportBlock: {
+          marginHorizontal: 24,
+          marginTop: 40,
+          paddingVertical: 22,
+          paddingHorizontal: 22,
+          backgroundColor: colors.bg,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.strokeStrong,
+          borderRadius: 16,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 16,
+        },
+        reportText: { flex: 1, gap: 4 },
+        reportTitle: {
+          fontSize: 15,
+          color: colors.ink,
+          fontFamily: typography.heading,
+          fontWeight: '500',
+          letterSpacing: -0.1,
+        },
+        reportDesc: {
+          fontSize: 13,
+          color: colors.inkMuted,
+          fontFamily: typography.body,
+          lineHeight: 18,
+        },
+      }),
+    [colors, typography],
+  );
 
   useEffect(() => {
     getExploreCategories()
       .then(setCategories)
       .catch(() => {})
-      .finally(() => setLoadingCategories(false));
+      .finally(() => setLoading(false));
   }, []);
 
   function handleCategoryPress(category: ExploreCategory) {
     if (category.active === false) {
-      Alert.alert('Próximamente', 'Esta funcionalidad estará disponible pronto');
+      Alert.alert('Próximamente', 'Esta sección aún no está disponible.');
       return;
     }
     if (category.id === 'report') {
@@ -138,162 +259,183 @@ export default function ExploreTab() {
     if (eventCategories.has(category.id)) {
       router.push({
         pathname: '/(flow)/explore-list',
-        params: { categoryId: category.id, itemType: 'event', title: category.label },
+        params: {
+          categoryId: category.id,
+          itemType: 'event',
+          title: category.label,
+        },
       });
       return;
     }
-    
-    router.push({ pathname: '/(flow)/category', params: { categoryId: category.id } });
+    router.push({
+      pathname: '/(flow)/category',
+      params: { categoryId: category.id },
+    });
   }
+
+  // exclude report / event from the index (report gets its own block, events are in the featured strip)
+  const indexed = categories.filter(
+    (c) => c.id !== 'report' && c.id !== 'event',
+  );
 
   return (
     <AnimatedTabScene>
-    <SafeAreaView style={dynamicStyles.safe} edges={['top']}>
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={dynamicStyles.title}>Explorar</Text>
-          <Text style={dynamicStyles.subtitle}>Descubre lo mejor de tu ciudad</Text>
-        </View>
-
-        {/* Category grid */}
+      <SafeAreaView style={styles.safe} edges={['top']}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Upcoming Events Section */}
-          <View style={styles.sectionHeader}>
-            <Text style={dynamicStyles.sectionTitle}>Próximos Eventos</Text>
-            <TouchableOpacity
-              onPress={() =>
-                router.push({
-                  pathname: '/(flow)/explore-list',
-                  params: { categoryId: 'event', itemType: 'event', title: 'Eventos' },
-                })
-              }
-            >
-              <Text style={dynamicStyles.seeAllText}>Ver todos</Text>
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity
-            style={dynamicStyles.eventsPromo}
-            activeOpacity={0.8}
-            onPress={() =>
-              router.push({
-                pathname: '/(flow)/explore-list',
-                params: { categoryId: 'event', itemType: 'event', title: 'Eventos' },
-              })
-            }
-            accessibilityLabel="Ver eventos cercanos"
-            accessibilityRole="button"
-          >
-            <View style={dynamicStyles.eventsPromoIcon}>
-              <GADOIcon name="event" category="event" size={28} color={colors.brand} accessibilityLabel="Icono de eventos" />
-            </View>
-            <View style={styles.eventsPromoText}>
-              <Text style={dynamicStyles.eventsPromoTitle}>Descubre eventos cercanos</Text>
-              <Text style={dynamicStyles.eventsPromoSub}>
-                Mercados, conciertos y más en tu ciudad
+          <View style={styles.container}>
+            <View style={styles.masthead}>
+              <Text style={styles.issueLine}>Nº 01 · Índice de la ciudad</Text>
+              <Text style={styles.masterHead}>
+                Lee València{'\n'}
+                <Text style={styles.masterHeadAccent}>como un local.</Text>
+              </Text>
+              <Text style={styles.deck}>
+                Un índice curado de lo que pasa a tu alrededor — sitios para
+                comer, tomar, resolver el día. Elige una sección y abre el mapa.
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.inkMuted} />
-          </TouchableOpacity>
 
-          <View style={styles.sectionHeader}>
-            <Text style={dynamicStyles.sectionTitle}>Categorías</Text>
-          </View>
-          {loadingCategories ? (
-            <ActivityIndicator
-              size="large"
-              color={colors.brand}
-              style={{ marginTop: 32 }}
-            />
-          ) : (
-          <View style={styles.grid}>
-            {categories.map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                style={styles.cardWrapper}
-                activeOpacity={0.7}
-                onPress={() => handleCategoryPress(cat)}
-                accessibilityLabel={`Categoría ${cat.label}`}
-                accessibilityRole="button"
-              >
-                <View style={[dynamicStyles.card, { borderRadius: radii.lg }, cat.active === false && styles.cardInactive]}>
-                  <View style={dynamicStyles.cardIcon}>
-                    <GADOIcon name={cat.id} category={cat.id} size={28} color={colors.brand} accessibilityLabel={`Icono ${cat.label}`} />
-                  </View>
-                  <Text style={dynamicStyles.cardLabel}>{cat.label}</Text>
-                  {cat.description ? (
-                    <Text style={dynamicStyles.cardDescription}>{cat.description}</Text>
-                  ) : null}
-                  {cat.active === false && (
-                    <View style={[styles.comingSoonBadge, { borderRadius: radii.sm }]}>
-                      <Text style={styles.comingSoonText}>Pronto</Text>
-                    </View>
-                  )}
+            <View style={styles.ruleBlock} />
+
+            <View style={styles.featured}>
+              <Text style={styles.featuredEyebrow}>En portada</Text>
+              <View style={styles.featuredRow}>
+                <View style={styles.featuredTextBlock}>
+                  <Text style={styles.featuredTitle}>
+                    Mercados, conciertos y vida nocturna — esta semana.
+                  </Text>
+                  <Text style={styles.featuredBody}>
+                    Eventos que empiezan cerca de ti en las próximas 48 horas.
+                    Filtrado por distancia, no por algoritmo.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.featuredAction}
+                    activeOpacity={0.7}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(flow)/explore-list',
+                        params: {
+                          categoryId: 'event',
+                          itemType: 'event',
+                          title: 'Eventos',
+                        },
+                      })
+                    }
+                  >
+                    <Text style={styles.featuredActionText}>Ver agenda</Text>
+                    <Icon
+                      name="arrow-right"
+                      size={14}
+                      color={colors.brand}
+                      strokeWidth={1.4}
+                    />
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
-            ))}
+                <CategoryMonogram
+                  categoryId="event"
+                  label="Eventos"
+                  size={74}
+                  variant="ring"
+                />
+              </View>
+            </View>
+
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Secciones</Text>
+              <Text style={styles.sectionCount}>
+                {String(indexed.length).padStart(2, '0')} categorías
+              </Text>
+            </View>
+
+            {loading ? (
+              <ActivityIndicator
+                size="small"
+                color={colors.inkMuted}
+                style={{ marginTop: 24 }}
+              />
+            ) : (
+              <View>
+                {indexed.map((cat, i) => {
+                  const isLast = i === indexed.length - 1;
+                  const number = String(i + 1).padStart(2, '0');
+                  return (
+                    <TouchableOpacity
+                      key={cat.id}
+                      activeOpacity={0.7}
+                      onPress={() => handleCategoryPress(cat)}
+                      accessibilityRole="button"
+                      accessibilityLabel={cat.label}
+                      style={[
+                        styles.row,
+                        isLast && styles.rowLast,
+                        cat.active === false && styles.rowInactive,
+                      ]}
+                    >
+                      <Text style={styles.rowNumber}>{number}</Text>
+                      <CategoryMonogram
+                        categoryId={cat.id}
+                        label={cat.label}
+                        size={40}
+                        variant="ring"
+                      />
+                      <View style={styles.rowBody}>
+                        <Text style={styles.rowTitle}>{cat.label}</Text>
+                        {cat.description ? (
+                          <Text style={styles.rowDescription} numberOfLines={2}>
+                            {cat.description}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {cat.active === false ? (
+                        <Text style={styles.rowMeta}>Pronto</Text>
+                      ) : (
+                        <Icon
+                          name="chevron-right"
+                          size={14}
+                          color={colors.inkWhisper}
+                          strokeWidth={1.4}
+                        />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={styles.reportBlock}
+              activeOpacity={0.8}
+              onPress={() => router.push('/(tabs)/report')}
+              accessibilityRole="button"
+              accessibilityLabel="Reportar algo en la ciudad"
+            >
+              <CategoryMonogram
+                categoryId="report"
+                label="Reportar"
+                size={44}
+                variant="filled"
+                color={colors.brand}
+              />
+              <View style={styles.reportText}>
+                <Text style={styles.reportTitle}>¿Viste algo? Cuéntalo.</Text>
+                <Text style={styles.reportDesc}>
+                  Incidencias, cortes, avisos — lo que ven otros también te
+                  ayuda a decidir.
+                </Text>
+              </View>
+              <Icon
+                name="chevron-right"
+                size={16}
+                color={colors.inkMuted}
+                strokeWidth={1.4}
+              />
+            </TouchableOpacity>
           </View>
-          )}
         </ScrollView>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
     </AnimatedTabScene>
   );
 }
-
-const styles = StyleSheet.create({
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    marginTop: 20,
-    marginBottom: 12,
-  },
-  eventsPromoText: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-    maxWidth: 560,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  header: {
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 12,
-  },
-  scrollContent: {
-    paddingBottom: 24,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 12,
-    paddingTop: 8,
-  },
-  cardWrapper: {
-    width: '50%',
-    padding: 6,
-  },
-  cardInactive: {
-    opacity: 0.6,
-  },
-  comingSoonBadge: {
-    marginTop: 10,
-    alignSelf: 'flex-start',
-    backgroundColor: '#FFF4E8',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  comingSoonText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#F59E0B',
-  },
-});

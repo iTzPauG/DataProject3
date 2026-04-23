@@ -1,10 +1,8 @@
-import { Ionicons } from '../../components/SafeIonicons';
 import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import {
   Alert,
   Image,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,30 +11,32 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
+import Icon, { IconName } from '../../components/Icon';
+import { monogramFor } from '../../constants/design';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../utils/theme';
 
-interface ProfileMenuItem {
+interface MenuEntry {
   id: string;
   label: string;
-  icon: keyof typeof Ionicons.glyphMap;
   description: string;
+  icon: IconName;
   route?: string;
 }
 
-const MENU_ITEMS: ProfileMenuItem[] = [
+const MENU: MenuEntry[] = [
   {
     id: 'saved',
     label: 'Guardados',
-    icon: 'bookmark-outline',
-    description: 'Lugares y eventos favoritos',
+    description: 'Los sitios y eventos que marcaste',
+    icon: 'bookmark',
     route: '/(modals)/saved-items',
   },
   {
     id: 'settings',
-    label: 'Configuración',
-    icon: 'settings-outline',
-    description: 'Preferencias y notificaciones',
+    label: 'Preferencias',
+    description: 'Mapa, notificaciones, idioma',
+    icon: 'sliders',
   },
 ];
 
@@ -45,240 +45,253 @@ export default function ProfileTab() {
   const router = useRouter();
   const { user, profile, signOut } = useAuth();
 
-  const styles = useMemo(() => StyleSheet.create({
-    safe: {
-      flex: 1,
-      backgroundColor: colors.shell,
-    },
-    scrollView: {
-      flex: 1,
-    },
-    scrollContent: {
-      paddingBottom: 40,
-    },
-    container: {
-      flex: 1,
-      maxWidth: 560,
-      width: '100%',
-      alignSelf: 'center',
-    },
-    header: {
-      paddingHorizontal: 24,
-      paddingTop: 20,
-      paddingBottom: 8,
-    },
-    title: {
-      fontSize: 28,
-      fontWeight: '800',
-      color: colors.ink,
-      fontFamily: typography.heading,
-    },
-    avatarSection: {
-      alignItems: 'center',
-      paddingVertical: 28,
-      paddingHorizontal: 24,
-    },
-    avatarCircle: {
-      width: 80,
-      height: 80,
-      borderRadius: 40,
-      backgroundColor: colors.chip,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 14,
-    },
-    userName: {
-      fontSize: 20,
-      fontWeight: '700',
-      color: colors.ink,
-      marginBottom: 12,
-      fontFamily: typography.heading,
-    },
-    guestName: {
-      fontSize: 20,
-      fontWeight: '700',
-      color: colors.ink,
-      marginBottom: 4,
-      fontFamily: typography.heading,
-    },
-    avatarImage: {
-      width: 80,
-      height: 80,
-      borderRadius: 40,
-    },
-    statsContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      paddingVertical: 16,
-      paddingHorizontal: 24,
-      marginBottom: 20,
-      width: '100%',
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.05,
-          shadowRadius: 10,
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        safe: { flex: 1, backgroundColor: colors.shell },
+        scrollContent: { paddingBottom: 64 },
+        container: {
+          flex: 1,
+          maxWidth: 620,
+          width: '100%',
+          alignSelf: 'center',
         },
-        android: {
-          elevation: 1,
-        },
-      }),
-    },
-    statBox: {
-      flex: 1,
-      alignItems: 'center',
-    },
-    statValue: {
-      fontSize: 18,
-      fontWeight: '800',
-      color: colors.ink,
-      marginBottom: 2,
-      fontFamily: typography.heading,
-    },
-    statLabel: {
-      fontSize: 12,
-      color: colors.inkMuted,
-      fontWeight: '600',
-      fontFamily: typography.body,
-    },
-    statDivider: {
-      width: 1,
-      height: 30,
-      backgroundColor: colors.chip,
-    },
-    signOutButton: {
-      paddingVertical: 8,
-      paddingHorizontal: 16,
-    },
-    signOutText: {
-      fontSize: 14,
-      color: '#D6453D',
-      fontWeight: '600',
-      fontFamily: typography.heading,
-    },
 
-    guestSubtitle: {
-      fontSize: 14,
-      color: colors.inkMuted,
-      textAlign: 'center',
-      lineHeight: 20,
-      marginBottom: 18,
-      fontFamily: typography.body,
-    },
-    signInButton: {
-      backgroundColor: colors.brand,
-      borderRadius: 14,
-      paddingHorizontal: 32,
-      paddingVertical: 12,
-      ...Platform.select({
-        ios: {
-          shadowColor: '#FF6B35',
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.25,
-          shadowRadius: 6,
+        // ── masthead ────────────────────────────────────────────
+        masthead: {
+          paddingHorizontal: 24,
+          paddingTop: 32,
+          paddingBottom: 20,
         },
-        android: {
-          elevation: 4,
+        eyebrow: {
+          fontSize: 11,
+          letterSpacing: 2.2,
+          textTransform: 'uppercase',
+          color: colors.inkFaint,
+          fontFamily: typography.body,
+          fontWeight: '600',
+          marginBottom: 14,
         },
-        default: {
-          shadowColor: '#FF6B35',
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.25,
-          shadowRadius: 6,
+        nameDisplay: {
+          fontSize: 40,
+          lineHeight: 44,
+          letterSpacing: -1.2,
+          color: colors.ink,
+          fontFamily: typography.heading,
+          fontWeight: '500',
+        },
+        nameItalic: {
+          fontStyle: 'italic',
+          color: colors.brand,
+          fontWeight: '500',
+        },
+        email: {
+          marginTop: 12,
+          fontSize: 13,
+          color: colors.inkMuted,
+          fontFamily: typography.mono,
+          letterSpacing: 0.1,
+        },
+
+        rule: {
+          marginHorizontal: 24,
+          height: StyleSheet.hairlineWidth,
+          backgroundColor: colors.stroke,
+        },
+
+        // ── stats ──────────────────────────────────────────────
+        statsRow: {
+          flexDirection: 'row',
+          paddingHorizontal: 24,
+          paddingVertical: 24,
+          gap: 32,
+        },
+        stat: { flex: 1 },
+        statLabel: {
+          fontSize: 10,
+          letterSpacing: 1.8,
+          textTransform: 'uppercase',
+          color: colors.inkFaint,
+          fontFamily: typography.body,
+          fontWeight: '600',
+          marginBottom: 6,
+        },
+        statValue: {
+          fontSize: 30,
+          lineHeight: 34,
+          letterSpacing: -0.8,
+          color: colors.ink,
+          fontFamily: typography.heading,
+          fontWeight: '500',
+        },
+        statHint: {
+          marginTop: 4,
+          fontSize: 12,
+          color: colors.inkMuted,
+          fontFamily: typography.body,
+        },
+
+        // ── menu ───────────────────────────────────────────────
+        menuSection: { marginTop: 8 },
+        menuRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 18,
+          paddingHorizontal: 24,
+          paddingVertical: 20,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: colors.stroke,
+        },
+        menuRowLast: {
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: colors.stroke,
+        },
+        menuGlyph: {
+          width: 32,
+          height: 32,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        menuText: { flex: 1, gap: 3 },
+        menuLabel: {
+          fontSize: 16,
+          color: colors.ink,
+          fontFamily: typography.heading,
+          fontWeight: '500',
+          letterSpacing: -0.2,
+        },
+        menuDesc: {
+          fontSize: 13,
+          color: colors.inkMuted,
+          fontFamily: typography.body,
+          lineHeight: 18,
+        },
+
+        // ── sign out ───────────────────────────────────────────
+        signOut: {
+          marginTop: 36,
+          marginHorizontal: 24,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+          paddingVertical: 10,
+        },
+        signOutText: {
+          fontSize: 13,
+          letterSpacing: 0.4,
+          color: colors.danger,
+          fontFamily: typography.body,
+          fontWeight: '600',
+        },
+
+        // ── guest ──────────────────────────────────────────────
+        guest: {
+          marginHorizontal: 24,
+          marginTop: 8,
+          marginBottom: 16,
+          paddingVertical: 26,
+          paddingHorizontal: 24,
+          backgroundColor: colors.bg,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.strokeStrong,
+          borderRadius: 18,
+          gap: 14,
+        },
+        guestEyebrow: {
+          fontSize: 10,
+          letterSpacing: 2,
+          textTransform: 'uppercase',
+          color: colors.inkFaint,
+          fontFamily: typography.body,
+          fontWeight: '600',
+        },
+        guestTitle: {
+          fontSize: 22,
+          lineHeight: 28,
+          color: colors.ink,
+          fontFamily: typography.heading,
+          fontWeight: '500',
+          letterSpacing: -0.4,
+        },
+        guestBody: {
+          fontSize: 14,
+          lineHeight: 21,
+          color: colors.inkMuted,
+          fontFamily: typography.body,
+        },
+        guestButton: {
+          marginTop: 6,
+          alignSelf: 'flex-start',
+          paddingHorizontal: 20,
+          paddingVertical: 12,
+          backgroundColor: colors.ink,
+          borderRadius: 999,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
+        },
+        guestButtonText: {
+          fontSize: 13,
+          color: colors.shell,
+          fontFamily: typography.body,
+          fontWeight: '600',
+          letterSpacing: 0.2,
+        },
+
+        // ── avatar ─────────────────────────────────────────────
+        avatarRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 18,
+          marginTop: 12,
+        },
+        avatar: {
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.strokeStrong,
+          backgroundColor: colors.bg,
+        },
+        avatarImage: { width: 56, height: 56, borderRadius: 28 },
+        avatarInitial: {
+          fontSize: 22,
+          color: colors.ink,
+          fontFamily: typography.heading,
+          fontWeight: '500',
+        },
+
+        // ── footer ─────────────────────────────────────────────
+        footer: {
+          alignItems: 'flex-start',
+          paddingHorizontal: 24,
+          marginTop: 48,
+          gap: 4,
+        },
+        footerMark: {
+          fontSize: 11,
+          letterSpacing: 4,
+          textTransform: 'uppercase',
+          color: colors.inkWhisper,
+          fontFamily: typography.heading,
+          fontWeight: '600',
+        },
+        footerVersion: {
+          fontSize: 11,
+          color: colors.inkWhisper,
+          fontFamily: typography.mono,
         },
       }),
-    },
-    signInText: {
-      fontSize: 16,
-      fontWeight: '700',
-      color: '#FFFFFF',
-      fontFamily: typography.heading,
-    },
-    menuSection: {
-      marginHorizontal: 18,
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      overflow: 'hidden',
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.06,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 2,
-        },
-        default: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.06,
-          shadowRadius: 8,
-        },
-      }),
-    },
-    menuItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 16,
-      paddingHorizontal: 16,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: '#F2F2F7',
-    },
-    menuItemLast: {
-      borderBottomWidth: 0,
-    },
-    menuIconWrap: {
-      width: 38,
-      height: 38,
-      borderRadius: 10,
-      backgroundColor: '#FFF5F0',
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: 14,
-    },
-    menuContent: {
-      flex: 1,
-    },
-    menuLabel: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: colors.ink,
-      marginBottom: 2,
-      fontFamily: typography.heading,
-    },
-    menuDescription: {
-      fontSize: 13,
-      color: colors.inkMuted,
-      fontFamily: typography.body,
-    },
-    appInfo: {
-      alignItems: 'center',
-      marginTop: 36,
-    },
-    appName: {
-      fontSize: 14,
-      fontWeight: '800',
-      color: colors.inkMuted,
-      letterSpacing: 4,
-      fontFamily: typography.heading,
-    },
-    appVersion: {
-      fontSize: 12,
-      color: colors.inkMuted,
-      marginTop: 2,
-      fontFamily: typography.body,
-    },
-  }), [colors, typography]);
+    [colors, typography],
+  );
 
   function handleSignIn() {
     router.push('/(modals)/login');
   }
 
-  function handleMenuPress(item: ProfileMenuItem) {
+  function handleMenuPress(item: MenuEntry) {
     if (!user && item.id !== 'settings') {
       Alert.alert('Acceso restringido', 'Inicia sesión para ver esta sección', [
         { text: 'Cancelar', style: 'cancel' },
@@ -286,7 +299,6 @@ export default function ProfileTab() {
       ]);
       return;
     }
-    
     if (item.route) {
       router.push(item.route as any);
     } else {
@@ -296,120 +308,170 @@ export default function ProfileTab() {
 
   function handleSignOut() {
     if (typeof window !== 'undefined') {
-      if (window.confirm('¿Estás seguro de que quieres cerrar sesión?')) {
-        signOut();
-      }
+      if (window.confirm('¿Seguro que quieres cerrar sesión?')) signOut();
       return;
     }
-    Alert.alert('Cerrar sesión', '¿Estás seguro de que quieres salir?', [
+    Alert.alert('Cerrar sesión', '¿Seguro?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Salir', style: 'destructive', onPress: signOut },
     ]);
   }
 
+  const displayName = profile?.display_name || user?.email?.split('@')[0] || 'Invitado';
+  const firstName = displayName.split(/[\s@]/)[0];
+
   return (
     <AnimatedTabScene>
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.container}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Perfil</Text>
-          </View>
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <View style={styles.masthead}>
+              <Text style={styles.eyebrow}>Tu dossier</Text>
+              {user ? (
+                <>
+                  <Text style={styles.nameDisplay}>
+                    Hola,{'\n'}
+                    <Text style={styles.nameItalic}>{firstName}.</Text>
+                  </Text>
+                  <View style={styles.avatarRow}>
+                    <View style={styles.avatar}>
+                      {profile?.avatar_url ? (
+                        <Image
+                          source={{ uri: profile.avatar_url }}
+                          style={styles.avatarImage}
+                        />
+                      ) : (
+                        <Text style={styles.avatarInitial}>
+                          {monogramFor(displayName)}
+                        </Text>
+                      )}
+                    </View>
+                    <Text style={styles.email}>{user.email}</Text>
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.nameDisplay}>
+                  València,{'\n'}
+                  <Text style={styles.nameItalic}>a tu ritmo.</Text>
+                </Text>
+              )}
+            </View>
 
-          {/* Avatar / Sign-in section */}
-          <View style={styles.avatarSection}>
             {user ? (
               <>
-                <View style={styles.avatarCircle}>
-                  {profile?.avatar_url ? (
-                    <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
-                  ) : (
-                    <Ionicons name="person" size={40} color="#C7C7CC" />
-                  )}
-                </View>
-                <Text style={styles.userName}>{profile?.display_name || user.email}</Text>
-                
-                <View style={styles.statsContainer}>
-                  <View style={styles.statBox}>
-                    <Text style={styles.statValue}>{profile?.reputation_score ?? 0}</Text>
+                <View style={styles.rule} />
+                <View style={styles.statsRow}>
+                  <View style={styles.stat}>
                     <Text style={styles.statLabel}>Reputación</Text>
+                    <Text style={styles.statValue}>
+                      {profile?.reputation_score ?? 0}
+                    </Text>
+                    <Text style={styles.statHint}>
+                      Puntos por tus aportes útiles
+                    </Text>
                   </View>
-                  <View style={styles.statDivider} />
-                  <View style={styles.statBox}>
-                    <Text style={styles.statValue}>{profile?.reports_count ?? 0}</Text>
+                  <View style={styles.stat}>
                     <Text style={styles.statLabel}>Reportes</Text>
+                    <Text style={styles.statValue}>
+                      {profile?.reports_count ?? 0}
+                    </Text>
+                    <Text style={styles.statHint}>
+                      Avisos publicados a la comunidad
+                    </Text>
                   </View>
                 </View>
-
-                <TouchableOpacity
-                  style={styles.signOutButton}
-                  onPress={handleSignOut}
-                >
-                  <Text style={styles.signOutText}>Cerrar sesión</Text>
-                </TouchableOpacity>
               </>
             ) : (
-              <>
-                <View style={styles.avatarCircle}>
-                  <Ionicons name="person" size={40} color="#C7C7CC" />
-                </View>
-                <Text style={styles.guestName}>Invitado</Text>
-                <Text style={styles.guestSubtitle}>
-                  Inicia sesión para guardar tus lugares favoritos y contribuir a la comunidad
+              <View style={styles.guest}>
+                <Text style={styles.guestEyebrow}>Acceso</Text>
+                <Text style={styles.guestTitle}>
+                  Guarda lugares, publica avisos.
+                </Text>
+                <Text style={styles.guestBody}>
+                  Inicia sesión para sincronizar tus favoritos y participar en
+                  los reportes de la comunidad.
                 </Text>
                 <TouchableOpacity
-                  style={styles.signInButton}
+                  style={styles.guestButton}
                   activeOpacity={0.8}
                   onPress={handleSignIn}
-                  accessibilityLabel="Iniciar sesión"
                   accessibilityRole="button"
+                  accessibilityLabel="Iniciar sesión"
                 >
-                  <Text style={styles.signInText}>Iniciar sesión</Text>
+                  <Text style={styles.guestButtonText}>Iniciar sesión</Text>
+                  <Icon
+                    name="arrow-right"
+                    size={13}
+                    color={colors.shell}
+                    strokeWidth={1.4}
+                  />
                 </TouchableOpacity>
-              </>
+              </View>
             )}
-          </View>
 
-          {/* Menu items */}
-          <View style={styles.menuSection}>
-            {MENU_ITEMS.map((item, index) => (
+            <View style={styles.menuSection}>
+              {MENU.map((item, i) => {
+                const isLast = i === MENU.length - 1;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.menuRow, isLast && styles.menuRowLast]}
+                    activeOpacity={0.6}
+                    onPress={() => handleMenuPress(item)}
+                    accessibilityRole="button"
+                    accessibilityLabel={item.label}
+                  >
+                    <View style={styles.menuGlyph}>
+                      <Icon
+                        name={item.icon}
+                        size={20}
+                        color={colors.ink}
+                        strokeWidth={1.4}
+                      />
+                    </View>
+                    <View style={styles.menuText}>
+                      <Text style={styles.menuLabel}>{item.label}</Text>
+                      <Text style={styles.menuDesc}>{item.description}</Text>
+                    </View>
+                    <Icon
+                      name="chevron-right"
+                      size={14}
+                      color={colors.inkWhisper}
+                      strokeWidth={1.4}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {user ? (
               <TouchableOpacity
-                key={item.id}
-                style={[
-                  styles.menuItem,
-                  index === MENU_ITEMS.length - 1 && styles.menuItemLast,
-                ]}
-                activeOpacity={0.6}
-                onPress={() => handleMenuPress(item)}
-                accessibilityLabel={item.label}
+                style={styles.signOut}
+                onPress={handleSignOut}
+                activeOpacity={0.7}
                 accessibilityRole="button"
+                accessibilityLabel="Cerrar sesión"
               >
-                <View style={styles.menuIconWrap}>
-                  <Ionicons name={item.icon} size={22} color="#FF6B35" />
-                </View>
-                <View style={styles.menuContent}>
-                  <Text style={styles.menuLabel}>{item.label}</Text>
-                  <Text style={styles.menuDescription}>{item.description}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#C7C7CC" />
+                <Icon
+                  name="logout"
+                  size={16}
+                  color={colors.danger}
+                  strokeWidth={1.4}
+                />
+                <Text style={styles.signOutText}>Cerrar sesión</Text>
               </TouchableOpacity>
-            ))}
-          </View>
+            ) : null}
 
-          {/* App info */}
-          <View style={styles.appInfo}>
-            <Text style={styles.appName}>GADO</Text>
-            <Text style={styles.appVersion}>v1.0.0</Text>
+            <View style={styles.footer}>
+              <Text style={styles.footerMark}>G·A·D·O</Text>
+              <Text style={styles.footerVersion}>Edición 1.0 · València</Text>
+            </View>
           </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
     </AnimatedTabScene>
   );
 }
-

@@ -33,17 +33,21 @@ export interface MapProps {
 }
 
 // ─── Category config ──────────────────────────────────────────────────────────
+//
+// Markers are identified by colour + the title's first-letter monogram
+// (rendered in the HTML template below).  No emoji icon — the old colored
+// glyph approach was the single biggest "AI slop" tell on the map.
 
-const CATEGORY_STYLES: Record<string, { color: string; icon: string }> = {
-  restaurant: { color: '#FF6B35', icon: '🍽️' },
-  event:      { color: '#8B5CF6', icon: '📅' },
-  nightlife:  { color: '#3B82F6', icon: '🌙' },
-  cinema:     { color: '#EF4444', icon: '🎬' },
-  market:     { color: '#10B981', icon: '🛍️' },
-  report:     { color: '#F59E0B', icon: '📢' },
+const CATEGORY_COLORS: Record<string, string> = {
+  restaurant: '#C97A5C',   // terracotta
+  event:      '#D2A257',   // warm amber
+  nightlife:  '#8A7ED6',   // muted violet
+  cinema:     '#9C7BB0',   // lilac
+  market:     '#C98E6A',   // clay
+  report:     '#B5A050',   // mustard
 };
 
-const DEFAULT_STYLE = { color: '#9E9E9E', icon: '📍' };
+const DEFAULT_COLOR = '#7F8392'; // slate
 
 // ─── Category marker icon ─────────────────────────────────────────────────────
 
@@ -53,23 +57,11 @@ function createCategoryIcon(
   minimalist: boolean,
   gadoOverlay: boolean,
 ): L.DivIcon {
-  // Use icon/color from backend if available, otherwise fallback to category styles
-  const backendIcon = item.icon;
-  const backendColor = item.color;
-  
-  // If backend provides icon/color, use them; otherwise fall back to category styles
-  let icon: string;
-  let color: string;
-  
-  if (backendIcon || backendColor) {
-    icon = backendIcon ?? '📍';
-    color = backendColor ?? '#9E9E9E';
-  } else {
-    const style = CATEGORY_STYLES[item.category_id] ?? DEFAULT_STYLE;
-    icon = style.icon;
-    color = style.color;
-  }
-  
+  const color =
+    item.color ??
+    CATEGORY_COLORS[item.category_id] ??
+    DEFAULT_COLOR;
+
   const style = { color }; // For backward compatibility
   const highlightLive = gadoOverlay && (item.item_type === 'report' || item.item_type === 'event');
   const size = selected ? 48 : highlightLive ? 44 : 38;
@@ -459,6 +451,7 @@ export default function Map({
         // @ts-ignore
         style={{ width: '100%', height: '100%' }}
         zoomControl={false}
+        attributionControl={false}
       >
         <TileLayer attribution={attribution} url={tileUrl} />
         {overlayTileUrl ? (
@@ -545,7 +538,7 @@ export default function Map({
           const distance = r.distanceM > 0 ? formatDistance(r.distanceM) : '';
           const votes = votesMap?.[r.id];
           const voteLabel = votes
-            ? `👍 ${votes.likes}  👎 ${votes.dislikes}`
+            ? `+${votes.likes}  −${votes.dislikes}`
             : '';
           return (
             <Marker

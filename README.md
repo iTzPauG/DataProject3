@@ -39,7 +39,6 @@ La forma más sencilla de arrancar el proyecto completo es usando el script auto
   SUPABASE_ANON_KEY=...
   GOOGLE_MAPS_API_KEY=... # Para búsqueda de lugares
   GOOGLE_GENAI_API_KEY=... # Cerebro Gemini
-  GEOAPIFY_API_KEY=...    # Mapas y geocodificación
   ```
 
 ### 2. Frontend (React Native + Expo)

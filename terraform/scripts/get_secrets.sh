@@ -20,6 +20,6 @@ EOF
 echo "✓ terraform.tfvars generado"
 echo ""
 echo "Secretos de la app (en Secret Manager, no en tfvars):"
-echo "  google-maps-api-key, google-genai-api-key, geoapify-api-key"
+echo "  google-maps-api-key, google-genai-api-key"
 echo "  tripadvisor-api-key, yelp-api-key, here-api-key"
 echo "  openrouter-api-key, groq-api-key, database-url"

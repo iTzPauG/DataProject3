@@ -31,14 +31,17 @@ run: stop
 	docker network create $(CONTAINER_NETWORK) 2>/dev/null || true
 	@echo "Asegurando que la base de datos local existe..."
 	touch $(BACKEND_DIR)/temp_local.db
+	@echo "Verificando configuracion..."
+	@grep -q "GOOGLE_MAPS_API_KEY=AIza" $(BACKEND_DIR)/.env || (echo "ERROR: GOOGLE_MAPS_API_KEY no encontrada o no es valida en $(BACKEND_DIR)/.env" && exit 1)
 	@echo "Iniciando backend..."
 	docker run -d --name gado-backend --network $(CONTAINER_NETWORK) \
 		-p 8080:8080 \
-		-v $$(pwd)/$(BACKEND_DIR)/temp_local.db:/app/temp_local.db \
+		--env-file ./$(BACKEND_DIR)/.env \
 		$(BACKEND_IMAGE)
 	@echo "Iniciando frontend..."
 	docker run -d --name gado-frontend --network $(CONTAINER_NETWORK) \
 		-p 80:80 \
+		--env-file ./$(FRONTEND_DIR)/.env \
 		$(FRONTEND_IMAGE)
 	@echo "Aplicacion iniciada:"
 	@echo "  Backend: http://localhost:8080"

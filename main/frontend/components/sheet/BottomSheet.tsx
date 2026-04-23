@@ -53,7 +53,7 @@ const BottomSheet = forwardRef<BottomSheetRef, BottomSheetProps>(
       currentY.current = target;
       Animated.spring(translateY, {
         toValue: target,
-        useNativeDriver: true,
+        useNativeDriver: false,
         damping: 30,
         stiffness: 300,
         mass: 0.8,

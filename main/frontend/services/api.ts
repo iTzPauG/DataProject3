@@ -20,7 +20,7 @@ const getBaseUrl = () => {
     return 'https://backend-production-bac63.up.railway.app';
   }
 
-  return 'http://localhost:8000';
+  return 'http://localhost:8080';
 };
 
 export const BASE_URL = getBaseUrl();

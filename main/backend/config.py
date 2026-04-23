@@ -29,7 +29,6 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH", "")
 
 # External APIs
-GEOAPIFY_API_KEY = os.getenv("GEOAPIFY_API_KEY", "mock")
 HERE_API_KEY = os.getenv("HERE_API_KEY", "mock")
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")

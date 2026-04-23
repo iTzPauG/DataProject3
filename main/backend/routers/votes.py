@@ -46,9 +46,9 @@ async def cast_vote(req: VoteRequest, request: Request):
             )
         else:
             await db.execute(
-                \"\"\"INSERT INTO item_votes (id, item_id, voter_id, vote)
+                """INSERT INTO item_votes (id, item_id, voter_id, vote)
                    VALUES (?, ?, ?, ?)
-                   ON CONFLICT(item_id, voter_id) DO UPDATE SET vote=excluded.vote\"\"\",
+                   ON CONFLICT(item_id, voter_id) DO UPDATE SET vote=excluded.vote""",
                 (str(uuid.uuid4()), req.item_id, voter_id, req.vote),
             )
         await db.commit()

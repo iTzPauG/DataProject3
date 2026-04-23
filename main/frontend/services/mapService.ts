@@ -9,7 +9,7 @@ const getBaseUrl = () => {
   if (typeof window !== 'undefined' && window.location.hostname.includes('railway.app')) {
     return 'https://backend-production-bac63.up.railway.app';
   }
-  return 'http://localhost:8000';
+  return 'http://localhost:8080';
 };
 
 const BASE_URL = getBaseUrl();

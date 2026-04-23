@@ -1,6 +1,8 @@
 import React from "react";
-import { Image, Platform, StyleProp, Text, View, ViewStyle } from "react-native";
+import { Image, Platform, StyleProp, View, ViewStyle } from "react-native";
 import { iconIndex } from "../assets/icons/index";
+import Icon, { IconName } from "./Icon";
+import CategoryMonogram from "./CategoryMonogram";
 
 interface GADOIconProps {
   category?: string;
@@ -12,7 +14,12 @@ interface GADOIconProps {
   accessibilityRole?: "image" | "button";
 }
 
-let IoniconComponent: React.ComponentType<{ name: string; size: number; color: string }> | null = null;
+// ── Native-only Ionicons delegate ────────────────────────────────────────
+let IoniconComponent: React.ComponentType<{
+  name: string;
+  size: number;
+  color: string;
+}> | null = null;
 if (Platform.OS !== 'web') {
   try {
     IoniconComponent = require('@expo/vector-icons').Ionicons;
@@ -21,26 +28,7 @@ if (Platform.OS !== 'web') {
   }
 }
 
-const WEB_GLYPHS: Record<string, string> = {
-  map: '🗺', explore: '◎', report_tab: '+', favorites: '♥',
-  restaurant: '🍽', moon: '🌙', 'bag-handle': '🛍', medkit: '💊',
-  leaf: '🌿', 'color-palette': '🎨', construct: '🔧', barbell: '🏋',
-  school: '📚', film: '🎬', flower: '✿', laptop: '💻', paw: '🐾',
-  car: '🚗', sparkles: '✦', storefront: '🏪', 'musical-notes': '♪',
-  megaphone: '📢', compass: '◎', bookmark: '♥', add: '+',
-  'thumbs-up': '👍', 'thumbs-down': '👎', 'alert-circle': '⚠',
-  pizza: '🍕', 'fast-food': '🍔', fish: '🐟', nutrition: '🥗',
-  wine: '🍷', cafe: '☕', beer: '🍺', disc: '💿', bed: '🛏',
-  business: '🏢', walk: '🚶', water: '💧', library: '📚', images: '🖼',
-  ticket: '🎫', book: '📖', football: '⚽', basketball: '🏀',
-  tennisball: '🎾', flame: '🔥', 'hand-left': '🤚', body: '🧘',
-  fist: '✊', mountain: '⛰', flash: '⚡', navigate: '➤', ellipse: '●',
-  build: '🔧', clipboard: '📋', happy: '😊', heart: '❤', people: '👥',
-  'volume-mute': '🔇', person: '👤', 'game-controller': '🎮',
-  diamond: '💎', cash: '💵', wifi: '📶', 'musical-note': '♪',
-  fitness: '🏃', yoga: '🧘', running: '🏃', bulb: '💡', kebab: '🥙',
-};
-
+// ── Legacy name → Ionicons glyph (used on native only) ───────────────────
 const IONICONS_GLYPHS: Record<string, string> = {
   food: "restaurant", restaurant: "restaurant", nightlife: "moon",
   shopping: "bag-handle", health: "medkit", nature: "leaf",
@@ -76,6 +64,55 @@ const IONICONS_GLYPHS: Record<string, string> = {
   yoga: "body", artes_marciales: "fist", running: "walk",
 };
 
+// ── Web: legacy names → geometric Icon names ─────────────────────────────
+// Everything not in this list renders as a CategoryMonogram (if we can guess
+// a label) or a neutral dot — NEVER an emoji.
+const WEB_ICON_MAP: Record<string, IconName> = {
+  // navigation / wayfinding
+  map: 'map',
+  explore: 'compass',
+  compass: 'compass',
+  nearby: 'arrow-right',
+  navigate: 'arrow-right',
+  pin: 'pin',
+  location: 'pin',
+
+  // actions
+  add: 'plus',
+  report_tab: 'plus',
+  close: 'close',
+  checkmark: 'check',
+  search: 'search',
+
+  // people / profile
+  person: 'person',
+  people: 'person',
+  family: 'person',
+  group: 'person',
+  team: 'person',
+  individual: 'person',
+
+  // bookmarks
+  favorites: 'bookmark',
+  bookmark: 'bookmark',
+  heart: 'bookmark',
+
+  // status (no dedicated glyph — fall back to ring/triangle/dot)
+  warning: 'triangle',
+  'alert-circle': 'triangle',
+  urgent: 'triangle',
+  ellipse: 'dot',
+  'volume-mute': 'dot',
+};
+
+// ── Categories that should render as a monogram on web ───────────────────
+// (Matches categoryAccents keys + a handful of sub-category aliases.)
+const MONOGRAM_CATEGORIES = new Set<string>([
+  'food', 'restaurant', 'nightlife', 'shopping', 'health', 'nature',
+  'culture', 'sport', 'cinema', 'event', 'market', 'music', 'services',
+  'pets', 'automotive', 'education', 'wellness', 'coworking',
+]);
+
 function resolveAsset(category: string | undefined, name: string): number | null {
   const directKey = `${category ?? "generic"}:${name}`;
   const categoryKey = category ? `${category}:default` : "";
@@ -86,15 +123,16 @@ export function GADOIcon({
   category,
   name,
   size = 24,
-  color = "#FFFFFF",
+  color = "#EDEBE3",
   style,
   accessibilityLabel,
   accessibilityRole = "image",
 }: GADOIconProps): React.ReactElement {
+  // 1. Prefer the hand-authored raster asset (no emoji risk).
   const asset = resolveAsset(category, name);
   if (asset) {
     return (
-      <View 
+      <View
         accessibilityLabel={accessibilityLabel}
         accessibilityRole={accessibilityRole}
         style={[{ width: size, height: size }, style]}
@@ -107,12 +145,12 @@ export function GADOIcon({
     );
   }
 
-  const glyph =
-    IONICONS_GLYPHS[name] ??
-    (category ? IONICONS_GLYPHS[category] : undefined) ??
-    "ellipse";
-
+  // 2. Native: delegate to real Ionicons.
   if (Platform.OS !== 'web' && IoniconComponent) {
+    const glyph =
+      IONICONS_GLYPHS[name] ??
+      (category ? IONICONS_GLYPHS[category] : undefined) ??
+      "ellipse";
     return (
       <View
         accessibilityLabel={accessibilityLabel}
@@ -127,19 +165,57 @@ export function GADOIcon({
     );
   }
 
-  const unicode = WEB_GLYPHS[glyph] ?? WEB_GLYPHS[name] ?? '●';
+  // 3. Web: geometric Icon if we know the name.
+  const iconName = WEB_ICON_MAP[name] ?? (category ? WEB_ICON_MAP[category] : undefined);
+  if (iconName) {
+    return (
+      <View
+        accessibilityLabel={accessibilityLabel}
+        accessibilityRole={accessibilityRole}
+        style={[
+          { width: size, height: size, alignItems: 'center', justifyContent: 'center' },
+          style,
+        ]}
+      >
+        <Icon name={iconName} size={size} color={color} />
+      </View>
+    );
+  }
+
+  // 4. Web: category-ish → monogram ring.
+  const monogramKey =
+    (category && MONOGRAM_CATEGORIES.has(category) && category) ||
+    (MONOGRAM_CATEGORIES.has(name) && name) ||
+    null;
+  if (monogramKey) {
+    return (
+      <View
+        accessibilityLabel={accessibilityLabel}
+        accessibilityRole={accessibilityRole}
+        style={style}
+      >
+        <CategoryMonogram
+          categoryId={monogramKey}
+          label={monogramKey}
+          size={size}
+          variant="ring"
+        />
+      </View>
+    );
+  }
+
+  // 5. Last resort: neutral ring. Forces us to map real names as the design
+  //    evolves instead of ever falling back to emoji.
   return (
     <View
       accessibilityLabel={accessibilityLabel}
       accessibilityRole={accessibilityRole}
       style={[
-        { width: size, height: size, alignItems: "center", justifyContent: "center" },
+        { width: size, height: size, alignItems: 'center', justifyContent: 'center' },
         style,
       ]}
     >
-      <Text style={{ fontSize: size * 0.72, lineHeight: size, color, textAlign: 'center' }}>
-        {unicode}
-      </Text>
+      <Icon name="dot" size={size} color={color} />
     </View>
   );
 }

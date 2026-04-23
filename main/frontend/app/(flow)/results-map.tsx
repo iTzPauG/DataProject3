@@ -52,12 +52,12 @@ function PulsingDot({ delay, color }: { delay: number; color: string }) {
         Animated.sequence([
           Animated.delay(delay),
           Animated.parallel([
-            Animated.timing(scale, { toValue: 1, duration: 600, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 1, duration: 600, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 1, duration: 600, easing: Easing.out(Easing.ease), useNativeDriver: false }),
+            Animated.timing(opacity, { toValue: 1, duration: 600, easing: Easing.out(Easing.ease), useNativeDriver: false }),
           ]),
           Animated.parallel([
-            Animated.timing(scale, { toValue: 0.4, duration: 600, easing: Easing.in(Easing.ease), useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 0.3, duration: 600, easing: Easing.in(Easing.ease), useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 0.4, duration: 600, easing: Easing.in(Easing.ease), useNativeDriver: false }),
+            Animated.timing(opacity, { toValue: 0.3, duration: 600, easing: Easing.in(Easing.ease), useNativeDriver: false }),
           ]),
         ]),
       ).start();
@@ -125,7 +125,7 @@ function AnimatedCard({ children }: { children: React.ReactNode }) {
     Animated.parallel([
       Animated.spring(slideY, {
         toValue: 0,
-        useNativeDriver: true,
+        useNativeDriver: false,
         damping: 22,
         stiffness: 260,
         mass: 0.7,
@@ -134,11 +134,11 @@ function AnimatedCard({ children }: { children: React.ReactNode }) {
         toValue: 1,
         duration: 280,
         easing: Easing.out(Easing.ease),
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
       Animated.spring(scale, {
         toValue: 1,
-        useNativeDriver: true,
+        useNativeDriver: false,
         damping: 20,
         stiffness: 240,
       }),
@@ -176,8 +176,8 @@ function MapStatusHero({
     if (status === "loading") {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(glowAnim, { toValue: 1, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(glowAnim, { toValue: 0, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(glowAnim, { toValue: 1, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
+          Animated.timing(glowAnim, { toValue: 0, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
         ]),
       ).start();
     }

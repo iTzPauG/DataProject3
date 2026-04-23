@@ -159,11 +159,13 @@ async def search_places(
         client = _get_http_client()
         resp = await client.post(f"{_BASE}/places:searchText", json=body, headers=headers)
         if resp.status_code != 200:
-            log.warning("Google Places search failed: %s %s", resp.status_code, resp.text[:200])
+            log.error(f"🔴 GOOGLE PLACES API ERROR: [{resp.status_code}]")
+            log.error(f"🔴 RESPONSE: {resp.text}")
+            log.error("🔴 TIP: Ensure 'Places API (New)' is enabled for your API key in Google Cloud Console.")
             return []
         data = resp.json()
     except Exception as exc:
-        log.warning("Google Places search error: %s", exc)
+        log.warning("Google Places search exception: %s", exc)
         return []
 
     results: list[dict] = []

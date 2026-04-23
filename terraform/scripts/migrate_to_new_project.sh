@@ -140,11 +140,9 @@ create_secret() {
 
 read -p "   GOOGLE_MAPS_API_KEY: " GMAPS_KEY
 read -p "   GOOGLE_GENAI_API_KEY: " GENAI_KEY
-read -p "   GEOAPIFY_API_KEY: " GEOAPIFY_KEY
 
 create_secret "google-maps-api-key"      "${GMAPS_KEY:-mock}"
 create_secret "google-genai-api-key"     "${GENAI_KEY:-mock}"
-create_secret "geoapify-api-key"         "${GEOAPIFY_KEY:-mock}"
 create_secret "tripadvisor-api-key"      "mock"
 create_secret "yelp-api-key"             "mock"
 create_secret "here-api-key"             "mock"

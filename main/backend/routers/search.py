@@ -11,7 +11,6 @@ from fastapi.responses import StreamingResponse
 from services.brain_service import ask_brain, ask_brain_stream
 from database import get_db
 from services.cache_service import cache_get, cache_set
-from services.geoapify_service import search_geoapify_places
 from services.google_places_service import search_places as search_google_places
 from services.nominatim_service import geocode
 from services.overpass_service import search_overpass
@@ -229,24 +228,15 @@ async def universal_search(
             query=final_query if len(final_query) > 2 else None,
             limit=30,
         ),
-        search_geoapify_places(
-            lat=lat,
-            lng=lng,
-            radius_m=radius_m,
-            query=final_query,
-            category=final_category,
-            limit=30,
-        ),
         _search_local(final_query, final_category, radius_m, lat, lng),
         return_exceptions=True
     )
 
     google_results = results_gathered[0] if not isinstance(results_gathered[0], Exception) else []
     osm_results = results_gathered[1] if not isinstance(results_gathered[1], Exception) else []
-    geo_results = results_gathered[2] if not isinstance(results_gathered[2], Exception) else []
-    local_results = results_gathered[3] if not isinstance(results_gathered[3], Exception) else []
+    local_results = results_gathered[2] if not isinstance(results_gathered[2], Exception) else []
 
-    all_providers = [*google_results, *geo_results, *osm_results]
+    all_providers = [*google_results, *osm_results]
     if all_providers:
         background_tasks.add_task(
             upsert_provider_places,
@@ -257,7 +247,6 @@ async def universal_search(
     # Google results first (have real photos + ratings), then others
     combined = [
         *google_results,
-        *geo_results,
         *osm_results,
         *local_results,
     ]
@@ -321,7 +310,6 @@ async def live_search(
         tasks = [
             search_google_places(q, lat, lng, radius_m, category, bool(category), 20),
             search_overpass(lat, lng, radius_m, category, q if len(q) > 2 else None, 30),
-            search_geoapify_places(lat, lng, radius_m, q, category, 30),
             _search_local(q, category, radius_m, lat, lng)
         ]
         

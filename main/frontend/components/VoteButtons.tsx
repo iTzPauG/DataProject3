@@ -13,8 +13,8 @@ interface Props {
 
 function animatePress(anim: Animated.Value) {
   Animated.sequence([
-    Animated.spring(anim, { toValue: 1.08, useNativeDriver: true, speed: 20, bounciness: 6 }),
-    Animated.spring(anim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }),
+    Animated.spring(anim, { toValue: 1.08, useNativeDriver: false, speed: 20, bounciness: 6 }),
+    Animated.spring(anim, { toValue: 1, useNativeDriver: false, speed: 20, bounciness: 6 }),
   ]).start();
 }
 

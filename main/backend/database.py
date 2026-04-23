@@ -16,7 +16,7 @@ async def init_db():
         await db.execute("PRAGMA foreign_keys = ON")
         
         # Categories
-        await db.execute(\"\"\"
+        await db.execute("""
             CREATE TABLE IF NOT EXISTS categories (
                 id TEXT PRIMARY KEY,
                 label TEXT NOT NULL,
@@ -25,10 +25,10 @@ async def init_db():
                 sort_order INTEGER,
                 is_active BOOLEAN DEFAULT 1
             )
-        \"\"\")
+        """)
 
         # Places
-        await db.execute(\"\"\"
+        await db.execute("""
             CREATE TABLE IF NOT EXISTS places (
                 id TEXT PRIMARY KEY,
                 external_id TEXT,
@@ -55,10 +55,10 @@ async def init_db():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(source, external_id)
             )
-        \"\"\")
+        """)
 
         # Events
-        await db.execute(\"\"\"
+        await db.execute("""
             CREATE TABLE IF NOT EXISTS events (
                 id TEXT PRIMARY KEY,
                 category_id TEXT NOT NULL REFERENCES categories(id),
@@ -76,10 +76,10 @@ async def init_db():
                 status TEXT DEFAULT 'active',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
-        \"\"\")
+        """)
 
         # Community Reports
-        await db.execute(\"\"\"
+        await db.execute("""
             CREATE TABLE IF NOT EXISTS community_reports (
                 id TEXT PRIMARY KEY,
                 report_type TEXT NOT NULL,
@@ -96,10 +96,10 @@ async def init_db():
                 denials INTEGER DEFAULT 0,
                 confidence REAL DEFAULT 0.5
             )
-        \"\"\")
+        """)
 
         # Profiles
-        await db.execute(\"\"\"
+        await db.execute("""
             CREATE TABLE IF NOT EXISTS profiles (
                 id TEXT PRIMARY KEY,
                 firebase_uid TEXT UNIQUE,
@@ -111,10 +111,10 @@ async def init_db():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
-        \"\"\")
+        """)
 
         # Saved Items
-        await db.execute(\"\"\"
+        await db.execute("""
             CREATE TABLE IF NOT EXISTS saved_items (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
@@ -123,10 +123,10 @@ async def init_db():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE (user_id, item_type, item_id)
             )
-        \"\"\")
+        """)
 
         # Item Votes
-        await db.execute(\"\"\"
+        await db.execute("""
             CREATE TABLE IF NOT EXISTS item_votes (
                 id TEXT PRIMARY KEY,
                 item_id TEXT NOT NULL,
@@ -135,10 +135,10 @@ async def init_db():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE (item_id, voter_id)
             )
-        \"\"\")
+        """)
 
         # User Preferences
-        await db.execute(\"\"\"
+        await db.execute("""
             CREATE TABLE IF NOT EXISTS user_preferences (
                 user_id TEXT PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
                 default_radius_m INTEGER DEFAULT 2000,
@@ -153,10 +153,10 @@ async def init_db():
                 show_real_time_events BOOLEAN DEFAULT 1,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
-        \"\"\")
+        """)
 
         # Category Subcategories
-        await db.execute(\"\"\"
+        await db.execute("""
             CREATE TABLE IF NOT EXISTS category_subcategories (
                 id TEXT NOT NULL,
                 category_id TEXT NOT NULL REFERENCES categories(id),
@@ -167,10 +167,10 @@ async def init_db():
                 is_active BOOLEAN DEFAULT 1,
                 PRIMARY KEY (id, category_id)
             )
-        \"\"\")
+        """)
 
         # Category Moods
-        await db.execute(\"\"\"
+        await db.execute("""
             CREATE TABLE IF NOT EXISTS category_moods (
                 id TEXT NOT NULL,
                 category_id TEXT NOT NULL REFERENCES categories(id),
@@ -181,10 +181,10 @@ async def init_db():
                 is_active BOOLEAN DEFAULT 1,
                 PRIMARY KEY (id, category_id)
             )
-        \"\"\")
+        """)
 
         # Report Confirmations
-        await db.execute(\"\"\"
+        await db.execute("""
             CREATE TABLE IF NOT EXISTS report_confirmations (
                 id TEXT PRIMARY KEY,
                 report_id TEXT NOT NULL REFERENCES community_reports(id) ON DELETE CASCADE,
@@ -195,10 +195,10 @@ async def init_db():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(report_id, actor_key)
             )
-        \"\"\")
+        """)
 
         # Report Types
-        await db.execute(\"\"\"
+        await db.execute("""
             CREATE TABLE IF NOT EXISTS report_types (
                 id TEXT PRIMARY KEY,
                 label TEXT NOT NULL,
@@ -208,7 +208,7 @@ async def init_db():
                 sort_order INTEGER,
                 is_active BOOLEAN DEFAULT 1
             )
-        \"\"\")
+        """)
 
         # Seed categories if empty
         cursor = await db.execute("SELECT COUNT(*) FROM categories")

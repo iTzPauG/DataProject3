@@ -84,7 +84,7 @@ export const FloatingSearch = () => {
   useEffect(() => {
     Animated.spring(overlayAnim, {
       toValue: showResults ? 1 : 0,
-      useNativeDriver: true,
+      useNativeDriver: false,
       damping: 22,
       stiffness: 220,
     }).start();

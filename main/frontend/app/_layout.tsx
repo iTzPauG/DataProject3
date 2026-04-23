@@ -6,6 +6,7 @@ import { AppStateProvider, useAppState } from '../hooks/useAppState';
 import { useAuth } from '../hooks/useAuth';
 import { BASE_URL } from '../services/api';
 import { GADOLogger } from '../utils/logger';
+import WebFontLoader from '../components/WebFontLoader';
 
 // Loads remote preferences into AppState whenever the user logs in
 function PreferencesSyncer() {
@@ -40,6 +41,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AppStateProvider>
+        <WebFontLoader />
         <PreferencesSyncer />
         <StatusBar style="light" />
         <Stack screenOptions={{ headerShown: false }}>

@@ -160,7 +160,10 @@ def _infer_city(address: str | None) -> str | None:
 # ── Step B — pre_filter (Python) ─────────────────────────────────────────────
 
 def _pre_filter(candidates: list[dict], price_level: int | None, n: int = PREFILTER_CANDIDATES) -> list[dict]:
-    """Drop low-rated / price-mismatched places, rank by Google's own signal."""
+    """Drop low-rated places, rank by Google's own signal + price match."""
+    if not candidates:
+        return []
+
     dropped = []
     kept = []
     far_candidates = []
@@ -170,17 +173,27 @@ def _pre_filter(candidates: list[dict], price_level: int | None, n: int = PREFIL
         if price_level is not None and r.get("price_level") is not None:
             price_diff = abs(r.get("price_level", price_level) - price_level)
         distance_km = r.get("distance_m", 0) / 1000.0
-        if rating < 3.0:
-            dropped.append(f"{r['name']} (rating {rating} < 3.0)")
-        elif price_level is not None and price_diff > 1:
-            dropped.append(f"{r['name']} (price_level {r.get('price_level')} vs requested {price_level})")
+
+        if rating > 0 and rating < 3.0:
+            dropped.append(f"{r.get('name', 'Unknown')} (rating {rating} < 3.0)")
         elif distance_km > MAX_DISTANCE_KM:
             far_candidates.append(r)
         else:
             kept.append(r)
 
+    # Fallbacks if we dropped too many
+    if not kept and far_candidates:
+        kept = far_candidates
+    elif not kept and dropped:
+        kept = candidates
+
     def _sort_key(r: dict):
+        p_diff = 0
+        if price_level is not None and r.get("price_level") is not None:
+            p_diff = abs(r.get("price_level", price_level) - price_level)
+            
         return (
+            -p_diff, # Prioritize exact price matches
             (r.get("rating") or 0.0) * math.log10((r.get("total_ratings") or 0) + 1),
             -(r.get("distance_m") or 0),
         )
@@ -189,15 +202,10 @@ def _pre_filter(candidates: list[dict], price_level: int | None, n: int = PREFIL
         log.debug("[B] dropped %d candidates: %s", len(dropped), " | ".join(dropped))
 
     kept.sort(key=_sort_key, reverse=True)
-    far_candidates.sort(key=_sort_key, reverse=True)
-    if len(kept) < n and far_candidates:
-        kept.extend(far_candidates[: max(0, n - len(kept))])
-
     result = kept[:n]
     log.info(
-        "[B] pre_filter: %d → %d candidates  |  kept: %s",
-        len(candidates), len(result),
-        ", ".join(f"{r['name']} ({r.get('rating')}★, {r.get('distance_m', 0):.0f}m)" for r in result),
+        "[B] pre_filter: %d → %d candidates",
+        len(candidates), len(result)
     )
     return result
 

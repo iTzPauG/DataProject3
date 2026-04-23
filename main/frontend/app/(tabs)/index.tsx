@@ -1,25 +1,38 @@
-import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { FlatList, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  FlatList,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
-import Map from '../../components/map/Map';
 import CategoryFilter from '../../components/CategoryFilter';
+import Icon from '../../components/Icon';
+import Map from '../../components/map/Map';
 import NearbySheet from '../../components/NearbySheet';
 import { useAppState } from '../../hooks/useAppState';
 import { useDeviceType } from '../../hooks/useDeviceType';
 import { useLocation } from '../../hooks/useLocation';
-import { fetchNearbyItems, fetchCategories } from '../../services/mapService';
 import { BASE_URL } from '../../services/api';
+import { fetchCategories, fetchNearbyItems } from '../../services/mapService';
 import { Category, MapItem } from '../../types';
 import { useTheme } from '../../utils/theme';
 
-type AutocompleteResult = { display: string; lat: number; lng: number; id?: string; address?: string; raw?: any };
+type AutocompleteResult = {
+  display: string;
+  lat: number;
+  lng: number;
+  id?: string;
+  address?: string;
+  raw?: any;
+};
 
 export default function MapTab() {
-  const { colors, theme, shadows } = useTheme();
+  const { colors, typography, shadows } = useTheme();
   const params = useLocalSearchParams<{ category?: string }>();
   const insets = useSafeAreaInsets();
   const { isDesktop, width: windowWidth } = useDeviceType();
@@ -42,132 +55,184 @@ export default function MapTab() {
   const [selectedSearchItem, setSelectedSearchItem] = useState<AutocompleteResult | null>(null);
   const hasAutoCentered = useRef(false);
   const acTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const dynamicStyles = useMemo(() => StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.shell,
-    },
-    glassContainer: {
-      borderRadius: 20,
-      overflow: 'hidden',
-      backgroundColor: theme === 'dark' ? 'rgba(23, 27, 41, 0.85)' : 'rgba(255, 255, 255, 0.85)',
-      borderWidth: 1,
-      borderColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-      ...shadows.soft,
-    },
-    searchInput: {
-      flex: 1,
-      fontSize: 16,
-      fontWeight: '500',
-      color: colors.ink,
-      paddingHorizontal: 8,
-    },
-    divider: {
-      height: 1,
-      backgroundColor: colors.stroke,
-      opacity: 0.5,
-      marginHorizontal: 16,
-    },
-    dropdown: {
-      position: 'absolute',
-      top: '100%',
-      left: 0,
-      right: 0,
-      marginTop: 4,
-      borderRadius: 16,
-      overflow: 'hidden',
-      backgroundColor: theme === 'dark' ? 'rgba(23, 27, 41, 0.97)' : 'rgba(255, 255, 255, 0.97)',
-      borderWidth: 1,
-      borderColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.07)',
-      ...shadows.soft,
-      zIndex: 20,
-    },
-    dropdownItem: {
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.stroke,
-    },
-    dropdownName: {
-      fontSize: 14,
-      fontWeight: '700',
-      color: colors.ink,
-    },
-    dropdownAddress: {
-      fontSize: 12,
-      color: colors.inkMuted,
-      marginTop: 2,
-    },
-  }), [colors, theme, shadows]);
-
   const fetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Autocomplete ───────────────────────────────────────────────────────────
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: { flex: 1, backgroundColor: colors.shell },
 
-  const handleSearchChange = useCallback((text: string) => {
-    setSearchQuery(text);
-    setSelectedSearchItem(null);
-    if (acTimer.current) clearTimeout(acTimer.current);
-    if (text.length < 1) { setAcResults([]); return; }
-    acTimer.current = setTimeout(async () => {
-      try {
-        const lat = location.lat ?? mapRegion?.lat ?? 39.4699;
-        const lng = location.lng ?? mapRegion?.lng ?? -0.3763;
-        const res = await fetch(
-          `${BASE_URL}/search/universal?q=${encodeURIComponent(text)}&lat=${lat}&lng=${lng}&radius_m=5000&use_brain=false`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          const results: AutocompleteResult[] = (data.results ?? [])
-            .filter((r: any) => r.name && r.lat && r.lng)
-            .slice(0, 5)
-            .map((r: any) => ({
-              display: r.name,
-              lat: r.lat,
-              lng: r.lng,
-              id: r.id,
-              address: r.address ?? r.metadata?.address,
-              raw: r,
-            }));
-          setAcResults(results);
-        }
-      } catch {}
-    }, 300);
-  }, [location.lat, location.lng, mapRegion]);
-
-  const handleSelectResult = useCallback((item: AutocompleteResult) => {
-    setSearchQuery(item.display);
-    setAcResults([]);
-    setSelectedSearchItem(item);
-    setMapRegion({ lat: item.lat, lng: item.lng, latDelta: 0.008, lngDelta: 0.008 });
-    if (item.id && item.raw) {
-      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://restaurant-api-gcfbpra65a-ew.a.run.app';
-      const photoUrl = item.raw.metadata?.photo_url;
-      const mapItem = {
-        item_id: item.id,
-        item_type: 'place',
-        title: item.display,
-        category_id: item.raw.category_id ?? 'food',
-        lat: item.lat,
-        lng: item.lng,
-        distance_m: 0,
-        metadata: {
-          ...item.raw.metadata,
-          photo_url: photoUrl?.startsWith('/') ? `${backendUrl}${photoUrl}` : photoUrl,
-          address: item.address,
-          google_reviews: item.raw.google_reviews ?? [],
+        panel: {
+          backgroundColor: colors.surface,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.stroke,
+          borderRadius: 14,
+          overflow: 'hidden',
+          ...shadows.soft,
         },
-      } as any;
-      setNearbyItems(prev => {
-        const without = prev.filter(i => i.item_id !== item.id);
-        return [mapItem, ...without];
-      });
-      setSelectedId(item.id);
-    }
-  }, [setMapRegion, setNearbyItems]);
+        eyebrowRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: 16,
+          paddingTop: 12,
+          paddingBottom: 6,
+        },
+        eyebrow: {
+          fontSize: 10,
+          letterSpacing: 1.8,
+          textTransform: 'uppercase',
+          color: colors.inkFaint,
+          fontFamily: typography.body,
+          fontWeight: '600',
+        },
+        eyebrowAction: {
+          fontSize: 12,
+          color: colors.inkMuted,
+          fontFamily: typography.body,
+          fontWeight: '500',
+        },
+        searchRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: 14,
+          paddingBottom: 10,
+          gap: 10,
+        },
+        searchInput: {
+          flex: 1,
+          fontSize: 16,
+          fontWeight: '500',
+          color: colors.ink,
+          paddingVertical: 6,
+          fontFamily: typography.body,
+          // @ts-ignore web-only outline removal
+          outlineStyle: 'none',
+        } as any,
+        divider: {
+          height: StyleSheet.hairlineWidth,
+          backgroundColor: colors.stroke,
+        },
+        filterRow: {
+          paddingHorizontal: 10,
+          paddingVertical: 10,
+        },
+        iconBtn: {
+          width: 32,
+          height: 32,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
 
-  // ── Callbacks ─────────────────────────────────────────────────────────────
+        dropdown: {
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: 0,
+          marginTop: 6,
+          borderRadius: 14,
+          overflow: 'hidden',
+          backgroundColor: colors.surface,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.stroke,
+          ...shadows.lift,
+          zIndex: 20,
+        },
+        dropdownItem: {
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: colors.stroke,
+        },
+        dropdownName: {
+          fontSize: 14,
+          fontWeight: '600',
+          color: colors.ink,
+          fontFamily: typography.body,
+          letterSpacing: -0.1,
+        },
+        dropdownAddress: {
+          fontSize: 12,
+          color: colors.inkFaint,
+          marginTop: 3,
+          fontFamily: typography.body,
+        },
+      }),
+    [colors, typography, shadows],
+  );
+
+  const handleSearchChange = useCallback(
+    (text: string) => {
+      setSearchQuery(text);
+      setSelectedSearchItem(null);
+      if (acTimer.current) clearTimeout(acTimer.current);
+      if (text.length < 1) {
+        setAcResults([]);
+        return;
+      }
+      acTimer.current = setTimeout(async () => {
+        try {
+          const lat = location.lat ?? mapRegion?.lat ?? 39.4699;
+          const lng = location.lng ?? mapRegion?.lng ?? -0.3763;
+          const res = await fetch(
+            `${BASE_URL}/search/universal?q=${encodeURIComponent(text)}&lat=${lat}&lng=${lng}&radius_m=5000&use_brain=false`,
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const results: AutocompleteResult[] = (data.results ?? [])
+              .filter((r: any) => r.name && r.lat && r.lng)
+              .slice(0, 5)
+              .map((r: any) => ({
+                display: r.name,
+                lat: r.lat,
+                lng: r.lng,
+                id: r.id,
+                address: r.address ?? r.metadata?.address,
+                raw: r,
+              }));
+            setAcResults(results);
+          }
+        } catch {}
+      }, 300);
+    },
+    [location.lat, location.lng, mapRegion],
+  );
+
+  const handleSelectResult = useCallback(
+    (item: AutocompleteResult) => {
+      setSearchQuery(item.display);
+      setAcResults([]);
+      setSelectedSearchItem(item);
+      setMapRegion({ lat: item.lat, lng: item.lng, latDelta: 0.008, lngDelta: 0.008 });
+      if (item.id && item.raw) {
+        const backendUrl =
+          process.env.EXPO_PUBLIC_BACKEND_URL ||
+          'https://restaurant-api-gcfbpra65a-ew.a.run.app';
+        const photoUrl = item.raw.metadata?.photo_url;
+        const mapItem = {
+          item_id: item.id,
+          item_type: 'place',
+          title: item.display,
+          category_id: item.raw.category_id ?? 'food',
+          lat: item.lat,
+          lng: item.lng,
+          distance_m: 0,
+          metadata: {
+            ...item.raw.metadata,
+            photo_url: photoUrl?.startsWith('/') ? `${backendUrl}${photoUrl}` : photoUrl,
+            address: item.address,
+            google_reviews: item.raw.google_reviews ?? [],
+          },
+        } as any;
+        setNearbyItems((prev) => {
+          const without = prev.filter((i) => i.item_id !== item.id);
+          return [mapItem, ...without];
+        });
+        setSelectedId(item.id);
+      }
+    },
+    [setMapRegion, setNearbyItems],
+  );
 
   const handleSheetItemPress = useCallback((id: string) => {
     setSelectedId(id);
@@ -182,49 +247,69 @@ export default function MapTab() {
 
   const handleCenterOnUser = useCallback(() => {
     if (location.lat && location.lng) {
-      setMapRegion({ lat: location.lat, lng: location.lng, latDelta: 0.015, lngDelta: 0.015 });
+      setMapRegion({
+        lat: location.lat,
+        lng: location.lng,
+        latDelta: 0.015,
+        lngDelta: 0.015,
+      });
     }
   }, [location, setMapRegion]);
 
   const handleCategorySelect = useCallback(
-    (categoryId: string | null) => { setSelectedCategory(categoryId); },
+    (categoryId: string | null) => {
+      setSelectedCategory(categoryId);
+    },
     [setSelectedCategory],
   );
 
-  // ── Effects ────────────────────────────────────────────────────────────────
-
-  // Fetch full place data when a marker is selected but metadata is missing
   useEffect(() => {
     if (!selectedId) return;
-    const item = nearbyItems.find(i => i.item_id === selectedId);
-    if (item?.metadata?.photo_url && item?.metadata?.google_reviews) return; // already have data
+    const item = nearbyItems.find((i) => i.item_id === selectedId);
+    if (item?.metadata?.photo_url && item?.metadata?.google_reviews) return;
     const lat = item?.lat ?? mapRegion?.lat ?? 39.4699;
     const lng = item?.lng ?? mapRegion?.lng ?? -0.3763;
     const q = item?.title ?? selectedId;
-    const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://restaurant-api-gcfbpra65a-ew.a.run.app';
-    fetch(`${backendUrl}/search/universal?q=${encodeURIComponent(q)}&lat=${lat}&lng=${lng}&radius_m=300&use_brain=false`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        const found = (data?.results ?? []).find((r: any) => r.id === selectedId || r.name === q);
+    const backendUrl =
+      process.env.EXPO_PUBLIC_BACKEND_URL ||
+      'https://restaurant-api-gcfbpra65a-ew.a.run.app';
+    fetch(
+      `${backendUrl}/search/universal?q=${encodeURIComponent(q)}&lat=${lat}&lng=${lng}&radius_m=300&use_brain=false`,
+    )
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const found = (data?.results ?? []).find(
+          (r: any) => r.id === selectedId || r.name === q,
+        );
         if (!found) return;
         const photoUrl = found.metadata?.photo_url;
-        setNearbyItems(prev => prev.map(i => i.item_id === selectedId ? {
-          ...i,
-          metadata: {
-            ...i.metadata,
-            ...found.metadata,
-            photo_url: photoUrl?.startsWith('/') ? `${backendUrl}${photoUrl}` : photoUrl,
-            address: found.address ?? found.metadata?.address ?? i.metadata?.address,
-            google_reviews: found.google_reviews ?? found.metadata?.google_reviews ?? [],
-          },
-        } : i));
+        setNearbyItems((prev) =>
+          prev.map((i) =>
+            i.item_id === selectedId
+              ? {
+                  ...i,
+                  metadata: {
+                    ...i.metadata,
+                    ...found.metadata,
+                    photo_url: photoUrl?.startsWith('/')
+                      ? `${backendUrl}${photoUrl}`
+                      : photoUrl,
+                    address:
+                      found.address ?? found.metadata?.address ?? i.metadata?.address,
+                    google_reviews:
+                      found.google_reviews ?? found.metadata?.google_reviews ?? [],
+                  },
+                }
+              : i,
+          ),
+        );
       })
       .catch(() => {});
   }, [selectedId]);
 
   useEffect(() => {
     fetchCategories().then(setCategories).catch(() => {});
-    setSelectedCategory(null); // always start with "Todos"
+    setSelectedCategory(null);
   }, []);
 
   useEffect(() => {
@@ -234,7 +319,13 @@ export default function MapTab() {
   }, [params.category, selectedCategory, setSelectedCategory]);
 
   useEffect(() => {
-    if (!location.loading && !location.error && !hasAutoCentered.current && location.lat && location.lng) {
+    if (
+      !location.loading &&
+      !location.error &&
+      !hasAutoCentered.current &&
+      location.lat &&
+      location.lng
+    ) {
       handleCenterOnUser();
       hasAutoCentered.current = true;
     }
@@ -245,35 +336,41 @@ export default function MapTab() {
       setNearbyItems([]);
       return;
     }
-
     const searchLat = mapRegion?.lat ?? location.lat;
     const searchLng = mapRegion?.lng ?? location.lng;
     if (searchLat === null || searchLng === null) return;
-
     if (fetchTimer.current) clearTimeout(fetchTimer.current);
     fetchTimer.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const lang = mapPreferences.language === 'system' ? 'es' : mapPreferences.language;
+        const lang =
+          mapPreferences.language === 'system' ? 'es' : mapPreferences.language;
         const itemTypes: string[] = ['place'];
         if (mapPreferences.showRealTimeEvents) itemTypes.push('event', 'report');
-        const items = await fetchNearbyItems(searchLat, searchLng, mapPreferences.defaultRadiusM, selectedCategory, lang, itemTypes);
+        const items = await fetchNearbyItems(
+          searchLat,
+          searchLng,
+          mapPreferences.defaultRadiusM,
+          selectedCategory,
+          lang,
+          itemTypes,
+        );
         setNearbyItems(items);
       } catch {
       } finally {
         setLoading(false);
       }
     }, 300);
+    return () => {
+      if (fetchTimer.current) clearTimeout(fetchTimer.current);
+    };
+  }, [selectedCategory]);
 
-    return () => { if (fetchTimer.current) clearTimeout(fetchTimer.current); };
-  }, [selectedCategory]); // only re-fetch when category changes
-
-  const desktopWidth = Math.min(windowWidth - 40, 600);
-  const leftOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 16;
-  const rightOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 16;
+  const desktopWidth = Math.min(windowWidth - 40, 620);
+  const leftOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
+  const rightOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
   const minimalist = mapPreferences.mapStyle === 'minimal';
 
-  // Merge selected search item as a pin on the map
   const displayItems = useMemo(() => {
     if (!selectedSearchItem) return nearbyItems;
     const pin: MapItem = {
@@ -285,130 +382,142 @@ export default function MapTab() {
       category_id: null,
       metadata: {},
     } as any;
-    return [pin, ...nearbyItems.filter(i => i.item_id !== '__search_pin__')];
+    return [pin, ...nearbyItems.filter((i) => i.item_id !== '__search_pin__')];
   }, [nearbyItems, selectedSearchItem]);
 
   return (
     <AnimatedTabScene>
-    <View style={dynamicStyles.container}>
-      <Map
-        items={displayItems}
-        selectedId={selectedId}
-        onSelectItem={handleSheetItemPress}
-        onRegionChange={handleRegionChange}
-        region={mapRegion ?? undefined}
-        mapType={mapPreferences.mapStyle}
-        minimalist={minimalist}
-        gadoOverlay={mapPreferences.gadoOverlay}
-      />
+      <View style={styles.container}>
+        <Map
+          items={displayItems}
+          selectedId={selectedId}
+          onSelectItem={handleSheetItemPress}
+          onRegionChange={handleRegionChange}
+          region={mapRegion ?? undefined}
+          mapType={mapPreferences.mapStyle}
+          minimalist={minimalist}
+          gadoOverlay={mapPreferences.gadoOverlay}
+        />
 
-      <View
-        style={[
-          styles.topControls,
-          { top: insets.top + 12, left: leftOffset, right: rightOffset },
-        ]}
-      >
-        <BlurView intensity={Platform.OS === 'ios' ? 80 : 100} tint={theme as any} style={dynamicStyles.glassContainer}>
-          <View style={styles.searchRow}>
-            <TouchableOpacity
-              style={styles.iconBtn}
-              activeOpacity={0.7}
-              onPress={handleCenterOnUser}
-              accessibilityLabel="Centrar en mi ubicación"
-              accessibilityRole="button"
-            >
-              <Ionicons name="locate" size={20} color={colors.brand} />
-            </TouchableOpacity>
+        <View
+          style={{
+            position: 'absolute',
+            zIndex: 10,
+            top: insets.top + 14,
+            left: leftOffset,
+            right: rightOffset,
+          }}
+        >
+          <View style={styles.panel}>
+            <View style={styles.eyebrowRow}>
+              <Text style={styles.eyebrow}>València · Ahora</Text>
+              <TouchableOpacity
+                onPress={handleCenterOnUser}
+                activeOpacity={0.7}
+                accessibilityLabel="Centrar en mi ubicación"
+                accessibilityRole="button"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+              >
+                <Icon
+                  name="crosshair"
+                  size={13}
+                  color={colors.inkMuted}
+                  strokeWidth={1.2}
+                />
+                <Text style={styles.eyebrowAction}>Recentrar</Text>
+              </TouchableOpacity>
+            </View>
 
-            <TextInput
-              style={dynamicStyles.searchInput}
-              placeholder="Buscar lugares o eventos..."
-              placeholderTextColor={colors.inkMuted}
-              value={searchQuery}
-              onChangeText={handleSearchChange}
-              clearButtonMode="while-editing"
-              accessibilityLabel="Campo de búsqueda"
-            />
-
-            <TouchableOpacity
-              style={styles.iconBtn}
-              activeOpacity={0.7}
-              onPress={() => { setSearchQuery(''); setAcResults([]); setSelectedSearchItem(null); }}
-              accessibilityLabel="Limpiar búsqueda"
-              accessibilityRole="button"
-            >
-              {searchQuery.length > 0
-                ? <Ionicons name="close-circle" size={20} color={colors.inkMuted} />
-                : <Ionicons name="close-circle-outline" size={20} color={colors.stroke} />
-              }
-            </TouchableOpacity>
-          </View>
-
-          <View style={dynamicStyles.divider} />
-
-          <View style={styles.categoryContainer}>
-            <CategoryFilter
-              categories={categories}
-              selected={selectedCategory}
-              onSelect={handleCategorySelect}
-            />
-          </View>
-        </BlurView>
-
-        {acResults.length > 0 && (
-          <View style={dynamicStyles.dropdown}>
-            <FlatList
-              data={acResults}
-              keyExtractor={(_, i) => String(i)}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item, index }) => (
+            <View style={styles.searchRow}>
+              <View style={styles.iconBtn}>
+                <Icon
+                  name="search"
+                  size={18}
+                  color={colors.inkMuted}
+                  strokeWidth={1.5}
+                />
+              </View>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Un sitio, una calle, un evento…"
+                placeholderTextColor={colors.inkFaint}
+                value={searchQuery}
+                onChangeText={handleSearchChange}
+                clearButtonMode="while-editing"
+                accessibilityLabel="Campo de búsqueda"
+              />
+              {searchQuery.length > 0 ? (
                 <TouchableOpacity
-                  style={[
-                    dynamicStyles.dropdownItem,
-                    index === acResults.length - 1 && { borderBottomWidth: 0 },
-                  ]}
-                  onPress={() => handleSelectResult(item)}
-                  activeOpacity={0.7}
+                  style={styles.iconBtn}
+                  activeOpacity={0.6}
+                  onPress={() => {
+                    setSearchQuery('');
+                    setAcResults([]);
+                    setSelectedSearchItem(null);
+                  }}
+                  accessibilityLabel="Limpiar búsqueda"
+                  accessibilityRole="button"
                 >
-                  <Text style={dynamicStyles.dropdownName} numberOfLines={1}>{item.display}</Text>
-                  {item.address ? <Text style={dynamicStyles.dropdownAddress} numberOfLines={1}>{item.address}</Text> : null}
+                  <Icon
+                    name="close"
+                    size={14}
+                    color={colors.inkMuted}
+                    strokeWidth={1.4}
+                  />
                 </TouchableOpacity>
-              )}
-            />
-          </View>
-        )}
-      </View>
+              ) : null}
+            </View>
 
-      <NearbySheet
-        items={nearbyItems}
-        selectedId={selectedId}
-        onSelectItem={handleSheetItemPress}
-        loading={loading}
-        hasSearched={selectedCategory !== null}
-      />
-    </View>
+            <View style={styles.divider} />
+
+            <View style={styles.filterRow}>
+              <CategoryFilter
+                categories={categories}
+                selected={selectedCategory}
+                onSelect={handleCategorySelect}
+              />
+            </View>
+          </View>
+
+          {acResults.length > 0 && (
+            <View style={styles.dropdown}>
+              <FlatList
+                data={acResults}
+                keyExtractor={(_, i) => String(i)}
+                keyboardShouldPersistTaps="handled"
+                renderItem={({ item, index }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.dropdownItem,
+                      index === acResults.length - 1 && { borderBottomWidth: 0 },
+                    ]}
+                    onPress={() => handleSelectResult(item)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.dropdownName} numberOfLines={1}>
+                      {item.display}
+                    </Text>
+                    {item.address ? (
+                      <Text style={styles.dropdownAddress} numberOfLines={1}>
+                        {item.address}
+                      </Text>
+                    ) : null}
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          )}
+        </View>
+
+        <NearbySheet
+          items={nearbyItems}
+          selectedId={selectedId}
+          onSelectItem={handleSheetItemPress}
+          loading={loading}
+          hasSearched={selectedCategory !== null}
+        />
+      </View>
     </AnimatedTabScene>
   );
 }
-
-const styles = StyleSheet.create({
-  topControls: {
-    position: 'absolute',
-    zIndex: 10,
-  },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    height: 52,
-  },
-  iconBtn: {
-    padding: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  categoryContainer: {
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-  },
-});

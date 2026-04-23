@@ -143,11 +143,11 @@ async def create_report(req: Any, request: Request):
         try:
             await _ensure_report_type_exists(db, req.report_type)
             await db.execute(
-                \"\"\"INSERT INTO community_reports
+                """INSERT INTO community_reports
                    (id, created_by, anon_fingerprint, report_type, title, description,
                     lat, lng, created_at, expires_at)
                    VALUES (?,?,?,?,?,?,?,?,?,?)
-                \"\"\",
+                """,
                 (report_id, user_id, getattr(req, "anon_fingerprint", None), req.report_type, req.title, req.description,
                 req.lat, req.lng, now, expires_at),
             )
@@ -173,9 +173,9 @@ async def confirm_report(report_id: str, req: Any, request: Request):
             raise HTTPException(status_code=404, detail="Report not found")
         try:
             await db.execute(
-                \"\"\"INSERT INTO report_confirmations (id, report_id, actor_key, user_id, anon_fingerprint, vote)
+                """INSERT INTO report_confirmations (id, report_id, actor_key, user_id, anon_fingerprint, vote)
                    VALUES (?,?,?,?,?,?)
-                   ON CONFLICT (report_id, actor_key) DO UPDATE SET vote=excluded.vote\"\"\",
+                   ON CONFLICT (report_id, actor_key) DO UPDATE SET vote=excluded.vote""",
                 (str(uuid.uuid4()), report_id, actor_key, actor_user_id, actor_anon_fingerprint, req.vote),
             )
             await db.commit()
