@@ -7,11 +7,21 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from config import ALLOWED_ORIGINS
+from contextlib import asynccontextmanager
+from database import init_db
 from routers import health, recommend, votes, places, events, reports, categories, bookmarks, search, brain, photos, preferences, compare, deals, reservations, interactions, internal, auth
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Plan Recommendation API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize local database
+    logger.info("Initializing local database...")
+    await init_db()
+    yield
+    # Clean up if needed
+
+app = FastAPI(title="Plan Recommendation API", lifespan=lifespan)
 
 
 import time

@@ -1,5 +1,6 @@
 """Categories endpoint — list active categories and guided flow metadata."""
 from fastapi import APIRouter, HTTPException
+import json
 
 from database import get_db
 from services.recommendation.category_flow import build_flow_payload, merge_category_row
@@ -11,9 +12,10 @@ router = APIRouter(tags=["categories"])
 async def list_categories():
     async with get_db() as db:
         try:
-            rows = await db.fetch(
-                "SELECT * FROM categories WHERE is_active=TRUE ORDER BY sort_order"
+            cursor = await db.execute(
+                "SELECT * FROM categories WHERE is_active=1 ORDER BY sort_order"
             )
+            rows = await cursor.fetchall()
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
@@ -25,9 +27,10 @@ async def list_categories():
 async def get_category_flow(category_id: str):
     async with get_db() as db:
         try:
-            category_row = await db.fetchrow(
-                "SELECT * FROM categories WHERE id=$1", category_id
+            cursor = await db.execute(
+                "SELECT * FROM categories WHERE id=?", (category_id,)
             )
+            category_row = await cursor.fetchone()
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
@@ -37,38 +40,50 @@ async def get_category_flow(category_id: str):
         category_row = dict(category_row)
 
         try:
-            sub_rows = await db.fetch(
+            cursor = await db.execute(
                 """SELECT id, label, icon, metadata, sort_order, is_active
                    FROM category_subcategories
-                   WHERE category_id=$1 AND is_active=TRUE ORDER BY sort_order""",
-                category_id,
+                   WHERE category_id=? AND is_active=1 ORDER BY sort_order""",
+                (category_id,),
             )
-            subcategories = [
-                {
+            sub_rows = await cursor.fetchall()
+            subcategories = []
+            for r in sub_rows:
+                meta = {}
+                if r["metadata"]:
+                    try:
+                        meta = json.loads(r["metadata"]) if isinstance(r["metadata"], str) else r["metadata"]
+                    except:
+                        meta = {}
+                subcategories.append({
                     "id": r["id"], "label": r["label"], "emoji": r["icon"],
-                    "description": (r["metadata"] or {}).get("description"),
+                    "description": meta.get("description"),
                     "sort_order": r["sort_order"], "is_active": r["is_active"],
-                }
-                for r in sub_rows
-            ]
+                })
         except Exception:
             subcategories = None
 
         try:
-            mood_rows = await db.fetch(
+            cursor = await db.execute(
                 """SELECT id, label, icon, metadata, sort_order, is_active
                    FROM category_moods
-                   WHERE category_id=$1 AND is_active=TRUE ORDER BY sort_order""",
-                category_id,
+                   WHERE category_id=? AND is_active=1 ORDER BY sort_order""",
+                (category_id,),
             )
-            moods = [
-                {
+            mood_rows = await cursor.fetchall()
+            moods = []
+            for r in mood_rows:
+                meta = {}
+                if r["metadata"]:
+                    try:
+                        meta = json.loads(r["metadata"]) if isinstance(r["metadata"], str) else r["metadata"]
+                    except:
+                        meta = {}
+                moods.append({
                     "id": r["id"], "label": r["label"], "emoji": r["icon"],
-                    "description": (r["metadata"] or {}).get("description"),
+                    "description": meta.get("description"),
                     "sort_order": r["sort_order"], "is_active": r["is_active"],
-                }
-                for r in mood_rows
-            ]
+                })
         except Exception:
             moods = None
 

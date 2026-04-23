@@ -1,85 +1,86 @@
-"""User preferences endpoints."""
+"""User Preferences — map style, radius, favorites, etc."""
+import json
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
+from typing import Optional, List
 
 from auth import get_optional_user
-from config import DEFAULT_MAP_RADIUS_M
 from database import get_db
-from models.schemas import UserPreferencesResponse, UserPreferencesUpdate
 
 router = APIRouter(prefix="/preferences", tags=["preferences"])
 
-DEFAULT_PREFERENCES = {
-    "default_radius_m": DEFAULT_MAP_RADIUS_M,
-    "favorite_cats": [],
-    "map_style": "standard",
-    "map_minimal": False,
-    "map_preset": "classic",
-    "gado_overlay_on": True,
-    "notifications_on": True,
-    "language": "es",
-    "theme": "system",
-    "show_real_time_events": True,
-}
 
-_PREF_COLS = "default_radius_m,favorite_cats,map_style,map_minimal,map_preset,gado_overlay_on,notifications_on,language,theme,show_real_time_events"
+class PreferencesUpdate(BaseModel):
+    default_radius_m: Optional[int] = None
+    favorite_cats: Optional[List[str]] = None
+    map_style: Optional[str] = None
+    map_minimal: Optional[bool] = None
+    map_preset: Optional[str] = None
+    gado_overlay_on: Optional[bool] = None
+    notifications_on: Optional[bool] = None
+    language: Optional[str] = None
+    theme: Optional[str] = None
+    show_real_time_events: Optional[bool] = None
 
 
-async def _get_profile_id(db, firebase_uid: str) -> str:
-    """Resolve firebase_uid to the profile UUID. Creates profile if missing."""
-    row = await db.fetchrow("SELECT id FROM profiles WHERE firebase_uid=$1", firebase_uid)
-    if not row:
-        row = await db.fetchrow(
-            "INSERT INTO profiles (firebase_uid) VALUES ($1) ON CONFLICT (firebase_uid) DO UPDATE SET firebase_uid=EXCLUDED.firebase_uid RETURNING id",
-            firebase_uid,
-        )
-    return str(row["id"])
-
-
-@router.get("/me", response_model=UserPreferencesResponse)
+@router.get("")
 async def get_preferences(request: Request):
     firebase_uid = get_optional_user(request)
     if not firebase_uid:
-        raise HTTPException(status_code=401, detail="Authentication required")
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
     async with get_db() as db:
-        user_id = await _get_profile_id(db, firebase_uid)
-        row = await db.fetchrow(
-            f"SELECT {_PREF_COLS} FROM user_preferences WHERE user_id=$1 LIMIT 1",
-            user_id,
-        )
-    data = dict(row) if row else {}
-    return UserPreferencesResponse(**{**DEFAULT_PREFERENCES, **data})
+        cursor = await db.execute("SELECT id FROM profiles WHERE firebase_uid=?", (firebase_uid,))
+        p_row = await cursor.fetchone()
+        if not p_row:
+            raise HTTPException(status_code=404, detail="Profile not found")
+
+        cursor = await db.execute("SELECT * FROM user_preferences WHERE user_id=?", (p_row["id"],))
+        row = await cursor.fetchone()
+        
+        if not row:
+            # Default preferences
+            await db.execute(
+                "INSERT INTO user_preferences (user_id) VALUES (?) ON CONFLICT DO NOTHING",
+                (p_row["id"],)
+            )
+            await db.commit()
+            cursor = await db.execute("SELECT * FROM user_preferences WHERE user_id=?", (p_row["id"],))
+            row = await cursor.fetchone()
+
+    res = dict(row)
+    if isinstance(res.get("favorite_cats"), str):
+        try:
+            res["favorite_cats"] = json.loads(res["favorite_cats"])
+        except:
+            res["favorite_cats"] = []
+    return res
 
 
-@router.put("/me", response_model=UserPreferencesResponse)
-async def update_preferences(payload: UserPreferencesUpdate, request: Request):
+@router.patch("")
+async def update_preferences(body: PreferencesUpdate, request: Request):
     firebase_uid = get_optional_user(request)
     if not firebase_uid:
-        raise HTTPException(status_code=401, detail="Authentication required")
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
-    data = payload.model_dump(exclude_unset=True)
+    data = body.model_dump(exclude_unset=True)
+    if not data:
+        return await get_preferences(request)
+
+    if "favorite_cats" in data:
+        data["favorite_cats"] = json.dumps(data["favorite_cats"])
 
     async with get_db() as db:
-        user_id = await _get_profile_id(db, firebase_uid)
+        cursor = await db.execute("SELECT id FROM profiles WHERE firebase_uid=?", (firebase_uid,))
+        p_row = await cursor.fetchone()
+        if not p_row:
+            raise HTTPException(status_code=404, detail="Profile not found")
 
-        if not data:
-            row = await db.fetchrow(
-                f"SELECT {_PREF_COLS} FROM user_preferences WHERE user_id=$1 LIMIT 1",
-                user_id,
-            )
-            return UserPreferencesResponse(**{**DEFAULT_PREFERENCES, **(dict(row) if row else {})})
-
-        cols = ["user_id"] + list(data.keys())
-        vals = [user_id] + list(data.values())
-        placeholders = ", ".join(f"${i+1}" for i in range(len(vals)))
-        col_names = ", ".join(cols)
-        updates = ", ".join(f"{c}=EXCLUDED.{c}" for c in data.keys())
-
-        row = await db.fetchrow(
-            f"""INSERT INTO user_preferences ({col_names}) VALUES ({placeholders})
-                ON CONFLICT (user_id) DO UPDATE SET {updates}
-                RETURNING {_PREF_COLS}""",
-            *vals,
+        sets = ", ".join(f"{k}=?" for k in data.keys())
+        await db.execute(
+            f"UPDATE user_preferences SET {sets}, updated_at=CURRENT_TIMESTAMP WHERE user_id=?",
+            (*data.values(), p_row["id"]),
         )
+        await db.commit()
 
-    return UserPreferencesResponse(**{**DEFAULT_PREFERENCES, **(dict(row) if row else {})})
+    return await get_preferences(request)

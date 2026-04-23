@@ -34,25 +34,27 @@ async def nearby_items(
 
         reports = []
         events = []
-        now_iso = datetime.now(timezone.utc)
+        now_iso = datetime.now(timezone.utc).isoformat()
 
         async with get_db() as db:
             if "report" in item_types:
-                rows = await db.fetch(
+                cursor = await db.execute(
                     """SELECT * FROM community_reports
-                       WHERE lat BETWEEN $1 AND $2 AND lng BETWEEN $3 AND $4
-                         AND expires_at >= $5""",
-                    lat - 0.05, lat + 0.05, lng - 0.05, lng + 0.05, now_iso,
+                       WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?
+                         AND expires_at >= ?""",
+                    (lat - 0.05, lat + 0.05, lng - 0.05, lng + 0.05, now_iso),
                 )
+                rows = await cursor.fetchall()
                 reports = [dict(r) for r in rows]
 
             if "event" in item_types:
-                rows = await db.fetch(
+                cursor = await db.execute(
                     """SELECT * FROM events
-                       WHERE lat BETWEEN $1 AND $2 AND lng BETWEEN $3 AND $4
-                         AND ends_at >= $5""",
-                    lat - 0.05, lat + 0.05, lng - 0.05, lng + 0.05, now_iso,
+                       WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?
+                         AND ends_at >= ?""",
+                    (lat - 0.05, lat + 0.05, lng - 0.05, lng + 0.05, now_iso),
                 )
+                rows = await cursor.fetchall()
                 events = [dict(r) for r in rows]
 
         map_items = []
