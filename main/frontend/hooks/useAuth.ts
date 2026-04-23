@@ -1,15 +1,4 @@
 import { useEffect, useState, useCallback } from 'react';
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signOut as firebaseSignOut,
-  onAuthStateChanged,
-  updateProfile,
-  User,
-} from 'firebase/auth';
-import { auth } from '../services/supabase';
 import { BASE_URL } from '../services/api';
 
 export interface UserProfile {
@@ -22,7 +11,7 @@ export interface UserProfile {
 }
 
 interface AuthState {
-  user: User | null;
+  user: any | null;
   profile: UserProfile | null;
   loading: boolean;
   isAnonymous: boolean;
@@ -38,18 +27,17 @@ interface AuthActions {
   refreshProfile: () => Promise<void>;
 }
 
-async function syncProfileWithBackend(user: User): Promise<UserProfile | null> {
+async function syncProfileWithBackend(): Promise<UserProfile | null> {
   try {
-    const token = await user.getIdToken();
     const res = await fetch(`${BASE_URL}/auth/sync`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer local-token`,
       },
       body: JSON.stringify({
-        display_name: user.displayName ?? null,
-        avatar_url: user.photoURL ?? null,
+        display_name: 'Local User',
+        avatar_url: null,
       }),
     });
     if (!res.ok) return null;
@@ -61,57 +49,31 @@ async function syncProfileWithBackend(user: User): Promise<UserProfile | null> {
 
 export function useAuth(): AuthState & AuthActions {
   const [state, setState] = useState<AuthState>({
-    user: null,
+    user: { uid: 'local-user', displayName: 'Local User' },
     profile: null,
     loading: true,
-    isAnonymous: true,
-    idToken: null,
+    isAnonymous: false,
+    idToken: 'local-token',
   });
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const [idToken, profile] = await Promise.all([
-          user.getIdToken(),
-          syncProfileWithBackend(user),
-        ]);
-        setState({ user, profile, loading: false, isAnonymous: false, idToken });
-      } else {
-        setState({ user: null, profile: null, loading: false, isAnonymous: true, idToken: null });
-      }
-    });
-    return unsubscribe;
-  }, []);
-
-  const signInWithEmail = useCallback(async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
-  }, []);
-
-  const signUpWithEmail = useCallback(async (email: string, password: string, displayName?: string) => {
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
-    if (displayName) {
-      await updateProfile(cred.user, { displayName });
+    async function init() {
+      const profile = await syncProfileWithBackend();
+      setState(prev => ({ ...prev, profile, loading: false }));
     }
+    init();
   }, []);
 
-  const signInWithGoogle = useCallback(async () => {
-    const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
-  }, []);
-
-  const signOut = useCallback(async () => {
-    await firebaseSignOut(auth);
-  }, []);
-
-  const getToken = useCallback(async (): Promise<string | null> => {
-    return state.user ? state.user.getIdToken() : null;
-  }, [state.user]);
+  const signInWithEmail = useCallback(async (email: string, password: string) => {}, []);
+  const signUpWithEmail = useCallback(async (email: string, password: string, displayName?: string) => {}, []);
+  const signInWithGoogle = useCallback(async () => {}, []);
+  const signOut = useCallback(async () => {}, []);
+  const getToken = useCallback(async (): Promise<string | null> => 'local-token', []);
 
   const refreshProfile = useCallback(async () => {
-    if (!state.user) return;
-    const profile = await syncProfileWithBackend(state.user);
+    const profile = await syncProfileWithBackend();
     setState(prev => ({ ...prev, profile }));
-  }, [state.user]);
+  }, []);
 
   return { ...state, signInWithEmail, signUpWithEmail, signInWithGoogle, signOut, getToken, refreshProfile };
 }
