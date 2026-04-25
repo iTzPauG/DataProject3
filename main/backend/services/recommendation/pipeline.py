@@ -396,20 +396,26 @@ For places with data_quality='low' (fewer than 20 ratings): be transparent about
 RULES:
 - Be honest. If there are negatives, INCLUDE them in 'cons'.
 - Tone: Local, direct, insightful. All text in {target_lang}.
-- Output: A JSON array of objects."""
+- Output: You MUST return ONLY a valid JSON array of objects. Do not include markdown formatting or extra text."""
 
     prompt = f"""Language: {target_lang}. Vibe requested: {mood}.
-For each place return:
-- id: same as place id
-- translated_reviews: array with ALL provided reviews (author, text translated to {target_lang}, rating, relative_time)
-- tagline: 5-8 word summary
-- why: 1-2 sentences matching user mood
-- pros: 2-3 specific points
-- cons: 1-2 specific negatives (or 'Pocos datos disponibles' if data_quality is low)
-- verdict: Final honest take
-- tags: 3-5 descriptive tags
-- best_quote: best review snippet
-- quality_score: 0.0-1.0 based on review analysis
+For each place return exactly this JSON structure:
+[
+  {{
+    "id": "place_id",
+    "translated_reviews": [
+      {{"author": "Name", "text": "review translated to {target_lang}", "rating": 5, "relative_time": "1 month ago"}}
+    ],
+    "tagline": "5-8 word summary",
+    "why": "1-2 sentences matching user mood",
+    "pros": ["pro 1", "pro 2"],
+    "cons": ["con 1", "con 2"],
+    "verdict": "Final honest take",
+    "tags": ["tag1", "tag2", "tag3"],
+    "best_quote": "best review snippet",
+    "quality_score": 0.8
+  }}
+]
 
 PLACES:
 {json.dumps(ai_payload, ensure_ascii=False)}"""
@@ -458,6 +464,19 @@ def _build_result(r: dict, ai_data: dict, live_data: dict) -> dict:
             "relative_time": str(rev.get("relative_time") or "n/a"),
         })
 
+    pros = ai_data.get("pros")
+    if not pros:
+        pros = [f"Valoracion de {float(r.get('rating') or 0.0):.1f} estrellas."] if float(r.get('rating') or 0.0) >= 4.0 else ["Sin suficientes datos sobre puntos fuertes."]
+
+    cons = ai_data.get("cons")
+    if not cons:
+        cons = ["Pocas resenas disponibles."] if int(r.get("total_ratings") or 0) < 50 else ["Sin quejas destacadas."]
+
+    verdict = ai_data.get("verdict")
+    if not verdict:
+        summary = r.get("review_summary", "")
+        verdict = summary if summary else f"Lugar con {int(r.get('total_ratings') or 0)} resenas y {float(r.get('rating') or 0.0):.1f} estrellas."
+
     return {
         "id": r["place_id"],
         "name": str(r.get("name") or ""),
@@ -472,9 +491,9 @@ def _build_result(r: dict, ai_data: dict, live_data: dict) -> dict:
         "distanceM": int(r.get("distance_m") or 0),
         "tagline": ai_data.get("tagline") or str(r.get("name") or ""),
         "why": ai_data.get("why") or "",
-        "pros": ai_data.get("pros") or [],
-        "cons": ai_data.get("cons") or [],
-        "verdict": ai_data.get("verdict") or "",
+        "pros": pros,
+        "cons": cons,
+        "verdict": verdict,
         "reviews": safe_reviews,
         "reviewsCount": int(r.get("total_ratings") or 0),
         "review_count": int(r.get("total_ratings") or 0),

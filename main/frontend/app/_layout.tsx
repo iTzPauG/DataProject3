@@ -7,6 +7,30 @@ import { useAuth } from '../hooks/useAuth';
 import { BASE_URL } from '../services/api';
 import { GADOLogger } from '../utils/logger';
 import WebFontLoader from '../components/WebFontLoader';
+import '../utils/i18n';
+import { useTranslation } from 'react-i18next';
+
+// Syncs i18n language with the language set in AppState
+function LanguageSyncer() {
+  const { mapPreferences, isHydrated } = useAppState();
+  const { i18n } = useTranslation();
+
+  useEffect(() => {
+    if (isHydrated && mapPreferences.language) {
+      let lang = mapPreferences.language;
+      if (lang === 'system') {
+        // Fallback or use expo-localization here if available
+        // For now, fallback to 'es' as default
+        lang = 'es';
+      }
+      if (i18n.language !== lang) {
+        i18n.changeLanguage(lang);
+      }
+    }
+  }, [mapPreferences.language, isHydrated, i18n]);
+
+  return null;
+}
 
 // Loads remote preferences into AppState whenever the user logs in
 function PreferencesSyncer() {
@@ -43,6 +67,7 @@ export default function RootLayout() {
       <AppStateProvider>
         <WebFontLoader />
         <PreferencesSyncer />
+        <LanguageSyncer />
         <StatusBar style="light" />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />

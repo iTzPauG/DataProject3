@@ -14,33 +14,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
 import { MapStyle, useAppState } from '../../hooks/useAppState';
 import { useTheme } from '../../utils/theme';
-
-const MAP_STYLE_OPTIONS: Array<{ value: MapStyle; label: string; description: string }> = [
-  { value: 'minimal', label: 'Minimal', description: 'Clean and calm' },
-  { value: 'standard', label: 'Standard', description: 'Default city map' },
-  { value: 'hybrid', label: 'Hybrid', description: 'Satellite with labels' },
-  { value: 'satellite', label: 'Satellite', description: 'Imagery first' },
-  { value: 'terrain', label: 'Terrain', description: 'Topography and parks' },
-];
-
-const RADIUS_OPTIONS = [2000, 5000, 10000, 20000];
+import { useTranslation } from 'react-i18next';
 
 function formatRadius(value: number): string {
   return value >= 1000 ? `${value / 1000} km` : `${value} m`;
 }
 
-const THEME_OPTIONS: Array<{ value: 'system' | 'light' | 'dark'; label: string; description: string }> = [
-  { value: 'system', label: 'Sistema', description: 'Match dispositivo' },
-  { value: 'dark', label: 'Oscuro', description: 'Modo noche' },
-  { value: 'light', label: 'Claro', description: 'Modo día' },
-];
-
-const LANGUAGE_OPTIONS = [
-  { value: 'system', label: 'Sistema' },
-  { value: 'es', label: 'Español' },
-  { value: 'en', label: 'English' },
-  { value: 'fr', label: 'Français' },
-];
+const RADIUS_OPTIONS = [2000, 5000, 10000, 20000];
 
 export default function SettingsModal() {
   const { colors, radii, typography, shadows } = useTheme();
@@ -48,6 +28,28 @@ export default function SettingsModal() {
   const { mapPreferences, setMapPreferences } = useAppState();
   const [syncState, setSyncState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [remoteLoaded, setRemoteLoaded] = useState(false);
+  const { t } = useTranslation();
+
+  const MAP_STYLE_OPTIONS = useMemo(() => [
+    { value: 'minimal', label: t('settings.mapLayer.minimal.label'), description: t('settings.mapLayer.minimal.desc') },
+    { value: 'standard', label: t('settings.mapLayer.standard.label'), description: t('settings.mapLayer.standard.desc') },
+    { value: 'hybrid', label: t('settings.mapLayer.hybrid.label'), description: t('settings.mapLayer.hybrid.desc') },
+    { value: 'satellite', label: t('settings.mapLayer.satellite.label'), description: t('settings.mapLayer.satellite.desc') },
+    { value: 'terrain', label: t('settings.mapLayer.terrain.label'), description: t('settings.mapLayer.terrain.desc') },
+  ], [t]);
+
+  const THEME_OPTIONS = useMemo(() => [
+    { value: 'system', label: t('settings.appearance.system'), description: t('settings.appearance.systemDesc') },
+    { value: 'dark', label: t('settings.appearance.dark'), description: t('settings.appearance.darkDesc') },
+    { value: 'light', label: t('settings.appearance.light'), description: t('settings.appearance.lightDesc') },
+  ], [t]);
+
+  const LANGUAGE_OPTIONS = useMemo(() => [
+    { value: 'system', label: t('settings.language.system') },
+    { value: 'es', label: t('settings.language.es') },
+    { value: 'en', label: t('settings.language.en') },
+    { value: 'fr', label: t('settings.language.fr') },
+  ], [t]);
 
   const dynamicStyles = useMemo(() => StyleSheet.create({
     safe: {
@@ -276,25 +278,25 @@ export default function SettingsModal() {
   }, [mapPreferences, remoteLoaded, idToken]);
 
   const syncLabel = useMemo(() => {
-    if (!idToken) return 'Local preference only';
+    if (!idToken) return t('settings.sync.local');
     switch (syncState) {
       case 'saving':
-        return 'Sincronizando...';
+        return t('settings.sync.saving');
       case 'saved':
-        return 'Ajustes guardados';
+        return t('settings.sync.saved');
       case 'error':
-        return 'Error de sincronización';
+        return t('settings.sync.error');
       default:
-        return 'Conectado a la nube';
+        return t('settings.sync.cloud');
     }
-  }, [idToken, syncState]);
+  }, [idToken, syncState, t]);
 
   return (
     <SafeAreaView style={dynamicStyles.safe}>
       <View style={dynamicStyles.header}>
         <View style={styles.headerTextGroup}>
-           <Text style={dynamicStyles.title}>Ajustes</Text>
-           <Text style={dynamicStyles.subtitle}>Personaliza tu experiencia</Text>
+           <Text style={dynamicStyles.title}>{t('settings.title')}</Text>
+           <Text style={dynamicStyles.subtitle}>{t('settings.subtitle')}</Text>
         </View>
         <TouchableOpacity
           accessibilityLabel="Close settings"
@@ -314,8 +316,8 @@ export default function SettingsModal() {
 
         {/* Theme Selection */}
         <View style={dynamicStyles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Apariencia</Text>
-          <Text style={dynamicStyles.sectionSubtitle}>Elige el tono visual de la aplicación.</Text>
+          <Text style={dynamicStyles.sectionTitle}>{t('settings.appearance.title')}</Text>
+          <Text style={dynamicStyles.sectionSubtitle}>{t('settings.appearance.subtitle')}</Text>
           <View style={dynamicStyles.themeGrid}>
             {THEME_OPTIONS.map((option) => {
               const selected = mapPreferences.theme === option.value;
@@ -323,7 +325,7 @@ export default function SettingsModal() {
                 <TouchableOpacity
                   key={option.value}
                   activeOpacity={0.82}
-                  onPress={() => setMapPreferences({ theme: option.value })}
+                  onPress={() => setMapPreferences({ theme: option.value as any })}
                   style={[
                     dynamicStyles.themeChip, 
                     selected && dynamicStyles.themeChipActive
@@ -340,8 +342,8 @@ export default function SettingsModal() {
 
         {/* Language Selection */}
         <View style={dynamicStyles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Idioma</Text>
-          <Text style={dynamicStyles.sectionSubtitle}>Personaliza el idioma de la app y reseñas.</Text>
+          <Text style={dynamicStyles.sectionTitle}>{t('settings.language.title')}</Text>
+          <Text style={dynamicStyles.sectionSubtitle}>{t('settings.language.subtitle')}</Text>
           <View style={dynamicStyles.themeGrid}>
             {LANGUAGE_OPTIONS.map((option) => {
               const selected = (mapPreferences.language || 'system') === option.value;
@@ -366,8 +368,8 @@ export default function SettingsModal() {
 
         {/* Map Style */}
         <View style={dynamicStyles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Capa de Mapa</Text>
-          <Text style={dynamicStyles.sectionSubtitle}>Cómo se renderiza la ciudad bajo tus datos.</Text>
+          <Text style={dynamicStyles.sectionTitle}>{t('settings.mapLayer.title')}</Text>
+          <Text style={dynamicStyles.sectionSubtitle}>{t('settings.mapLayer.subtitle')}</Text>
           <View style={styles.cardGrid}>
             {MAP_STYLE_OPTIONS.map((option) => {
               const selected = mapPreferences.mapStyle === option.value;
@@ -375,7 +377,7 @@ export default function SettingsModal() {
                 <TouchableOpacity
                   key={option.value}
                   activeOpacity={0.82}
-                  onPress={() => setMapPreferences({ mapStyle: option.value })}
+                  onPress={() => setMapPreferences({ mapStyle: option.value as any })}
                   style={[
                     dynamicStyles.styleCard,
                     selected && { borderColor: colors.brand, backgroundColor: colors.brand + '08' }
@@ -394,12 +396,12 @@ export default function SettingsModal() {
         </View>
 
         <View style={dynamicStyles.section}>
-          <Text style={dynamicStyles.sectionTitle}>GADO Overlay</Text>
-          <Text style={dynamicStyles.sectionSubtitle}>Resalta reportes y eventos con señales visuales fuertes.</Text>
+          <Text style={dynamicStyles.sectionTitle}>{t('settings.gadoOverlay.title')}</Text>
+          <Text style={dynamicStyles.sectionSubtitle}>{t('settings.gadoOverlay.subtitle')}</Text>
           <View style={styles.toggleRow}>
             <View style={styles.toggleCopy}>
-              <Text style={dynamicStyles.toggleTitle}>Énfasis en actividad viva</Text>
-              <Text style={dynamicStyles.toggleText}>Inspirado en apps de tráfico, pero para la comunidad GADO.</Text>
+              <Text style={dynamicStyles.toggleTitle}>{t('settings.gadoOverlay.liveActivity')}</Text>
+              <Text style={dynamicStyles.toggleText}>{t('settings.gadoOverlay.liveActivityDesc')}</Text>
             </View>
             <Switch
               onValueChange={(value) => setMapPreferences({ gadoOverlay: value })}
@@ -411,12 +413,12 @@ export default function SettingsModal() {
         </View>
 
         <View style={dynamicStyles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Radio por Defecto</Text>
-          <Text style={dynamicStyles.sectionSubtitle}>Filtros del Mapa.</Text>
+          <Text style={dynamicStyles.sectionTitle}>{t('settings.defaultRadius.title')}</Text>
+          <Text style={dynamicStyles.sectionSubtitle}>{t('settings.defaultRadius.subtitle')}</Text>
           <View style={styles.cardGrid}>
             <View style={styles.toggleCopy}>
-              <Text style={dynamicStyles.toggleTitle}>Eventos en tiempo real</Text>
-              <Text style={dynamicStyles.toggleText}>Muestra eventos y reportes de la comunidad en el mapa principal.</Text>
+              <Text style={dynamicStyles.toggleTitle}>{t('settings.defaultRadius.realTime')}</Text>
+              <Text style={dynamicStyles.toggleText}>{t('settings.defaultRadius.realTimeDesc')}</Text>
             </View>
             <Switch
               onValueChange={(value) => setMapPreferences({ showRealTimeEvents: value })}
@@ -426,7 +428,7 @@ export default function SettingsModal() {
             />
           </View>
 
-          <Text style={dynamicStyles.sectionSubtitle}>Distancia máxima de búsqueda automática.</Text>
+          <Text style={dynamicStyles.sectionSubtitle} style={{marginTop: 16, marginBottom: 8}}>{t('settings.defaultRadius.autoSearch')}</Text>
           <View style={styles.radiusRow}>
             {RADIUS_OPTIONS.map((value) => {
               const selected = mapPreferences.defaultRadiusM === value;
@@ -453,7 +455,7 @@ export default function SettingsModal() {
           style={dynamicStyles.doneButton}
           onPress={() => router.back()}
         >
-          <Text style={dynamicStyles.doneButtonText}>Listo</Text>
+          <Text style={dynamicStyles.doneButtonText}>{t('settings.done')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

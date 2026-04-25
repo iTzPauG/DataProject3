@@ -1,12 +1,12 @@
 {
-  "last_session_id": "6dd6f8ce-9af2-4b47-9c10-b37740e1936f",
-  "last_event_key": "6dd6f8ce-9af2-4b47-9c10-b37740e1936f:transcript:290101a439b04a7a86f3fbab4300f13b90c82bf18b77ffef47b4b9753b085623",
+  "last_session_id": "a211c4c1-17aa-4f1d-ac99-6c668a4e92e0",
+  "last_event_key": "a211c4c1-17aa-4f1d-ac99-6c668a4e92e0:transcript:247353d34d69f20a3de8ae42985d97ff077bc319aef65aef821c166c48413e9b",
   "last_prompted_session_id": "",
   "last_reason": "short-session",
   "last_prompted_at": "",
   "last_user_message_count": 0,
   "last_actionable_message_count": 0,
   "deep_interview_lock_active": false,
-  "deep_interview_lock_source": "/Users/ivanhuertas/Desktop/Proyectos/IA_PROJECT_3/IA_PROJECT_3/DataProject3/.omg/state/deep-interview.json",
-  "updated_at": "2026-04-23T16:25:13.819Z"
+  "deep_interview_lock_source": "/Users/ivanhuertas/Desktop/Proyectos/DataProject3/.omg/state/deep-interview.json",
+  "updated_at": "2026-04-25T08:35:24.652Z"
 }
