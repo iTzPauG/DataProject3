@@ -1,103 +1,33 @@
+# Configuración del Provider
 terraform {
-  backend "gcs" {
-    bucket = "pruebas-edem-dataproject3-tfstate"
-    prefix = "terraform/state"
-  }
-
   required_providers {
-    google = {
-      source  = "hashicorp/google"
+    aws = {
+      source  = "hashicorp/aws"
       version = "~> 5.0"
-    }
-    google-beta = {
-      source  = "hashicorp/google-beta"
-      version = "~> 5.0"
-    }
-    null = {
-      source  = "hashicorp/null"
-      version = "~> 3.0"
     }
   }
 }
 
-provider "google" {
-  project = var.project_id
-  region  = var.region
+provider "aws" {
+  region = "us-east-1" # Asegúrate de que esta sea tu región
 }
 
-provider "google-beta" {
-  project = var.project_id
-  region  = var.region
+# 1. Tu Instancia para el Data Project
+resource "aws_instance" "data_server" {
+  ami           = "ami-0c7217cdde317cfec" # Ubuntu 22.04 LTS
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "DataProject3_Instance"
+  }
 }
 
-module "apis" {
-  source     = "./modules/apis"
-  project_id = var.project_id
+# 2. Bucket S3 para guardar los datos
+resource "aws_s3_bucket" "data_storage" {
+  bucket = "ivan-huertas-dataproject3-storage" # Este nombre debe ser único
 }
 
-module "registry" {
-  source     = "./modules/registry"
-  project_id = var.project_id
-  region     = var.region
-  depends_on = [module.apis]
-}
-
-module "cloud_run" {
-  source               = "./modules/cloud_run"
-  region               = var.region
-  image                = module.registry.image
-  build_id             = module.registry.build_id
-  cloud_sql_connection = module.cloud_sql.connection_name
-  depends_on           = [module.apis, module.cloud_sql]
-}
-
-module "databases" {
-  source     = "./modules/databases"
-  project_id = var.project_id
-  region     = var.region
-  depends_on = [module.apis]
-}
-
-module "iam" {
-  source       = "./modules/iam"
-  region       = var.region
-  project_id   = var.project_id
-  service_name = module.cloud_run.service_name
-}
-
-module "cloud_sql" {
-  source     = "./modules/cloud_sql"
-  project_id = var.project_id
-  region     = var.region
-  depends_on = [module.apis]
-}
-
-module "registry_frontend" {
-  source                       = "./modules/registry_frontend"
-  project_id                   = var.project_id
-  region                       = var.region
-  firebase_api_key             = var.firebase_api_key
-  firebase_auth_domain         = var.firebase_auth_domain
-  firebase_project_id          = var.project_id
-  firebase_storage_bucket      = var.firebase_storage_bucket
-  firebase_messaging_sender_id = var.firebase_messaging_sender_id
-  firebase_app_id              = var.firebase_app_id
-  backend_url                  = module.cloud_run.url
-  depends_on                   = [module.registry, module.cloud_run]
-}
-
-module "cloud_run_frontend" {
-  source                       = "./modules/cloud_run_frontend"
-  region                       = var.region
-  image                        = module.registry_frontend.image
-  build_id                     = module.registry_frontend.build_id
-  project_id                   = var.project_id
-  firebase_api_key             = var.firebase_api_key
-  firebase_auth_domain         = var.firebase_auth_domain
-  firebase_project_id          = var.project_id
-  firebase_storage_bucket      = var.firebase_storage_bucket
-  firebase_messaging_sender_id = var.firebase_messaging_sender_id
-  firebase_app_id              = var.firebase_app_id
-  backend_url                  = module.cloud_run.url
-  depends_on                   = [module.apis, module.registry_frontend]
+# 3. Output para que no pierdas la IP
+output "instance_ip" {
+  value = aws_instance.data_server.public_ip
 }
