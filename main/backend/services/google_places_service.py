@@ -221,11 +221,31 @@ async def search_places(
 
 import asyncio
 
+_REVIEW_LANGUAGE_POOL = ("es", "en", "fr", "it", "de", "ca", "pt")
+
+
+def _review_languages_for_place(language: str, max_languages: int = 5) -> list[str]:
+    """Pick the preferred language plus up to N-1 useful alternates for reviews.
+
+    The app language always goes first so UI-aligned content wins ties, then we add
+    common tourism/local languages for Valencia to maximize review yield.
+    """
+    preferred = (language or "es").strip().lower() or "es"
+    ordered = [preferred]
+    for lang in _REVIEW_LANGUAGE_POOL:
+        if lang not in ordered:
+            ordered.append(lang)
+        if len(ordered) >= max_languages:
+            break
+    return ordered[:max_languages]
+
+
 async def get_place_details(place_id: str, language: str = "es") -> dict | None:
     """Fetch detailed info for a Google place.
     
-    Acts as a 'brain' to get the best 15 reviews by querying Google Places
-    concurrently in 3 different languages. The primary result uses the 'language' param.
+    Acts as a 'brain' to get the best review coverage by querying Google Places
+    concurrently in up to 5 different languages. The primary result uses the
+    app/request language so the visible place data stays aligned with the UI.
     """
     if not GOOGLE_MAPS_API_KEY:
         return None
@@ -264,12 +284,11 @@ async def get_place_details(place_id: str, language: str = "es") -> dict | None:
                 return res.json()
             return None
 
-        # Fetch primary language + two others for extra reviews
-        other_langs = [l for l in ["es", "en", "fr"] if l != language][:2]
-        tasks = [_fetch_lang(language)] + [_fetch_lang(l) for l in other_langs]
+        review_languages = _review_languages_for_place(language, max_languages=5)
+        tasks = [_fetch_lang(lang) for lang in review_languages]
         
         results = await asyncio.gather(*tasks)
-        data = results[0] # Primary language result
+        data = results[0]  # Primary/app language result
         
         if not data:
             log.warning("Google Place details failed for %s", place_id)

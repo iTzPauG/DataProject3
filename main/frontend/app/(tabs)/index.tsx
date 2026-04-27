@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
@@ -123,6 +123,30 @@ export default function MapTab() {
           alignItems: 'center',
           justifyContent: 'center',
         },
+        reportFab: {
+          position: 'absolute',
+          right: rightOffset,
+          bottom: isDesktop ? 34 : Math.max(insets.bottom + 122, 136),
+          minHeight: 52,
+          paddingHorizontal: 16,
+          borderRadius: 18,
+          backgroundColor: colors.surface,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.strokeStrong,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          zIndex: 11,
+          ...shadows.lift,
+        },
+        reportFabText: {
+          fontSize: 14,
+          color: colors.ink,
+          fontFamily: typography.heading,
+          fontWeight: '700',
+          letterSpacing: -0.1,
+        },
 
         dropdown: {
           position: 'absolute',
@@ -158,7 +182,7 @@ export default function MapTab() {
           fontFamily: typography.body,
         },
       }),
-    [colors, typography, shadows],
+    [colors, typography, shadows, rightOffset, isDesktop, insets.bottom],
   );
 
   const handleSearchChange = useCallback(
@@ -509,6 +533,22 @@ export default function MapTab() {
             </View>
           )}
         </View>
+
+        <TouchableOpacity
+          style={styles.reportFab}
+          activeOpacity={0.85}
+          onPress={() => router.push('/(tabs)/report')}
+          accessibilityRole="button"
+          accessibilityLabel="Reportar algo en el mapa"
+        >
+          <Icon
+            name="plus"
+            size={16}
+            color={colors.brand}
+            strokeWidth={1.8}
+          />
+          <Text style={styles.reportFabText}>Reportar en vivo</Text>
+        </TouchableOpacity>
 
         <NearbySheet
           items={nearbyItems}

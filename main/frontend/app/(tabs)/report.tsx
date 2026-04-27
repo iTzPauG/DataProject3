@@ -23,6 +23,7 @@ import GADOIcon from '../../components/GADOIcon';
 import Map from '../../components/map/Map';
 import { useAppState } from '../../hooks/useAppState';
 import { useAuth } from '../../hooks/useAuth';
+import { useLocation } from '../../hooks/useLocation';
 import { useTheme } from '../../utils/theme';
 import { createReport, getReportTypes } from '../../services/api';
 import { ReportType } from '../../types';
@@ -40,7 +41,8 @@ export default function ReportTab() {
   const { colors, radii, shadows, typography } = useTheme();
   const router = useRouter();
   const { user } = useAuth();
-  const { mapPreferences } = useAppState();
+  const { mapPreferences, mapRegion: appMapRegion } = useAppState();
+  const location = useLocation();
   const [options, setOptions] = useState<ReportType[]>([]);
   const [step, setStep] = useState(1);
   const [reportType, setReportType] = useState<ReportType | null>(null);
@@ -54,11 +56,31 @@ export default function ReportTab() {
 
   // Map state for the background
   const [mapRegion, setMapRegion] = useState({
-    lat: 39.4699,
-    lng: -0.3763,
-    latDelta: 0.015,
-    lngDelta: 0.015,
+    lat: appMapRegion?.lat ?? location.lat ?? 39.4699,
+    lng: appMapRegion?.lng ?? location.lng ?? -0.3763,
+    latDelta: appMapRegion?.latDelta ?? 0.015,
+    lngDelta: appMapRegion?.lngDelta ?? 0.015,
   });
+
+  useEffect(() => {
+    if (appMapRegion) {
+      setMapRegion((prev) => ({
+        ...prev,
+        lat: appMapRegion.lat,
+        lng: appMapRegion.lng,
+        latDelta: appMapRegion.latDelta,
+        lngDelta: appMapRegion.lngDelta,
+      }));
+      return;
+    }
+    if (location.lat && location.lng) {
+      setMapRegion((prev) => ({
+        ...prev,
+        lat: location.lat!,
+        lng: location.lng!,
+      }));
+    }
+  }, [appMapRegion, location.lat, location.lng]);
 
   const dynamicStyles = useMemo(() => StyleSheet.create({
     safe: {

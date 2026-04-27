@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
-import CategoryMonogram from '../../components/CategoryMonogram';
 import Icon from '../../components/Icon';
 import { ExploreCategory, getExploreCategories } from '../../services/api';
 import { useTheme } from '../../utils/theme';
@@ -20,8 +19,8 @@ import { useTheme } from '../../utils/theme';
  * Explore — editorial index.
  *
  * Replaces the colored-icon grid with a magazine-style contents list:
- * featured lede at top, numbered index of categories below, a quiet report
- * CTA at the bottom.  No emoji, no tint-box icons — category identity is
+ * featured lede at top, numbered index of categories below. No emoji,
+ * no tint-box icons — category identity is
  * carried by its monogram ring.
  */
 export default function ExploreTab() {
@@ -206,35 +205,6 @@ export default function ExploreTab() {
           marginLeft: 12,
         },
         rowInactive: { opacity: 0.48 },
-
-        // ── report CTA ─────────────────────────────────────────
-        reportBlock: {
-          marginHorizontal: 24,
-          marginTop: 40,
-          paddingVertical: 22,
-          paddingHorizontal: 22,
-          backgroundColor: colors.bg,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: colors.strokeStrong,
-          borderRadius: 16,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 16,
-        },
-        reportText: { flex: 1, gap: 4 },
-        reportTitle: {
-          fontSize: 15,
-          color: colors.ink,
-          fontFamily: typography.heading,
-          fontWeight: '500',
-          letterSpacing: -0.1,
-        },
-        reportDesc: {
-          fontSize: 13,
-          color: colors.inkMuted,
-          fontFamily: typography.body,
-          lineHeight: 18,
-        },
       }),
     [colors, typography],
   );
@@ -404,35 +374,6 @@ export default function ExploreTab() {
                 })}
               </View>
             )}
-
-            <TouchableOpacity
-              style={styles.reportBlock}
-              activeOpacity={0.8}
-              onPress={() => router.push('/(tabs)/report')}
-              accessibilityRole="button"
-              accessibilityLabel="Reportar algo en la ciudad"
-            >
-              <CategoryMonogram
-                categoryId="report"
-                label="Reportar"
-                size={44}
-                variant="filled"
-                color={colors.brand}
-              />
-              <View style={styles.reportText}>
-                <Text style={styles.reportTitle}>¿Viste algo? Cuéntalo.</Text>
-                <Text style={styles.reportDesc}>
-                  Incidencias, cortes, avisos — lo que ven otros también te
-                  ayuda a decidir.
-                </Text>
-              </View>
-              <Icon
-                name="chevron-right"
-                size={16}
-                color={colors.inkMuted}
-                strokeWidth={1.4}
-              />
-            </TouchableOpacity>
           </View>
         </ScrollView>
       </SafeAreaView>
