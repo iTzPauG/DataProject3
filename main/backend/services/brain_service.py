@@ -10,6 +10,7 @@ import logging
 from typing import Optional
 
 import httpx
+from google.auth import default as google_auth_default
 from google import genai
 from google.genai import types
 
@@ -26,6 +27,7 @@ from config import (
 
 logger = logging.getLogger(__name__)
 GEMINI_API_KEY = GOOGLE_GENAI_API_KEY
+_VERTEX_PROJECT_CACHE: str | None = None
 
 SYSTEM_PROMPT = """
 Eres el asistente de GADO, una app de descubrimiento urbano.
@@ -63,7 +65,7 @@ def _provider_chain() -> list[str]:
 
 def _provider_ready(provider: str) -> bool:
     if provider == "gemini":
-        return not _is_mock(GEMINI_API_KEY)
+        return bool(_resolve_vertex_project())
     if provider == "openrouter":
         return not _is_mock(OPENROUTER_API_KEY)
     if provider == "groq":
@@ -71,6 +73,23 @@ def _provider_ready(provider: str) -> bool:
     if provider == "ollama":
         return True
     return False
+
+
+def _resolve_vertex_project() -> str:
+    global _VERTEX_PROJECT_CACHE
+    if _VERTEX_PROJECT_CACHE:
+        return _VERTEX_PROJECT_CACHE
+    project = (GOOGLE_CLOUD_PROJECT or "").strip()
+    if project:
+        _VERTEX_PROJECT_CACHE = project
+        return _VERTEX_PROJECT_CACHE
+    try:
+        _, detected_project = google_auth_default()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not resolve Vertex project from ADC: %s", exc)
+        detected_project = None
+    _VERTEX_PROJECT_CACHE = (detected_project or "").strip()
+    return _VERTEX_PROJECT_CACHE
 
 
 async def ask_brain(
@@ -104,16 +123,15 @@ async def ask_brain(
 
 async def _ask_gemini(message: str) -> dict:
     """Vertex AI Gemini Implementation."""
-    # Use google-genai Client with Vertex AI enabled
-    if not GOOGLE_CLOUD_PROJECT:
-        logger.warning("GOOGLE_CLOUD_PROJECT not set, falling back to AI Studio (not recommended for Vertex AI mandate)")
-        client = genai.Client(api_key=GEMINI_API_KEY)
-    else:
-        client = genai.Client(
-            vertexai=True,
-            project=GOOGLE_CLOUD_PROJECT,
-            location=GOOGLE_CLOUD_LOCATION
-        )
+    project = _resolve_vertex_project()
+    if not project:
+        raise RuntimeError("Vertex AI requires GOOGLE_CLOUD_PROJECT or ADC project discovery.")
+    client = genai.Client(
+        vertexai=True,
+        project=project,
+        location=(GOOGLE_CLOUD_LOCATION or "global"),
+        http_options=types.HttpOptions(apiVersion="v1"),
+    )
 
     response = client.models.generate_content(
         model='gemini-2.0-flash',
@@ -128,14 +146,15 @@ async def _ask_gemini(message: str) -> dict:
 
 async def ask_brain_stream(message: str):
     """Vertex AI Gemini Streaming Implementation."""
-    if not GOOGLE_CLOUD_PROJECT:
-        client = genai.Client(api_key=GEMINI_API_KEY)
-    else:
-        client = genai.Client(
-            vertexai=True,
-            project=GOOGLE_CLOUD_PROJECT,
-            location=GOOGLE_CLOUD_LOCATION
-        )
+    project = _resolve_vertex_project()
+    if not project:
+        raise RuntimeError("Vertex AI requires GOOGLE_CLOUD_PROJECT or ADC project discovery.")
+    client = genai.Client(
+        vertexai=True,
+        project=project,
+        location=(GOOGLE_CLOUD_LOCATION or "global"),
+        http_options=types.HttpOptions(apiVersion="v1"),
+    )
 
     responses = client.models.generate_content_stream(
         model='gemini-2.0-flash',

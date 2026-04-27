@@ -20,6 +20,7 @@ import time
 from typing import Optional
 from typing import AsyncGenerator
 
+from google.auth import default as google_auth_default
 from google import genai
 from google.genai import types
 
@@ -49,13 +50,39 @@ LLM_BATCH_SPLIT = 3  # split top 5 into batches of 3+2 for parallel LLM
 
 # ── Shared Gemini client ─────────────────────────────────────────────────────
 _genai_client: genai.Client | None = None
+_vertex_project_id: str | None = None
+
+
+def _resolve_vertex_project() -> str:
+    global _vertex_project_id
+    if _vertex_project_id:
+        return _vertex_project_id
+    project = os.getenv("GOOGLE_CLOUD_PROJECT", "").strip()
+    if project:
+        _vertex_project_id = project
+        return _vertex_project_id
+    try:
+        _, detected_project = google_auth_default()
+    except Exception as exc:
+        log.warning("[LLM] Could not resolve Google Cloud project from ADC: %s", exc)
+        detected_project = None
+    _vertex_project_id = (detected_project or "").strip()
+    return _vertex_project_id
 
 
 def _get_client() -> genai.Client:
     global _genai_client
     if _genai_client is None:
-        api_key = os.getenv("GOOGLE_GENAI_API_KEY") or os.getenv("GEMINI_API_KEY")
-        _genai_client = genai.Client(api_key=api_key)
+        project = _resolve_vertex_project()
+        if not project:
+            raise RuntimeError("Vertex AI requires GOOGLE_CLOUD_PROJECT or ADC project discovery.")
+        location = os.getenv("GOOGLE_CLOUD_LOCATION", "global").strip() or "global"
+        _genai_client = genai.Client(
+            vertexai=True,
+            project=project,
+            location=location,
+            http_options=types.HttpOptions(apiVersion="v1"),
+        )
     return _genai_client
 
 
@@ -317,6 +344,197 @@ def _review_confidence(r: dict) -> float:
     return min(1.0, rating_confidence + text_bonus)
 
 
+def _clean_review_text(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "")).strip()
+
+
+def _review_snippet(text: str, limit: int = 140) -> str:
+    cleaned = _clean_review_text(text)
+    if len(cleaned) <= limit:
+        return cleaned
+    truncated = cleaned[:limit].rsplit(" ", 1)[0].strip()
+    return (truncated or cleaned[:limit]).rstrip(" ,.;:") + "..."
+
+
+def _review_mentions_issue(text: str) -> bool:
+    lowered = _clean_review_text(text).lower()
+    issue_terms = (
+        "pero",
+        "aunque",
+        "espera",
+        "cola",
+        "lento",
+        "lenta",
+        "ruido",
+        "ruidoso",
+        "caro",
+        "cara",
+        "frio",
+        "fría",
+        "mal",
+        "fatal",
+        "peor",
+        "sucio",
+        "sucia",
+        "pequeño",
+        "pequeno",
+        "apretado",
+        "agobio",
+        "segunda opinión",
+        "segunda opinion",
+        "dolor",
+        "problema",
+        "queja",
+    )
+    return any(term in lowered for term in issue_terms)
+
+
+_POSITIVE_THEMES: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("staff", ("trato", "amable", "atencion", "atención", "personal", "encantador", "cercano", "majo"), "El trato sale repetidamente como cercano y agradable."),
+    ("professional", ("profesional", "profesionales", "explican", "confianza", "serio", "seriedad"), "Las reseñas transmiten profesionalidad y bastante confianza."),
+    ("quality", ("rico", "buen", "buena", "increible", "increíble", "calidad", "resultado", "perfecto", "maravilla"), "La calidad final convence y la experiencia deja buen sabor de boca."),
+    ("space", ("bonito", "precioso", "hermoso", "verde", "amplio", "grande", "arquitectura"), "El sitio destaca por el entorno y por lo agradable que resulta estar allí."),
+    ("value", ("precio", "barato", "merece", "gratis", "económico", "economico"), "La relación entre lo que ofrece y lo que cuesta sale bien parada."),
+    ("fast", ("rapido", "rápido", "agil", "ágil", "puntual", "sin espera"), "La experiencia parece ágil y sin demasiada fricción."),
+)
+
+_NEGATIVE_THEMES: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("wait", ("espera", "cola", "tardar", "lento", "lenta", "demora", "retraso"), "La pega más repetida es la espera o la lentitud."),
+    ("noise", ("ruido", "ruidoso", "ruidosa", "bullicio", "agobio"), "Puede hacerse ruidoso o agobiante en momentos de mucha afluencia."),
+    ("price", ("caro", "cara", "carisimo", "carísima", "sobreprecio", "overpriced"), "Varias reseñas dejan la sensación de precio alto para lo que ofrece."),
+    ("cleanliness", ("sucio", "sucia", "suciedad", "baño", "bano", "olor"), "Hay señales de limpieza o mantenimiento que no terminan de convencer."),
+    ("trust", ("segunda opinión", "segunda opinion", "diagnostico", "diagnóstico", "cobrarte", "timar", "innecesaria"), "Aparecen dudas serias sobre el criterio o la confianza que transmite."),
+    ("result", ("dolor", "mal", "fatal", "peor", "problema", "decepcion", "decepción"), "El resultado final no siempre está a la altura de lo prometido."),
+    ("crowding", ("lleno", "petado", "apretado", "mesas juntas", "masificado"), "Cuando se llena, la comodidad baja bastante."),
+)
+
+_PRACTICAL_CAUTIONS: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("walk", ("largo", "larga", "enorme", "grande", "punta a punta", "recorrer", "caminar"), "Es de esos sitios para ir con tiempo; si vas con prisa, se te puede quedar corto."),
+    ("booking", ("reserva", "reservar", "book", "busy", "siempre lleno"), "Pinta a sitio de ir con margen o con reserva si no quieres jugártela."),
+    ("timing", ("fin de semana", "finde", "hora punta", "mucha gente", "afluencia"), "En hora punta puede perder parte de la gracia, así que conviene elegir bien cuándo ir."),
+)
+
+
+def _theme_hits(text: str, themes: tuple[tuple[str, tuple[str, ...], str], ...]) -> set[str]:
+    lowered = _clean_review_text(text).lower()
+    hits: set[str] = set()
+    for theme_id, keywords, _label in themes:
+        if any(keyword in lowered for keyword in keywords):
+            hits.add(theme_id)
+    return hits
+
+
+def _top_theme_labels(
+    reviews: list[dict],
+    themes: tuple[tuple[str, tuple[str, ...], str], ...],
+    *,
+    limit: int,
+    min_hits: int = 1,
+) -> list[str]:
+    counts: dict[str, int] = {}
+    labels: dict[str, str] = {}
+    for review in reviews:
+        text = str(review.get("text") or "")
+        for theme_id in _theme_hits(text, themes):
+            counts[theme_id] = counts.get(theme_id, 0) + 1
+    for theme_id, _keywords, label in themes:
+        labels[theme_id] = label
+    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    results: list[str] = []
+    for theme_id, count in ranked:
+        if count < min_hits:
+            continue
+        results.append(labels[theme_id])
+        if len(results) == limit:
+            break
+    return results
+
+
+def _generic_positive_summary(reviews: list[dict]) -> str:
+    if not reviews:
+        return "Lo que mejor aguanta es la valoración general, pero con poca reseña útil para concretar mucho más."
+    avg = sum(int(review.get("rating") or 0) for review in reviews) / max(len(reviews), 1)
+    if avg >= 4.5:
+        return "La gente sale bastante convencida y el tono general de las reseñas es claramente bueno."
+    return "El tono general tira a positivo y no parece un sitio que decepcione de entrada."
+
+
+def _generic_negative_summary(total_reviews: int) -> str:
+    if total_reviews < 3:
+        return "Hay poca reseña útil para sacar una pega firme sin inventar."
+    return "No aparece una crítica repetida de verdad; hay buena nota, pero la muestra no da para vender perfección."
+
+
+def _practical_caution_from_reviews(reviews: list[dict]) -> str:
+    labels = _top_theme_labels(reviews, _PRACTICAL_CAUTIONS, limit=1, min_hits=1)
+    if labels:
+        return labels[0]
+    return ""
+
+
+def _fallback_review_signals(r: dict) -> tuple[list[str], list[str], str, str, str]:
+    reviews = [rev for rev in (r.get("google_reviews") or []) if isinstance(rev, dict) and _clean_review_text(str(rev.get("text") or ""))]
+    positives = [rev for rev in reviews if int(rev.get("rating") or 0) >= 4]
+    negatives = [rev for rev in reviews if int(rev.get("rating") or 0) <= 2]
+    mixed = [rev for rev in reviews if rev not in negatives and _review_mentions_issue(str(rev.get("text") or ""))]
+
+    pros = _top_theme_labels(positives, _POSITIVE_THEMES, limit=2, min_hits=1)
+    if not pros and positives:
+        pros = [_generic_positive_summary(positives)]
+
+    strong_cons = _top_theme_labels(negatives + mixed, _NEGATIVE_THEMES, limit=2, min_hits=1)
+    practical_caution = _practical_caution_from_reviews(reviews)
+    cons = strong_cons[:]
+    if not cons:
+        if practical_caution:
+            cons = [practical_caution]
+        else:
+            cons = [_generic_negative_summary(len(reviews))]
+
+    best_quote = ""
+    if positives:
+        best_quote = _review_snippet(str(max(positives, key=lambda rev: len(_clean_review_text(str(rev.get("text") or "")))).get("text") or ""), 180)
+    elif reviews:
+        best_quote = _review_snippet(str(reviews[0].get("text") or ""), 180)
+
+    total = int(r.get("total_ratings") or 0)
+    rating = float(r.get("rating") or 0.0)
+    summary = _clean_review_text(str(r.get("review_summary") or ""))
+
+    if total < 20:
+        if pros and strong_cons:
+            verdict = "Hay señales interesantes, pero la muestra es corta: aquí conviene leer tanto lo bueno como las pegas antes de fiarse."
+        elif pros:
+            verdict = "Apunta bien, pero con tan pocas reseñas no sería serio venderlo como apuesta segura."
+        elif strong_cons:
+            verdict = "Con tan poca muestra ya aparecen alertas; no basta para condenarlo del todo, pero sí para ir con cuidado."
+        else:
+            verdict = "Sin suficiente información textual para opinar con honestidad."
+    elif pros and strong_cons:
+        verdict = (
+            f"Tiene buena nota ({rating:.1f}/5), pero las reseñas dejan claro que aquí hay cosas que gustan mucho y otras que generan dudas reales."
+        )
+    elif pros:
+        verdict = "El consenso sale bien parado, aunque conviene leerlo sin adornos: gusta por razones concretas, no porque sí."
+    elif strong_cons:
+        verdict = "Las críticas pesan más que la nota media; aquí hay señales claras para entrar con cuidado."
+    elif summary:
+        verdict = summary
+    elif total >= 50:
+        verdict = f"Tiene volumen y buena nota ({total} reseñas, {rating:.1f}/5), pero falta texto útil para sacar un take más afilado sin inventar."
+    else:
+        verdict = "Sin suficiente información textual para opinar con honestidad."
+
+    why_parts = []
+    if pros:
+        why_parts.append(pros[0])
+    if strong_cons:
+        why_parts.append(cons[0])
+    why = " ".join(why_parts).strip()
+
+    return pros[:2], cons[:2], verdict, why, best_quote
+
+
 def _enrich_fallback(r: dict, signals: dict[str, dict] | None = None) -> dict:
     """Build a result when LLM is unavailable — uses reviewSummary as verdict."""
     pid = r["place_id"]
@@ -324,13 +542,9 @@ def _enrich_fallback(r: dict, signals: dict[str, dict] | None = None) -> dict:
     total = r.get("total_ratings") or 0
     summary = r.get("review_summary", "")
     rating = float(r.get("rating") or 0.0)
+    fallback_pros, fallback_cons, fallback_verdict, fallback_why, fallback_quote = _fallback_review_signals(r)
 
-    if summary:
-        verdict = summary
-    elif total >= 50:
-        verdict = f"Lugar popular con {total} resenas y {rating:.1f} estrellas."
-    else:
-        verdict = "Sin suficiente informacion para opinar."
+    verdict = fallback_verdict
 
     return {
         "id": pid,
@@ -342,12 +556,12 @@ def _enrich_fallback(r: dict, signals: dict[str, dict] | None = None) -> dict:
         "phone": r.get("phone", "") or "",
         "photoUrl": r.get("photo_url", "") or "",
         "tagline": r.get("name", "") or "",
-        "why": summary[:120] if summary else "",
-        "pros": sig.get("green_flags", [])[:2] or (
+        "why": fallback_why or (summary[:120] if summary else ""),
+        "pros": sig.get("green_flags", [])[:2] or fallback_pros or (
             [f"Valoracion de {rating:.1f} estrellas."] if rating >= 4.0 else ["Sin suficientes datos."]
         ),
-        "cons": sig.get("red_flags", [])[:2] or (
-            ["Pocas resenas disponibles."] if total < 50 else ["Sin quejas destacadas."]
+        "cons": sig.get("red_flags", [])[:2] or fallback_cons or (
+            ["Pocas resenas disponibles."] if total < 50 else ["Sin quejas destacadas en las reseñas disponibles."]
         ),
         "verdict": verdict,
         "tags": sig.get("atmosphere_tags", [])[:4],
@@ -355,7 +569,7 @@ def _enrich_fallback(r: dict, signals: dict[str, dict] | None = None) -> dict:
         "review_count": int(total),
         "lat": float(r.get("lat") or 0.0),
         "lng": float(r.get("lng") or 0.0),
-        "bestReviewQuote": r.get("best_review_quote") or "",
+        "bestReviewQuote": r.get("best_review_quote") or fallback_quote,
         "reviewQualityScore": float(r.get("review_quality_score") or _review_confidence(r)),
         "distanceM": int(r.get("distance_m") or 0),
     }
@@ -369,8 +583,8 @@ def _build_ai_context(r: dict) -> dict:
     return {
         "id": r["place_id"],
         "name": r["name"],
-        "review_summary": r.get("review_summary", ""),
         "reviews": r.get("google_reviews", [])[:10],
+        "review_summary_support": r.get("review_summary", ""),
         "rating": r.get("rating", 0),
         "total_ratings": total,
         "data_quality": "high" if total > 100 else "medium" if total > 20 else "low",
@@ -390,16 +604,21 @@ def _build_llm_prompts(places: list[dict], mood: str, language: str, parent_cate
     ai_payload = [_build_ai_context(r) for r in places]
 
     instruction = f"""You are GADO, a brutally honest guide for {label} in Valencia, Spain.
-TASK: For each place, analyze and enrich in ONE go.
+TASK: For each place, read the real individual reviews first and produce a compact, honest take.
 
-PRIORITY: Use 'review_summary' (AI digest of ALL reviews) as your PRIMARY source of truth.
-Only fall back to individual 'reviews' when review_summary is empty.
-For places with data_quality='low' (fewer than 20 ratings): be transparent about limited data, focus on factual info (location, type, rating). Do NOT invent qualities.
+SOURCE PRIORITY:
+1. Use 'reviews' as the PRIMARY source of truth.
+2. Use 'review_summary_support' only to confirm broad consensus or when the individual review text is too thin.
 
 RULES:
-- Be honest. If there are negatives, INCLUDE them in 'cons'.
-- Tone: Local, direct, insightful. All text in {target_lang}.
-- Output: You MUST return ONLY a valid JSON array of objects. Do not include markdown formatting or extra text."""
+- Synthesize repeated patterns; do not copy long quotes into verdict, pros, or cons.
+- Be direct, sober, and useful. No marketing tone, no filler, no generic praise.
+- Include negatives when they appear in the reviews. Do not smooth them out.
+- If there is no clear negative pattern, use a practical caution only if the reviews support it. Otherwise say there is not enough negative signal.
+- For places with data_quality='low', be explicit about limited evidence and do not invent qualities.
+- Return up to 2 pros and up to 2 cons, each as short natural-language summaries.
+- All text in {target_lang}.
+- Output MUST be valid JSON only."""
 
     prompt = f"""Language: {target_lang}. Vibe requested: {mood}.
 For each place return exactly this JSON structure:
@@ -410,12 +629,12 @@ For each place return exactly this JSON structure:
       {{"author": "Name", "text": "review translated to {target_lang}", "rating": 5, "relative_time": "1 month ago"}}
     ],
     "tagline": "5-8 word summary",
-    "why": "1-2 sentences matching user mood",
-    "pros": ["pro 1", "pro 2"],
-    "cons": ["con 1", "con 2"],
-    "verdict": "Final honest take",
+    "why": "Short rationale grounded in review evidence",
+    "pros": ["Short summary of a repeated positive pattern", "Optional second positive pattern"],
+    "cons": ["Short summary of a repeated negative pattern or practical caution", "Optional second warning"],
+    "verdict": "One short, direct, evidence-based conclusion",
     "tags": ["tag1", "tag2", "tag3"],
-    "best_quote": "best review snippet",
+    "best_quote": "optional short quote from a review",
     "quality_score": 0.8
   }}
 ]
@@ -450,6 +669,7 @@ async def _llm_batch(places: list[dict], mood: str, language: str, parent_catego
 
 def _build_result(r: dict, ai_data: dict, live_data: dict) -> dict:
     """Build a final result dict from a candidate + AI data + live data."""
+    fallback_pros, fallback_cons, fallback_verdict, fallback_why, fallback_quote = _fallback_review_signals(r)
     translated = ai_data.get("translated_reviews")
     if not isinstance(translated, list):
         translated = r.get("google_reviews")
@@ -469,16 +689,15 @@ def _build_result(r: dict, ai_data: dict, live_data: dict) -> dict:
 
     pros = ai_data.get("pros")
     if not pros:
-        pros = [f"Valoracion de {float(r.get('rating') or 0.0):.1f} estrellas."] if float(r.get('rating') or 0.0) >= 4.0 else ["Sin suficientes datos sobre puntos fuertes."]
+        pros = fallback_pros or ([f"Valoracion de {float(r.get('rating') or 0.0):.1f} estrellas."] if float(r.get('rating') or 0.0) >= 4.0 else ["Sin suficientes datos sobre puntos fuertes."])
 
     cons = ai_data.get("cons")
     if not cons:
-        cons = ["Pocas resenas disponibles."] if int(r.get("total_ratings") or 0) < 50 else ["Sin quejas destacadas."]
+        cons = fallback_cons or (["Pocas resenas disponibles."] if int(r.get("total_ratings") or 0) < 50 else ["No hay suficiente señal negativa en las reseñas para sacar una pega firme."])
 
     verdict = ai_data.get("verdict")
     if not verdict:
-        summary = r.get("review_summary", "")
-        verdict = summary if summary else f"Lugar con {int(r.get('total_ratings') or 0)} resenas y {float(r.get('rating') or 0.0):.1f} estrellas."
+        verdict = fallback_verdict
 
     return {
         "id": r["place_id"],
@@ -493,14 +712,14 @@ def _build_result(r: dict, ai_data: dict, live_data: dict) -> dict:
         "lng": float(r.get("lng") or 0.0),
         "distanceM": int(r.get("distance_m") or 0),
         "tagline": ai_data.get("tagline") or str(r.get("name") or ""),
-        "why": ai_data.get("why") or "",
+        "why": ai_data.get("why") or fallback_why,
         "pros": pros,
         "cons": cons,
         "verdict": verdict,
         "reviews": safe_reviews,
         "reviewsCount": int(r.get("total_ratings") or 0),
         "review_count": int(r.get("total_ratings") or 0),
-        "bestReviewQuote": ai_data.get("best_quote") or r.get("best_review_quote") or "",
+        "bestReviewQuote": ai_data.get("best_quote") or r.get("best_review_quote") or fallback_quote,
         "reviewQualityScore": float(ai_data.get("quality_score") or r.get("review_quality_score") or _review_confidence(r)),
         "tags": ai_data.get("tags") or [],
         "liveData": live_data if isinstance(live_data, dict) else {"type": "none"},

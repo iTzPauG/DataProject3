@@ -19,3 +19,10 @@ resource "google_project_iam_member" "cloudsql_client" {
   role    = "roles/cloudsql.client"
   member  = "serviceAccount:cloud-run-api@${var.project_id}.iam.gserviceaccount.com"
 }
+
+# Allow Cloud Run SA to call Vertex AI / Gemini on Vertex
+resource "google_project_iam_member" "vertex_ai_user" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:cloud-run-api@${var.project_id}.iam.gserviceaccount.com"
+}

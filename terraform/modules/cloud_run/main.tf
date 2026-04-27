@@ -11,8 +11,8 @@ resource "google_cloud_run_v2_service" "api" {
     service_account = google_service_account.cloud_run.email
 
     annotations = {
-      "build-id"                                  = var.build_id
-      "run.googleapis.com/cloudsql-instances"     = var.cloud_sql_connection
+      "build-id"                              = var.build_id
+      "run.googleapis.com/cloudsql-instances" = var.cloud_sql_connection
     }
 
     containers {
@@ -34,6 +34,18 @@ resource "google_cloud_run_v2_service" "api" {
       env {
         name  = "BRAIN_PROVIDER"
         value = "gemini"
+      }
+      env {
+        name  = "GOOGLE_CLOUD_PROJECT"
+        value = var.project_id
+      }
+      env {
+        name  = "GOOGLE_CLOUD_LOCATION"
+        value = "global"
+      }
+      env {
+        name  = "GOOGLE_GENAI_USE_VERTEXAI"
+        value = "true"
       }
 
       dynamic "env" {
