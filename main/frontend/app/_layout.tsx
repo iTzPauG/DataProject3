@@ -39,7 +39,7 @@ function PreferencesSyncer() {
 
   useEffect(() => {
     if (!idToken) return;
-    fetch(`${BASE_URL}/preferences/me`, {
+    fetch(`${BASE_URL}/preferences`, {
       headers: { Authorization: `Bearer ${idToken}` },
     })
       .then((r) => (r.ok ? r.json() : null))

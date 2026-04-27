@@ -219,7 +219,7 @@ export default function SettingsModal() {
         return;
       }
       try {
-        const res = await fetch(`${BASE_URL}/preferences/me`, {
+        const res = await fetch(`${BASE_URL}/preferences`, {
           headers: {
             Authorization: `Bearer ${idToken}`,
           },
@@ -251,8 +251,8 @@ export default function SettingsModal() {
       if (!idToken || !remoteLoaded) return;
       setSyncState('saving');
       try {
-        const res = await fetch(`${BASE_URL}/preferences/me`, {
-          method: 'PUT',
+        const res = await fetch(`${BASE_URL}/preferences`, {
+          method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${idToken}`,

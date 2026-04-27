@@ -13,24 +13,7 @@ import { VoteData } from '../../services/api';
 import { Restaurant } from '../../types/restaurant';
 import { MapItem } from '../../types/map';
 import { formatDistance } from '../../utils/format';
-
-export interface MapProps {
-  // New: generic map items (Phase 2+)
-  items?: MapItem[];
-  selectedId: string | null;
-  onSelectItem?: (id: string) => void;
-  onRegionChange?: (lat: number, lng: number, latDelta: number, lngDelta: number) => void;
-  region?: { lat: number; lng: number; latDelta: number; lngDelta: number };
-  // Format
-  mapType?: 'standard' | 'satellite' | 'hybrid' | 'terrain' | 'minimal';
-  minimalist?: boolean;
-  gadoOverlay?: boolean;
-  showZoomControls?: boolean;
-  // Legacy: restaurant flow
-  restaurants?: Restaurant[];
-  onSelectRestaurant?: (id: string) => void;
-  votesMap?: Record<string, VoteData>;
-}
+import type { MapProps } from './types';
 
 // ─── Category config ──────────────────────────────────────────────────────────
 //
