@@ -8,19 +8,20 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from config import ALLOWED_ORIGINS
 from contextlib import asynccontextmanager
-from database import init_db
+from database import init_db, using_postgres
 from routers import health, recommend, votes, places, events, reports, categories, bookmarks, search, brain, photos, preferences, compare, deals, reservations, interactions, internal, auth
 
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize local database
+    # Initialize configured database backend.
     try:
-        logger.info("Initializing local database...")
+        backend = "postgres" if using_postgres() else "sqlite"
+        logger.info("Initializing %s database backend...", backend)
         await init_db()
         with open("startup.log", "a") as f:
-            f.write("DB init successful\n")
+            f.write(f"DB init successful ({backend})\n")
     except Exception as e:
         logger.error(f"Failed to init DB: {e}")
         with open("startup.log", "a") as f:

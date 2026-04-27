@@ -17,6 +17,7 @@ import math
 import os
 import re
 import time
+from typing import Optional
 from typing import AsyncGenerator
 
 from google import genai
@@ -25,6 +26,8 @@ from google.genai import types
 from .tools import fetch_all_reviews, haversine, search_places
 from .category_flow import get_flow_definition
 from services.live_data_service import get_live_data
+from services.cache_service import cache_get, cache_set
+from services.google_places_service import get_place_details as get_google_place_details
 
 MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
@@ -610,6 +613,77 @@ async def recommend(parent_category: str, subcategory: str | None, mood: str, pr
     log.info("[PERF] PIPELINE v2 DONE in %.2fs — %d results", total_time, len(final_results))
     log.info("=" * 60)
     return final_results
+
+
+async def enrich_place_result(
+    *,
+    place_id: str,
+    parent_category: str,
+    subcategory: Optional[str],
+    lat: float,
+    lng: float,
+    language: str = "es",
+    name: str = "",
+    address: str = "",
+    photo_url: str = "",
+    rating: float | None = None,
+    price_level: int | None = None,
+    user_rating_count: int | None = None,
+    google_reviews: Optional[list[dict]] = None,
+    review_summary: str = "",
+) -> dict:
+    """Enrich a single place with GADO's take for generic place detail views."""
+    cache_key = (
+        f"place_take:{place_id}:{parent_category}:{subcategory or ''}:{language}:"
+        f"{round(lat, 4)}:{round(lng, 4)}"
+    )
+    cached = await cache_get(cache_key)
+    if cached:
+        log.info("[TAKE] cache hit for %s", place_id)
+        return cached
+
+    details = await get_google_place_details(place_id, language=language) or {}
+    normalized_price = price_level or 2
+    raw_price = details.get("price_level")
+    if raw_price == "PRICE_LEVEL_INEXPENSIVE":
+        normalized_price = 1
+    elif raw_price == "PRICE_LEVEL_MODERATE":
+        normalized_price = 2
+    elif raw_price in ("PRICE_LEVEL_EXPENSIVE", "PRICE_LEVEL_VERY_EXPENSIVE"):
+        normalized_price = 3
+
+    candidate = {
+        "place_id": place_id,
+        "name": name or details.get("name") or "Unknown",
+        "address": address or details.get("address") or "",
+        "rating": float(rating if rating is not None else details.get("rating") or 0.0),
+        "price_level": int(normalized_price),
+        "lat": lat,
+        "lng": lng,
+        "photo_url": photo_url or details.get("photo_url") or "",
+        "total_ratings": int(user_rating_count if user_rating_count is not None else details.get("user_rating_count") or 0),
+        "distance_m": 0,
+        "category_id": parent_category,
+        "subcategory": subcategory or parent_category,
+        "types": [],
+        "phone": details.get("phone", ""),
+        "website": details.get("website", ""),
+        "google_reviews": google_reviews if google_reviews else details.get("google_reviews", []),
+        "review_summary": review_summary or details.get("review_summary", ""),
+    }
+
+    ai_map = await _llm_batch([candidate], "balanced", language, parent_category)
+    ai_data = ai_map.get(place_id, {})
+    if ai_data:
+        result = _build_result(candidate, ai_data, {"type": "none"})
+        log.info("[TAKE] generated LLM take for %s", place_id)
+    else:
+        result = _enrich_fallback(candidate)
+        result["liveData"] = {"type": "none"}
+        log.info("[TAKE] fallback take for %s", place_id)
+
+    await cache_set(cache_key, result, ttl=3600)
+    return result
 
 
 # ── Streaming pipeline v2 — batched (STREAM_BATCH_SIZE places per LLM call) ─

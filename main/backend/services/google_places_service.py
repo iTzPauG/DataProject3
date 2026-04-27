@@ -297,6 +297,8 @@ async def get_place_details(place_id: str, language: str = "es") -> dict | None:
     photo_url = _photo_proxy_url(photos[0]["name"]) if photos else ""
 
     result = {
+        "name": data.get("displayName", {}).get("text", ""),
+        "address": data.get("formattedAddress", ""),
         "phone": data.get("nationalPhoneNumber", ""),
         "photo_url": photo_url,
         "rating": data.get("rating"),
@@ -305,6 +307,7 @@ async def get_place_details(place_id: str, language: str = "es") -> dict | None:
         "website": data.get("websiteUri", ""),
         "opening_hours": data.get("regularOpeningHours", {}),
         "google_reviews": all_reviews,
+        "review_summary": _extract_review_summary(data),
     }
 
     await cache_set(cache_key, result, ttl=3600 * 24)

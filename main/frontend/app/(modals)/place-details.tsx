@@ -5,12 +5,13 @@ import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, Touchabl
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppState } from '../../hooks/useAppState';
 import { useAuth } from '../../hooks/useAuth';
-import { checkBookmark, toggleBookmark, getVotes, VoteData, getPlaceLiveData, LiveDataResult } from '../../services/api';
+import { checkBookmark, toggleBookmark, getVotes, VoteData, getPlaceLiveData, LiveDataResult, getPlaceTake } from '../../services/api';
 import { formatDistance } from '../../utils/format';
 import VoteButtons from '../../components/VoteButtons';
 import LiveDataAddon from '../../components/LiveDataAddon';
 import ReviewList from '../../components/ReviewList';
 import { useTheme } from '../../utils/theme';
+import { Restaurant } from '../../types/restaurant';
 
 const CATEGORY_STYLES: Record<string, { color: string; icon: string; label: string }> = {
   food:       { color: '#FF6B35', icon: '🍴', label: 'Comida y bebida' },
@@ -35,12 +36,14 @@ const DEFAULT_STYLE = { color: '#9E9E9E', icon: '📍', label: 'Lugar' };
 export default function PlaceDetailsModal() {
   const { colors, radii, shadows, typography } = useTheme();
   const { id, place_data } = useLocalSearchParams<{ id: string; type: string; place_data?: string }>();
-  const { nearbyItems } = useAppState();
+  const { nearbyItems, mapPreferences } = useAppState();
   const { user } = useAuth();
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [loadingBookmark, setLoadingBookmark] = useState(false);
   const [voteData, setVoteData] = useState<VoteData | undefined>();
   const [liveData, setLiveData] = useState<LiveDataResult | null>(null);
+  const [placeTake, setPlaceTake] = useState<Restaurant | null>(null);
+  const [loadingTake, setLoadingTake] = useState(false);
 
   // Parse place_data param if provided (from search results)
   const parsedPlaceData = useMemo(() => {
@@ -148,6 +151,7 @@ export default function PlaceDetailsModal() {
 
   useEffect(() => {
     setLiveData(null);
+    setPlaceTake(null);
     const foundItem = nearbyItems.find((i) => i.item_id === id);
     if (!foundItem) return;
 
@@ -162,6 +166,41 @@ export default function PlaceDetailsModal() {
       fetchLiveData(foundItem, sub, cat);
     }
   }, [id, nearbyItems]);
+
+  useEffect(() => {
+    const foundItem = nearbyItems.find((i) => i.item_id === id) ?? parsedPlaceData;
+    if (!foundItem || foundItem.item_type !== 'place') return;
+
+    let active = true;
+    const loadTake = async () => {
+      setLoadingTake(true);
+      try {
+        const language = mapPreferences.language === 'system' ? 'es' : (mapPreferences.language || 'es');
+        const take = await getPlaceTake({
+          placeId: id,
+          lat: foundItem.lat,
+          lng: foundItem.lng,
+          category: foundItem.category_id,
+          subcategory: foundItem.metadata?.subcategory as string | undefined,
+          language,
+          name: foundItem.title,
+          address: foundItem.metadata?.address as string | undefined,
+          photoUrl: foundItem.metadata?.photo_url as string | undefined,
+          rating: foundItem.metadata?.rating as number | undefined,
+          priceLevel: foundItem.metadata?.price_level as number | undefined,
+          reviewsCount: foundItem.metadata?.user_rating_count as number | undefined,
+        });
+        if (active) setPlaceTake(take);
+      } finally {
+        if (active) setLoadingTake(false);
+      }
+    };
+
+    void loadTake();
+    return () => {
+      active = false;
+    };
+  }, [id, nearbyItems, parsedPlaceData, mapPreferences.language]);
 
   async function fetchLiveData(foundItem: typeof nearbyItems[0], sub: string, cat: string) {
     try {
@@ -245,6 +284,22 @@ export default function PlaceDetailsModal() {
   const confirmations = item?.metadata?.confirmations as number | undefined;
   const expiresAt = item?.metadata?.expires_at as string | undefined;
   const description = item?.metadata?.description as string | undefined;
+
+  const renderBoldText = (text: string, baseStyle: any) => {
+    if (!text) return null;
+    const parts = text.split(/\*\*(.*?)\*\*/g);
+    return (
+      <Text style={baseStyle}>
+        {parts.map((part, index) =>
+          index % 2 === 1 ? (
+            <Text key={index} style={{ fontWeight: '700' }}>{part}</Text>
+          ) : (
+            <Text key={index}>{part}</Text>
+          )
+        )}
+      </Text>
+    );
+  };
 
   if (!item) {
     return (
@@ -355,8 +410,46 @@ export default function PlaceDetailsModal() {
               </View>
             )}
 
+            {item.item_type === 'place' && (loadingTake || placeTake) && (
+              <View style={styles.takeCard}>
+                <Text style={styles.sectionEyebrow}>GADO&apos;s Take</Text>
+                {loadingTake && !placeTake ? (
+                  <View style={styles.takeLoading}>
+                    <ActivityIndicator size="small" color={colors.brand} />
+                    <Text style={styles.takeLoadingText}>Analizando reseñas...</Text>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={styles.takeVerdict}>{placeTake?.verdict || placeTake?.why}</Text>
+                    {(placeTake?.pros || []).length > 0 && (
+                      <>
+                        <Text style={styles.takeBlockTitle}>Lo mejor</Text>
+                        {placeTake?.pros.map((pro) => (
+                          <View key={pro} style={styles.takeRow}>
+                            <Ionicons name="thumbs-up-outline" size={16} color={colors.success} />
+                            {renderBoldText(pro, styles.takeText)}
+                          </View>
+                        ))}
+                      </>
+                    )}
+                    {(placeTake?.cons || []).length > 0 && (
+                      <>
+                        <Text style={[styles.takeBlockTitle, styles.takeBlockTitleWarn]}>Ojo con esto</Text>
+                        {placeTake?.cons.map((con) => (
+                          <View key={con} style={styles.takeRow}>
+                            <Ionicons name="warning-outline" size={16} color={colors.warning} />
+                            {renderBoldText(con, styles.takeText)}
+                          </View>
+                        ))}
+                      </>
+                    )}
+                  </>
+                )}
+              </View>
+            )}
+
             {/* Unified Reviews Section */}
-            <ReviewList reviews={item.metadata?.google_reviews as any[] || []} />
+            <ReviewList reviews={(placeTake?.reviews as any[] | undefined) || item.metadata?.google_reviews as any[] || []} />
 
             {/* Live data addon (fuel prices, pharmacy duty, cinema showtimes, EV) */}
             {liveData && <LiveDataAddon data={liveData} />}
@@ -503,6 +596,55 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     marginTop: 8,
+  },
+  takeCard: {
+    marginTop: 20,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#171A2A',
+    gap: 10,
+  },
+  sectionEyebrow: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: '#7C6CF2',
+  },
+  takeVerdict: {
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '700',
+    color: '#F2F0EA',
+  },
+  takeBlockTitle: {
+    marginTop: 4,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#A7F3D0',
+  },
+  takeBlockTitleWarn: {
+    color: '#FDE68A',
+  },
+  takeRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  takeText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#D6D9E6',
+  },
+  takeLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  takeLoadingText: {
+    fontSize: 14,
+    color: '#A8AEC7',
   },
   emptyState: {
     flex: 1,

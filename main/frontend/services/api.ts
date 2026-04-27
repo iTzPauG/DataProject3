@@ -1044,6 +1044,42 @@ export async function getPlaceLiveData(params: {
   }
 }
 
+export async function getPlaceTake(params: {
+  placeId: string;
+  lat: number;
+  lng: number;
+  category?: string;
+  subcategory?: string;
+  language?: string;
+  name?: string;
+  address?: string;
+  photoUrl?: string;
+  rating?: number;
+  priceLevel?: number;
+  reviewsCount?: number;
+}): Promise<Restaurant | null> {
+  try {
+    const takeUrl = buildUrl(`/places/${params.placeId}/take`, {
+      lat: params.lat.toString(),
+      lng: params.lng.toString(),
+      category: params.category,
+      subcategory: params.subcategory,
+      language: params.language,
+      name: params.name,
+      address: params.address,
+      photo_url: params.photoUrl,
+      rating: params.rating != null ? String(params.rating) : undefined,
+      price_level: params.priceLevel != null ? String(params.priceLevel) : undefined,
+      user_rating_count: params.reviewsCount != null ? String(params.reviewsCount) : undefined,
+    });
+    const res = await fetch(takeUrl, { headers: { Accept: 'application/json' } });
+    if (!res.ok) return null;
+    return sanitize(await res.json());
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchNearbyItems(
     lat: number,
     lng: number,

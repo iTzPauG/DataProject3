@@ -5,7 +5,9 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 
 from database import get_db
+from models.schemas import PlaceResult
 from services.recommendation.tools import search_generic_category_places
+from services.recommendation.pipeline import enrich_place_result
 from services.live_data_service import get_live_data
 
 router = APIRouter(prefix="/places", tags=["places"])
@@ -144,3 +146,37 @@ async def place_live_data(
     except Exception as e:
         print(f"[LIVE_DATA] Error for place {place_id}: {e}")
         return {"type": "none"}
+
+
+@router.get("/{place_id}/take", response_model=PlaceResult)
+async def place_take(
+    place_id: str,
+    lat: float,
+    lng: float,
+    category: str = "food",
+    subcategory: Optional[str] = None,
+    language: str = "es",
+    name: str = "",
+    address: str = "",
+    photo_url: str = "",
+    rating: Optional[float] = None,
+    price_level: Optional[int] = None,
+    user_rating_count: Optional[int] = None,
+):
+    try:
+        return await enrich_place_result(
+            place_id=place_id,
+            parent_category=category,
+            subcategory=subcategory,
+            lat=lat,
+            lng=lng,
+            language=language,
+            name=name,
+            address=address,
+            photo_url=photo_url,
+            rating=rating,
+            price_level=price_level,
+            user_rating_count=user_rating_count,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
