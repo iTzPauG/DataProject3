@@ -28,7 +28,8 @@ _http_client: httpx.AsyncClient | None = None
 def _get_http_client() -> httpx.AsyncClient:
     global _http_client
     if _http_client is None or _http_client.is_closed:
-        _http_client = httpx.AsyncClient(timeout=10, http2=True)
+        # Keep transport requirements minimal in Cloud Run images.
+        _http_client = httpx.AsyncClient(timeout=10)
     return _http_client
 
 CATEGORY_TO_GOOGLE_TYPES: dict[str, list[str]] = {
@@ -165,7 +166,15 @@ async def search_places(
             return []
         data = resp.json()
     except Exception as exc:
-        log.warning("Google Places search exception: %s", exc)
+        log.warning(
+            "Google Places search exception: query=%r category=%r subcategory=%r radius_m=%s language=%s error=%s",
+            query,
+            category,
+            subcategory,
+            radius_m,
+            language,
+            exc,
+        )
         return []
 
     results: list[dict] = []

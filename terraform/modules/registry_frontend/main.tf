@@ -1,12 +1,24 @@
 locals {
-  image = "${var.region}-docker.pkg.dev/${var.project_id}/restaurant-api/frontend:latest"
+  image      = "${var.region}-docker.pkg.dev/${var.project_id}/restaurant-api/frontend:latest"
+  source_dir = "${path.module}/../../../main/frontend"
+  source_files = [
+    for file in distinct(concat(
+      tolist(fileset(local.source_dir, "**")),
+      tolist(fileset(local.source_dir, ".dockerignore")),
+      tolist(fileset(local.source_dir, ".env.production")),
+      tolist(fileset(local.source_dir, ".env.example"))
+    )) : file
+    if length(regexall("(^|/)node_modules(/|$)", file)) == 0
+    && length(regexall("(^|/)\\.expo(/|$)", file)) == 0
+    && length(regexall("(^|/)dist(/|$)", file)) == 0
+    && length(regexall("(^|/)web-build(/|$)", file)) == 0
+  ]
 }
 
 resource "null_resource" "docker_build_push" {
   triggers = {
     src_hash = sha256(join("", [
-      filesha256("${path.module}/../../../main/frontend/Dockerfile"),
-      filesha256("${path.module}/../../../main/frontend/package.json"),
+      for file in local.source_files : filesha256("${local.source_dir}/${file}")
     ]))
   }
 
