@@ -339,7 +339,7 @@ def _resolve_mood(mood: str) -> dict:
 def _review_confidence(r: dict) -> float:
     total = r.get("total_ratings", 0) or 0
     rating_confidence = min(1.0, math.log10(total + 1) / math.log10(20000))
-    text_count = len(r.get("google_reviews", []))
+    text_count = len(_all_reviews(r))
     text_bonus = min(0.15, text_count * 0.03)
     return min(1.0, rating_confidence + text_bonus)
 
@@ -354,6 +354,18 @@ def _review_snippet(text: str, limit: int = 140) -> str:
         return cleaned
     truncated = cleaned[:limit].rsplit(" ", 1)[0].strip()
     return (truncated or cleaned[:limit]).rstrip(" ,.;:") + "..."
+
+
+def _all_reviews(r: dict) -> list[dict]:
+    reviews: list[dict] = []
+    for key in ("google_reviews", "yelp_reviews"):
+        source_reviews = r.get(key) or []
+        if not isinstance(source_reviews, list):
+            continue
+        for review in source_reviews:
+            if isinstance(review, dict) and _clean_review_text(str(review.get("text") or "")):
+                reviews.append(review)
+    return reviews
 
 
 def _review_mentions_issue(text: str) -> bool:
@@ -473,7 +485,7 @@ def _practical_caution_from_reviews(reviews: list[dict]) -> str:
 
 
 def _fallback_review_signals(r: dict) -> tuple[list[str], list[str], str, str, str]:
-    reviews = [rev for rev in (r.get("google_reviews") or []) if isinstance(rev, dict) and _clean_review_text(str(rev.get("text") or ""))]
+    reviews = _all_reviews(r)
     positives = [rev for rev in reviews if int(rev.get("rating") or 0) >= 4]
     negatives = [rev for rev in reviews if int(rev.get("rating") or 0) <= 2]
     mixed = [rev for rev in reviews if rev not in negatives and _review_mentions_issue(str(rev.get("text") or ""))]
@@ -565,7 +577,7 @@ def _enrich_fallback(r: dict, signals: dict[str, dict] | None = None) -> dict:
         ),
         "verdict": verdict,
         "tags": sig.get("atmosphere_tags", [])[:4],
-        "reviews": r.get("google_reviews", [])[:15],
+        "reviews": _all_reviews(r)[:15],
         "review_count": int(total),
         "lat": float(r.get("lat") or 0.0),
         "lng": float(r.get("lng") or 0.0),
@@ -583,7 +595,7 @@ def _build_ai_context(r: dict) -> dict:
     return {
         "id": r["place_id"],
         "name": r["name"],
-        "reviews": r.get("google_reviews", [])[:10],
+        "reviews": _all_reviews(r)[:10],
         "review_summary_support": r.get("review_summary", ""),
         "rating": r.get("rating", 0),
         "total_ratings": total,
@@ -672,7 +684,7 @@ def _build_result(r: dict, ai_data: dict, live_data: dict) -> dict:
     fallback_pros, fallback_cons, fallback_verdict, fallback_why, fallback_quote = _fallback_review_signals(r)
     translated = ai_data.get("translated_reviews")
     if not isinstance(translated, list):
-        translated = r.get("google_reviews")
+        translated = _all_reviews(r)
     if not isinstance(translated, list):
         translated = []
 
@@ -753,8 +765,8 @@ async def recommend(parent_category: str, subcategory: str | None, mood: str, pr
 
     # ── PHASE 3: Smart fetch — ONLY places missing reviews ──────────────────
     t_step = time.perf_counter()
-    needs_fetch = [r for r in top_winners if not r.get("google_reviews") and not r.get("review_summary")]
-    already_good = [r for r in top_winners if r.get("google_reviews") or r.get("review_summary")]
+    needs_fetch = list(top_winners)
+    already_good: list[dict] = []
 
     if needs_fetch:
         async def _deep_fetch_safe(r: dict) -> dict:
@@ -888,6 +900,7 @@ async def enrich_place_result(
         "phone": details.get("phone", ""),
         "website": details.get("website", ""),
         "google_reviews": google_reviews if google_reviews else details.get("google_reviews", []),
+        "yelp_reviews": details.get("yelp_reviews", []),
         "review_summary": review_summary or details.get("review_summary", ""),
     }
 
@@ -920,8 +933,6 @@ async def _process_stream_batch(
 
     # Smart fetch — only for places missing reviews
     async def _smart_fetch(r: dict) -> dict:
-        if r.get("google_reviews") or r.get("review_summary"):
-            return r
         try:
             data = await fetch_all_reviews(r["place_id"], r["name"], r["lat"], r["lng"], language=language)
             return {**r, **data}

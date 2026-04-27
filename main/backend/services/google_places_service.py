@@ -10,12 +10,14 @@ Key design decisions:
 from __future__ import annotations
 
 import logging
+from collections import OrderedDict
 from typing import Optional
 
 import httpx
 
 from config import GOOGLE_MAPS_API_KEY
 from services.cache_service import cache_get, cache_set
+from services.yelp_service import get_yelp_reviews
 
 log = logging.getLogger(__name__)
 
@@ -49,6 +51,8 @@ CATEGORY_TO_GOOGLE_TYPES: dict[str, list[str]] = {
     "automotive": ["gas_station", "car_repair", "car_wash", "parking"],
 }
 
+_SEARCH_LANGUAGE_POOL = ("es", "en", "ca", "fr", "it", "de", "pt")
+
 
 def _photo_proxy_url(photo_name: str) -> str:
     """Build a backend-relative URL for the photo proxy endpoint."""
@@ -69,6 +73,7 @@ def _extract_reviews(place: dict, source_language: str | None = None) -> list[di
             "text": text,
             "relative_time": rev.get("relativePublishTimeDescription", ""),
             "source_language": source_language or "",
+            "source": "google",
         })
     return reviews
 
@@ -109,7 +114,7 @@ async def search_places(
         return []
 
     cache_key = (
-        f"gp_search:{query}:{lat:.4f}:{lng:.4f}:{radius_m}:"
+        f"gp_search_v2:{query}:{lat:.4f}:{lng:.4f}:{radius_m}:"
         f"{category or ''}:{subcategory or ''}:{strict_category}:{limit}:{language}"
     )
     cached = await cache_get(cache_key)
@@ -118,17 +123,7 @@ async def search_places(
 
     included_types = set(CATEGORY_TO_GOOGLE_TYPES.get(category or "", []))
 
-    body: dict = {
-        "textQuery": query,
-        "locationBias": {
-            "circle": {
-                "center": {"latitude": lat, "longitude": lng},
-                "radius": float(radius_m),
-            }
-        },
-        "maxResultCount": min(limit, 20),
-        "languageCode": language,
-    }
+    search_languages = _search_languages_for_query(language, max_languages=3)
 
     # We do NOT enforce includedType — Text Search is smart enough to find
     # what the user wants based on the query, and restricting to a single type
@@ -159,13 +154,28 @@ async def search_places(
 
     try:
         client = _get_http_client()
-        resp = await client.post(f"{_BASE}/places:searchText", json=body, headers=headers)
-        if resp.status_code != 200:
-            log.error(f"🔴 GOOGLE PLACES API ERROR: [{resp.status_code}]")
-            log.error(f"🔴 RESPONSE: {resp.text}")
-            log.error("🔴 TIP: Ensure 'Places API (New)' is enabled for your API key in Google Cloud Console.")
-            return []
-        data = resp.json()
+
+        async def _search_lang(lang: str) -> tuple[str, dict | None]:
+            body: dict = {
+                "textQuery": query,
+                "locationBias": {
+                    "circle": {
+                        "center": {"latitude": lat, "longitude": lng},
+                        "radius": float(radius_m),
+                    }
+                },
+                "maxResultCount": min(limit, 20),
+                "languageCode": lang,
+            }
+            resp = await client.post(f"{_BASE}/places:searchText", json=body, headers=headers)
+            if resp.status_code != 200:
+                log.error("Google Places searchText failed [%s] lang=%s query=%r body=%s", resp.status_code, lang, query, resp.text[:400])
+                return lang, None
+            return lang, resp.json()
+
+        payloads = await asyncio.gather(*[_search_lang(lang) for lang in search_languages])
+        data_by_lang = OrderedDict(payloads)
+        primary_data = data_by_lang.get(search_languages[0]) or {}
     except Exception as exc:
         log.warning(
             "Google Places search exception: query=%r category=%r subcategory=%r radius_m=%s language=%s error=%s",
@@ -178,8 +188,57 @@ async def search_places(
         )
         return []
 
+    def _review_fingerprint(review: dict) -> tuple[str, int, str, str]:
+        text = " ".join(str(review.get("text", "")).strip().lower().split())
+        return (
+            str(review.get("author", "")).strip().lower(),
+            int(review.get("rating") or 0),
+            str(review.get("source_language", "")).strip().lower(),
+            text,
+        )
+
+    merged_by_id: OrderedDict[str, dict] = OrderedDict()
+
+    for index, place in enumerate(primary_data.get("places", [])):
+        pid = place.get("id", "")
+        if pid:
+            merged_by_id[pid] = {
+                "place": place,
+                "index": index,
+                "reviews": _extract_reviews(place, source_language=search_languages[0]),
+                "review_summary": _extract_review_summary(place),
+            }
+
+    for lang, data in data_by_lang.items():
+        if not data:
+            continue
+        for place in data.get("places", []):
+            pid = place.get("id", "")
+            if not pid:
+                continue
+            entry = merged_by_id.get(pid)
+            reviews = _extract_reviews(place, source_language=lang)
+            if entry is None:
+                merged_by_id[pid] = {
+                    "place": place,
+                    "index": len(merged_by_id),
+                    "reviews": reviews,
+                    "review_summary": _extract_review_summary(place),
+                }
+                continue
+            existing = entry["reviews"]
+            seen = {_review_fingerprint(r) for r in existing}
+            for review in reviews:
+                fp = _review_fingerprint(review)
+                if fp not in seen and review.get("text"):
+                    seen.add(fp)
+                    existing.append(review)
+            if not entry.get("review_summary"):
+                entry["review_summary"] = _extract_review_summary(place)
+
     results: list[dict] = []
-    for place in data.get("places", []):
+    for pid, entry in list(merged_by_id.items())[:limit]:
+        place = entry["place"]
         place_types = set(place.get("types", []))
         if strict_category and included_types and not (place_types & included_types):
             continue
@@ -190,8 +249,8 @@ async def search_places(
         display_name = place.get("displayName", {})
 
         # Extract reviews inline — this is the key optimization
-        reviews = _extract_reviews(place)
-        review_summary = _extract_review_summary(place)
+        reviews = entry["reviews"]
+        review_summary = entry["review_summary"]
 
         results.append({
             "source": "google",
@@ -225,6 +284,17 @@ import asyncio
 _REVIEW_LANGUAGE_POOL = ("es", "en", "fr", "it", "de", "ca", "pt")
 
 
+def _search_languages_for_query(language: str, max_languages: int = 3) -> list[str]:
+    preferred = (language or "es").strip().lower() or "es"
+    ordered = [preferred]
+    for lang in _SEARCH_LANGUAGE_POOL:
+        if lang not in ordered:
+            ordered.append(lang)
+        if len(ordered) >= max_languages:
+            break
+    return ordered[:max_languages]
+
+
 def _review_languages_for_place(language: str, max_languages: int = 5) -> list[str]:
     """Pick the preferred language plus up to N-1 useful alternates for reviews.
 
@@ -247,12 +317,13 @@ async def get_place_details(place_id: str, language: str = "es") -> dict | None:
     Acts as a 'brain' to get the best review coverage by querying Google Places
     concurrently in up to 5 different languages. The primary result uses the
     app/request language so the visible place data stays aligned with the UI.
+    Yelp is optional enrichment only; if it fails, Google still drives the result.
     """
     if not GOOGLE_MAPS_API_KEY:
         return None
 
     # Cache for 24 hours — reviews and details are stable enough
-    cache_key = f"gp_details_v2:{place_id}:{language}"
+    cache_key = f"gp_details_v3:{place_id}:{language}"
     cached = await cache_get(cache_key)
     if cached:
         return cached
@@ -260,6 +331,7 @@ async def get_place_details(place_id: str, language: str = "es") -> dict | None:
     field_mask = ",".join([
         "displayName",
         "formattedAddress",
+        "location",
         "rating",
         "userRatingCount",
         "photos",
@@ -275,6 +347,8 @@ async def get_place_details(place_id: str, language: str = "es") -> dict | None:
         "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
         "X-Goog-FieldMask": field_mask,
     }
+
+    yelp_reviews: list[dict] = []
 
     try:
         client = _get_http_client()
@@ -295,10 +369,6 @@ async def get_place_details(place_id: str, language: str = "es") -> dict | None:
             log.warning("Google Place details failed for %s", place_id)
             return None
             
-        # Deduplicate only exact same-language duplicates.
-        # We intentionally keep cross-language variants because they can expose
-        # different review sets and translated text that improves evidence for
-        # the take generator.
         all_reviews = []
         seen_reviews = set()
         for lang, res_data in zip(review_languages, results):
@@ -316,10 +386,34 @@ async def get_place_details(place_id: str, language: str = "es") -> dict | None:
                 if txt and fingerprint not in seen_reviews:
                     seen_reviews.add(fingerprint)
                     all_reviews.append(r)
-        
+
     except Exception as exc:
         log.warning("Google Place details error: %s", exc)
         return None
+
+    try:
+        yelp_reviews = await get_yelp_reviews(
+            name=data.get("displayName", {}).get("text", ""),
+            lat=float(data.get("location", {}).get("latitude") or 0.0),
+            lng=float(data.get("location", {}).get("longitude") or 0.0),
+            address=data.get("formattedAddress", ""),
+            language=language,
+        )
+    except Exception as exc:
+        log.info("Yelp enrichment failed for %s: %s", place_id, exc)
+        yelp_reviews = []
+
+    for r in yelp_reviews:
+        txt = " ".join(str(r.get("text", "")).strip().lower().split())
+        fingerprint = (
+            str(r.get("author", "")).strip().lower(),
+            int(r.get("rating") or 0),
+            str(r.get("source_language", "")).strip().lower(),
+            txt,
+        )
+        if txt and fingerprint not in seen_reviews:
+            seen_reviews.add(fingerprint)
+            all_reviews.append(r)
 
     photos = data.get("photos", [])
     photo_url = _photo_proxy_url(photos[0]["name"]) if photos else ""
@@ -335,6 +429,7 @@ async def get_place_details(place_id: str, language: str = "es") -> dict | None:
         "website": data.get("websiteUri", ""),
         "opening_hours": data.get("regularOpeningHours", {}),
         "google_reviews": all_reviews,
+        "yelp_reviews": yelp_reviews,
         "review_summary": _extract_review_summary(data),
     }
 

@@ -160,6 +160,7 @@ async def search_places(
                     "types": meta.get("types", []),
                     # Reviews from search — up to 5 per place, no extra API call
                     "google_reviews": r.get("google_reviews", []),
+                    "yelp_reviews": r.get("yelp_reviews", []),
                     # AI digest of ALL reviews — primary signal for LLM enrichment
                     "review_summary": r.get("review_summary", ""),
                 }
@@ -206,6 +207,8 @@ async def get_place_details(place_id: str, photo_reference: str = "", language: 
         "phone": "",
         "photo_url": "",
         "google_reviews": [],
+        "yelp_reviews": [],
+        "review_summary": "",
     }
 
 
@@ -221,6 +224,7 @@ async def fetch_all_reviews(place_id: str, name: str, lat: float, lng: float, la
         "phone": details.get("phone", ""),
         "photo_url": details.get("photo_url", ""),
         "google_reviews": details.get("google_reviews", []),
+        "yelp_reviews": details.get("yelp_reviews", []),
+        "review_summary": details.get("review_summary", ""),
     }
-
 
