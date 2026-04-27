@@ -55,7 +55,7 @@ def _photo_proxy_url(photo_name: str) -> str:
     return f"/photos/google/{photo_name}"
 
 
-def _extract_reviews(place: dict) -> list[dict]:
+def _extract_reviews(place: dict, source_language: str | None = None) -> list[dict]:
     """Extract and normalize reviews from a Google Places response."""
     reviews = []
     for rev in place.get("reviews", []):
@@ -68,6 +68,7 @@ def _extract_reviews(place: dict) -> list[dict]:
             "rating": rev.get("rating", 0),
             "text": text,
             "relative_time": rev.get("relativePublishTimeDescription", ""),
+            "source_language": source_language or "",
         })
     return reviews
 
@@ -294,18 +295,26 @@ async def get_place_details(place_id: str, language: str = "es") -> dict | None:
             log.warning("Google Place details failed for %s", place_id)
             return None
             
-        # Deduplicate reviews across all languages by text fingerprint to allow translated clones through if that was the intended behaviour
+        # Deduplicate only exact same-language duplicates.
+        # We intentionally keep cross-language variants because they can expose
+        # different review sets and translated text that improves evidence for
+        # the take generator.
         all_reviews = []
-        seen_texts = set()
-        for res_data in results:
+        seen_reviews = set()
+        for lang, res_data in zip(review_languages, results):
             if not res_data:
                 continue
-            for r in _extract_reviews(res_data):
-                txt = r.get("text", "").strip()
-                # Use first 50 chars for fuzzy deduplication
-                fingerprint = txt[:50].lower()
-                if txt and fingerprint not in seen_texts:
-                    seen_texts.add(fingerprint)
+            for r in _extract_reviews(res_data, source_language=lang):
+                txt = " ".join(str(r.get("text", "")).strip().lower().split())
+                fingerprint = (
+                    str(r.get("author", "")).strip().lower(),
+                    int(r.get("rating") or 0),
+                    str(r.get("relative_time", "")).strip().lower(),
+                    str(r.get("source_language", "")).strip().lower(),
+                    txt,
+                )
+                if txt and fingerprint not in seen_reviews:
+                    seen_reviews.add(fingerprint)
                     all_reviews.append(r)
         
     except Exception as exc:
