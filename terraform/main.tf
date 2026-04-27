@@ -58,13 +58,6 @@ module "cloud_run" {
   depends_on           = [module.apis, module.cloud_sql]
 }
 
-module "databases" {
-  source     = "./modules/databases"
-  project_id = var.project_id
-  region     = var.region
-  depends_on = [module.apis]
-}
-
 module "iam" {
   source       = "./modules/iam"
   region       = var.region

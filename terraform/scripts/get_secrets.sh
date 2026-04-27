@@ -3,7 +3,7 @@
 # Uso: bash scripts/get_secrets.sh
 # Requiere: gcloud autenticado con acceso al proyecto
 
-PROJECT="pruebas-edem-dataproject3"
+PROJECT="project1grupo7"
 
 get_secret() {
   gcloud secrets versions access latest --secret="$1" --project="$PROJECT" 2>/dev/null
