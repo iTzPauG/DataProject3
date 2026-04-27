@@ -1,7 +1,7 @@
 terraform {
   backend "gcs" {
     bucket = "project1grupo7-tfstate"
-    prefix = "terraform/state"
+    prefix = "terraform/project1grupo7-clean"
   }
 
   required_providers {
