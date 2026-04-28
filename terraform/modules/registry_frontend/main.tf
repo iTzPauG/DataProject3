@@ -1,13 +1,34 @@
 locals {
   image      = "${var.region}-docker.pkg.dev/${var.project_id}/restaurant-api/frontend:latest"
   source_dir = "${path.module}/../../../main/frontend"
+  tracked_globs = [
+    ".dockerignore",
+    ".env.example",
+    ".env.production",
+    ".gitignore",
+    "Dockerfile",
+    "app.json",
+    "babel.config.js",
+    "docker-compose.yml",
+    "nginx.conf",
+    "package-lock.json",
+    "package.json",
+    "railway.toml",
+    "tsconfig.json",
+    "app/**",
+    "assets/**",
+    "components/**",
+    "constants/**",
+    "hooks/**",
+    "public/**",
+    "services/**",
+    "types/**",
+    "utils/**",
+  ]
   source_files = [
-    for file in distinct(concat(
-      tolist(fileset(local.source_dir, "**")),
-      tolist(fileset(local.source_dir, ".dockerignore")),
-      tolist(fileset(local.source_dir, ".env.production")),
-      tolist(fileset(local.source_dir, ".env.example"))
-    )) : file
+    for file in distinct(flatten([
+      for pattern in local.tracked_globs : tolist(fileset(local.source_dir, pattern))
+    ])) : file
     if length(regexall("(^|/)node_modules(/|$)", file)) == 0
     && length(regexall("(^|/)\\.expo(/|$)", file)) == 0
     && length(regexall("(^|/)dist(/|$)", file)) == 0

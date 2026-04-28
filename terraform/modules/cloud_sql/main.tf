@@ -18,7 +18,7 @@ resource "google_sql_database_instance" "main" {
     }
   }
 
-  deletion_protection = false
+  deletion_protection = true
 }
 
 resource "google_sql_database" "gado" {

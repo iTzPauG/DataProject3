@@ -22,6 +22,11 @@ resource "google_cloud_run_v2_service" "api" {
         container_port = 8080
       }
 
+      volume_mounts {
+        name       = "cloudsql"
+        mount_path = "/cloudsql"
+      }
+
       env {
         name = "DATABASE_URL"
         value_source {
@@ -74,6 +79,14 @@ resource "google_cloud_run_v2_service" "api" {
           cpu    = "1"
           memory = "512Mi"
         }
+      }
+    }
+
+    volumes {
+      name = "cloudsql"
+
+      cloud_sql_instance {
+        instances = [var.cloud_sql_connection]
       }
     }
 
