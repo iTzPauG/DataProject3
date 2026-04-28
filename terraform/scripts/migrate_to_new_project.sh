@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# GADO — Script de migración a nuevo proyecto GCP
+# WHIM — Script de migración a nuevo proyecto GCP
 # Uso: bash scripts/migrate_to_new_project.sh
 # Requisitos: gcloud, terraform, docker, psql, cloud-sql-proxy instalados
 # =============================================================================
@@ -20,7 +20,7 @@ fi
 
 echo ""
 echo "╔══════════════════════════════════════════════════════╗"
-echo "║         GADO — Migración a nuevo proyecto GCP        ║"
+echo "║         WHIM — Migración a nuevo proyecto GCP        ║"
 echo "╚══════════════════════════════════════════════════════╝"
 echo ""
 echo "Proyecto destino: $NEW_PROJECT_ID"

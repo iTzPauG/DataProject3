@@ -1,5 +1,5 @@
 """
-Brain Service — LLM pluggable para GADO.
+Brain Service — LLM pluggable para WHIM.
 Providers soportados: gemini | openrouter | groq | ollama
 """
 from __future__ import annotations
@@ -30,7 +30,7 @@ GEMINI_API_KEY = GOOGLE_GENAI_API_KEY
 _VERTEX_PROJECT_CACHE: str | None = None
 
 SYSTEM_PROMPT = """
-Eres el asistente de GADO, una app de descubrimiento urbano.
+Eres el asistente de WHIM, una app de descubrimiento urbano.
 Ayudas a los usuarios a encontrar lugares, eventos y reportes en tiempo real.
 Eres conciso, útil y hablas en el idioma que seleccione el usuario por defecto.
 Cuando el usuario busca algo, interpreta su intención y devuelve:

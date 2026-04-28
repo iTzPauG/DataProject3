@@ -39,7 +39,7 @@ resource "google_firebase_project" "default" {
 resource "google_firebase_web_app" "gado" {
   provider     = google-beta
   project      = var.project_id
-  display_name = "GADO Web"
+  display_name = "WHIM Web"
   depends_on   = [google_firebase_project.default]
 }
 

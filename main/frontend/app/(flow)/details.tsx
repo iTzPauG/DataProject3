@@ -456,7 +456,7 @@ export default function DetailsScreen() {
           </View>
 
           <View style={styles.takeCard}>
-            <Text style={styles.sectionEyebrow}>GADO's Take</Text>
+            <Text style={styles.sectionEyebrow}>WHIM&apos;s Take</Text>
             <Text style={styles.verdict}>{restaurant.verdict || restaurant.why}</Text>
             <Text style={styles.blockTitle}>The good stuff</Text>
             {(restaurant.pros || []).map((pro) => (

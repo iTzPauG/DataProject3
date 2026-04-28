@@ -1,4 +1,4 @@
-﻿"""One-time icon generation script for GADO.
+﻿"""One-time icon generation script for WHIM.
 
 Reads category, subcategory, and mood metadata from the recommendation flow
 and generates static PNG icons under `main/frontend/assets/icons/`.
@@ -227,5 +227,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
 

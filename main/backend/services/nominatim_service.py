@@ -11,7 +11,7 @@ from typing import Optional
 import httpx
 
 NOMINATIM_URL = "https://nominatim.openstreetmap.org"
-HEADERS = {"User-Agent": "GADO-App/1.0 (contact@gado.app)"}
+HEADERS = {"User-Agent": "WHIM-App/1.0 (contact@whim.app)"}
 
 _rate_lock = asyncio.Lock()
 _last_call = 0.0

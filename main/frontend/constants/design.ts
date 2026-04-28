@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
 /**
- * GADO design tokens.
+ * WHIM design tokens.
  *
  * Palette is derived from OKLCH and flattened to hex for React Native
  * compatibility (RN does not parse oklch()).  Neutrals are tinted toward the

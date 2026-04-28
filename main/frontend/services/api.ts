@@ -16,7 +16,7 @@ const getBaseUrl = () => {
   // Autodetection for Railway: If we are on X.up.railway.app, the backend is likely on backend-production-XXXX.up.railway.app
   // Or more simply, if BASE_URL is missing in production web, we can try to use a relative path or a known pattern.
   if (typeof window !== 'undefined' && window.location.hostname.includes('railway.app')) {
-    // For GADO, we know the production backend URL pattern
+    // For WHIM, we know the production backend URL pattern
     return 'https://backend-production-bac63.up.railway.app';
   }
 
@@ -288,19 +288,22 @@ const FLOW_FALLBACKS: Record<string, CategoryFlowResponse> = {
     ],
   },
   education: {
-    category: { id: 'education', label: 'Educación', icon: '📚', color: '#8B5CF6', sort_order: 10, is_active: true, requires_price: false, search_mode: 'guided_ranked', mood_title: '¿Qué necesitas?', mood_subtitle: 'Elige tu prioridad' },
+    category: { id: 'education', label: 'Educación', icon: '📚', color: '#8B5CF6', sort_order: 10, is_active: true, requires_price: false, search_mode: 'guided_ranked', mood_title: '¿Qué centro buscas?', mood_subtitle: 'Primero elige el tipo y luego afina etapa, apoyo o idioma' },
     subcategories: [
-      { id: 'library', label: 'Biblioteca', emoji: '📚' },
-      { id: 'study_cafe', label: 'Café para estudiar', emoji: '☕' },
+      { id: 'public_school', label: 'Público', emoji: '🏛️' },
+      { id: 'private_school', label: 'Privado', emoji: '🏫' },
+      { id: 'concerted_school', label: 'Concertado', emoji: '🤝' },
+      { id: 'special_education', label: 'Especial', emoji: '⭐' },
       { id: 'university', label: 'Universidad', emoji: '🎓' },
-      { id: 'language_school', label: 'Idiomas', emoji: '🗣️' },
-      { id: 'academy', label: 'Academia', emoji: '📖' },
+      { id: 'vocational_training', label: 'FP', emoji: '🛠️' },
     ],
     moods: [
-      { id: 'quiet', label: 'Silencio total', emoji: '🤫' },
-      { id: 'group', label: 'Trabajo en grupo', emoji: '👥' },
-      { id: 'wifi', label: 'WiFi rápido', emoji: '📶' },
-      { id: 'long_hours', label: 'Muchas horas', emoji: '🕑' },
+      { id: 'infant_primary', label: 'Infantil / Primaria', emoji: '🧒' },
+      { id: 'secondary_baccalaureate', label: 'ESO / Bachillerato', emoji: '📘' },
+      { id: 'vocational_path', label: 'FP media / superior', emoji: '🛠️' },
+      { id: 'university_path', label: 'Grado / Máster', emoji: '🎓' },
+      { id: 'special_support', label: 'Apoyo específico', emoji: '🫶' },
+      { id: 'bilingual_languages', label: 'Bilingüe / Idiomas', emoji: '🗣️' },
     ],
   },
   cinema: {

@@ -81,7 +81,7 @@ const DEFAULT_STATE: AppState = {
   },
 };
 
-const STORAGE_KEY = '@gado/app_state';
+const STORAGE_KEY = '@whim/app_state';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 

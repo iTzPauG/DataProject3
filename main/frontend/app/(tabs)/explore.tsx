@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
+import CategoryMonogram from '../../components/CategoryMonogram';
 import Icon from '../../components/Icon';
 import { ExploreCategory, getExploreCategories } from '../../services/api';
 import { useTheme } from '../../utils/theme';

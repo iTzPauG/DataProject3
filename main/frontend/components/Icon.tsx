@@ -1,7 +1,7 @@
 /**
  * Icon — monochrome geometric iconography built from View primitives.
  *
- * The GADO aesthetic explicitly avoids emoji fallbacks and Ionicons on web,
+ * The WHIM aesthetic explicitly avoids emoji fallbacks and Ionicons on web,
  * both of which feel templated.  Every icon in this file is drawn with
  * plain RN <View> nodes so it renders identically on web and native.
  *

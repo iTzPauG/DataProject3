@@ -109,9 +109,12 @@ CATEGORY_SUBCATEGORY_SEED = [
     ("basketball", "sport", "Baloncesto", "🏀", 2),
     ("tennis", "sport", "Tenis", "🎾", 3),
     ("pool", "sport", "Piscina", "🏊", 4),
-    ("school", "education", "Escuela", "🏫", 1),
-    ("university", "education", "Universidad", "🎓", 2),
-    ("study", "education", "Biblioteca", "📚", 3),
+    ("public_school", "education", "Público", "🏛️", 1),
+    ("private_school", "education", "Privado", "🏫", 2),
+    ("concerted_school", "education", "Concertado", "🤝", 3),
+    ("special_education", "education", "Especial", "⭐", 4),
+    ("university", "education", "Universidad", "🎓", 5),
+    ("vocational_training", "education", "FP", "🛠️", 6),
     ("movies", "cinema", "Películas", "🍿", 1),
     ("indie", "cinema", "Cine indie", "📽️", 2),
     ("imax", "cinema", "IMAX", "🎬", 3),
@@ -157,9 +160,12 @@ CATEGORY_MOOD_SEED = [
     ("intense", "sport", "Intenso", "🔥", 1),
     ("fun", "sport", "Divertido", "😆", 2),
     ("team", "sport", "En equipo", "🤝", 3),
-    ("quiet", "education", "Silencio", "🤫", 1),
-    ("group", "education", "Grupo", "👥", 2),
-    ("wifi", "education", "Con WiFi", "📶", 3),
+    ("infant_primary", "education", "Infantil / Primaria", "🧒", 1),
+    ("secondary_baccalaureate", "education", "ESO / Bachillerato", "📘", 2),
+    ("vocational_path", "education", "FP media / superior", "🛠️", 3),
+    ("university_path", "education", "Grado / Máster", "🎓", 4),
+    ("special_support", "education", "Apoyo específico", "🫶", 5),
+    ("bilingual_languages", "education", "Bilingüe / Idiomas", "🗣️", 6),
     ("action", "cinema", "Acción", "💥", 1),
     ("comedy", "cinema", "Comedia", "😂", 2),
     ("drama", "cinema", "Drama", "🎭", 3),
@@ -168,6 +174,24 @@ CATEGORY_MOOD_SEED = [
     ("local", "market", "Local", "🥬", 1),
     ("deal", "market", "Gangas", "💸", 2),
     ("live_vibe", "music", "En vivo", "🎶", 1),
+]
+
+EDUCATION_SUBCATEGORY_SEED = [
+    ("public_school", "education", "Público", "🏛️", 1),
+    ("private_school", "education", "Privado", "🏫", 2),
+    ("concerted_school", "education", "Concertado", "🤝", 3),
+    ("special_education", "education", "Especial", "⭐", 4),
+    ("university", "education", "Universidad", "🎓", 5),
+    ("vocational_training", "education", "FP", "🛠️", 6),
+]
+
+EDUCATION_MOOD_SEED = [
+    ("infant_primary", "education", "Infantil / Primaria", "🧒", 1),
+    ("secondary_baccalaureate", "education", "ESO / Bachillerato", "📘", 2),
+    ("vocational_path", "education", "FP media / superior", "🛠️", 3),
+    ("university_path", "education", "Grado / Máster", "🎓", 4),
+    ("special_support", "education", "Apoyo específico", "🫶", 5),
+    ("bilingual_languages", "education", "Bilingüe / Idiomas", "🗣️", 6),
 ]
 
 
@@ -428,6 +452,20 @@ class PostgresCompatConnection:
         return None
 
 
+async def _sync_education_subcategories(db: Any) -> None:
+    await db.execute("DELETE FROM category_subcategories WHERE category_id = ?", ("education",))
+    await db.executemany(
+        "INSERT INTO category_subcategories (id, category_id, label, icon, sort_order) VALUES (?, ?, ?, ?, ?)",
+        EDUCATION_SUBCATEGORY_SEED,
+    )
+    await db.execute("DELETE FROM category_moods WHERE category_id = ?", ("education",))
+    await db.executemany(
+        "INSERT INTO category_moods (id, category_id, label, icon, sort_order) VALUES (?, ?, ?, ?, ?)",
+        EDUCATION_MOOD_SEED,
+    )
+    await db.commit()
+
+
 async def _seed_sqlite(db: aiosqlite.Connection) -> None:
     cursor = await db.execute("SELECT COUNT(*) FROM categories")
     if (await cursor.fetchone())[0] == 0:
@@ -452,6 +490,8 @@ async def _seed_sqlite(db: aiosqlite.Connection) -> None:
             CATEGORY_MOOD_SEED,
         )
         await db.commit()
+
+    await _sync_education_subcategories(db)
 
     cursor = await db.execute("SELECT COUNT(*) FROM report_types")
     if (await cursor.fetchone())[0] == 0:
@@ -486,6 +526,8 @@ async def _seed_postgres(db: PostgresCompatConnection) -> None:
             "INSERT INTO category_moods (id, category_id, label, icon, sort_order) VALUES (?, ?, ?, ?, ?)",
             CATEGORY_MOOD_SEED,
         )
+
+    await _sync_education_subcategories(db)
 
     cursor = await db.execute("SELECT COUNT(*) AS count FROM report_types")
     row = await cursor.fetchone()

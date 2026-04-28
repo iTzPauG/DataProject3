@@ -615,7 +615,7 @@ def _build_llm_prompts(places: list[dict], mood: str, language: str, parent_cate
     target_lang = _LANG_MAP.get(language, "Spanish")
     ai_payload = [_build_ai_context(r) for r in places]
 
-    instruction = f"""You are GADO, a brutally honest guide for {label} in Valencia, Spain.
+    instruction = f"""You are WHIM, a brutally honest guide for {label} in Valencia, Spain.
 TASK: For each place, read the real individual reviews first and produce a compact, honest take.
 
 SOURCE PRIORITY:
@@ -750,7 +750,7 @@ async def recommend(parent_category: str, subcategory: str | None, mood: str, pr
 
     # ── PHASE 1: Search ─────────────────────────────────────────────────────
     t_step = time.perf_counter()
-    raw = await search_places(parent_category, resolved_sub, lat, lng, price_level, language=language)
+    raw = await search_places(parent_category, resolved_sub, mood, lat, lng, price_level, language=language)
     candidates = raw.get("restaurants", [])
     log.info("[PERF] Step A (Search): %.2fs — %d results", time.perf_counter() - t_step, len(candidates))
 
@@ -863,7 +863,7 @@ async def enrich_place_result(
     google_reviews: Optional[list[dict]] = None,
     review_summary: str = "",
 ) -> dict:
-    """Enrich a single place with GADO's take for generic place detail views."""
+    """Enrich a single place with WHIM's take for generic place detail views."""
     cache_key = (
         f"place_take:{place_id}:{parent_category}:{subcategory or ''}:{language}:"
         f"{round(lat, 4)}:{round(lng, 4)}"
@@ -991,7 +991,7 @@ async def recommend_stream(
     log.info("[STREAM v2] START category='%s' mood='%s'", parent_category, mood)
 
     # Phase 1: Search
-    raw = await search_places(parent_category, resolved_sub, lat, lng, price_level, language=language)
+    raw = await search_places(parent_category, resolved_sub, mood, lat, lng, price_level, language=language)
     candidates = raw.get("restaurants", [])
     if not candidates:
         yield {"event": "done", "total": 0}

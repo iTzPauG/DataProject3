@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
 /**
- * GADO Blackbox Logger
+ * WHIM Blackbox Logger
  * Captures everything from network requests to global errors.
  */
 
@@ -82,7 +82,7 @@ class Logger {
     
     if (IS_DEBUG) {
       const color = level === 'ERROR' ? '\x1b[31m' : level === 'NETWORK' ? '\x1b[36m' : '\x1b[32m';
-      console.log(`${color}[GADO:${level}] ${message}\x1b[0m`, data || '');
+      console.log(`${color}[WHIM:${level}] ${message}\x1b[0m`, data || '');
     }
 
     this.logs.push(logEntry);

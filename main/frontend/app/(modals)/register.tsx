@@ -144,7 +144,7 @@ export default function RegisterModal() {
               <Ionicons name="close" size={24} color={colors.ink} />
             </TouchableOpacity>
             <Text style={styles.title}>Crear cuenta</Text>
-            <Text style={styles.subtitle}>Únete a la comunidad de GADO</Text>
+            <Text style={styles.subtitle}>Únete a la comunidad de WHIM</Text>
           </View>
 
           <View style={styles.form}>

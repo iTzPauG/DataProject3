@@ -264,7 +264,7 @@ export default function RestaurantCard({
 </View>
         <View style={styles.footerRow}>
           <View style={styles.voteWrap}>
-            <VoteButtons itemId={restaurant.id} itemType="place" initial={voteData} title="Veredicto GADO" />
+            <VoteButtons itemId={restaurant.id} itemType="place" initial={voteData} title="Veredicto WHIM" />
           </View>
           <View style={styles.moreWrap} accessibilityLabel="Ver más detalles">
             <Text style={styles.moreText}>Ver más</Text>

@@ -43,10 +43,10 @@ const resources = {
           terrain: { label: 'Terrain', desc: 'Topography and parks' },
         },
         gadoOverlay: {
-          title: 'GADO Overlay',
+          title: 'WHIM Overlay',
           subtitle: 'Highlight reports and events with strong visual cues.',
           liveActivity: 'Live activity emphasis',
-          liveActivityDesc: 'Inspired by traffic apps, but for the GADO community.',
+          liveActivityDesc: 'Inspired by traffic apps, but for the WHIM community.',
         },
         defaultRadius: {
           title: 'Default Radius',
@@ -99,10 +99,10 @@ const resources = {
           terrain: { label: 'Terrain', desc: 'Topography and parks' },
         },
         gadoOverlay: {
-          title: 'GADO Overlay',
+          title: 'WHIM Overlay',
           subtitle: 'Resalta reportes y eventos con señales visuales fuertes.',
           liveActivity: 'Énfasis en actividad viva',
-          liveActivityDesc: 'Inspirado en apps de tráfico, pero para la comunidad GADO.',
+          liveActivityDesc: 'Inspirado en apps de tráfico, pero para la comunidad WHIM.',
         },
         defaultRadius: {
           title: 'Radio por Defecto',

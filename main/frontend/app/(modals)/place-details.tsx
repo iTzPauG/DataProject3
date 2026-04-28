@@ -412,7 +412,7 @@ export default function PlaceDetailsModal() {
 
             {item.item_type === 'place' && (loadingTake || placeTake) && (
               <View style={styles.takeCard}>
-                <Text style={styles.sectionEyebrow}>GADO&apos;s Take</Text>
+                <Text style={styles.sectionEyebrow}>WHIM&apos;s Take</Text>
                 {loadingTake && !placeTake ? (
                   <View style={styles.takeLoading}>
                     <ActivityIndicator size="small" color={colors.brand} />
