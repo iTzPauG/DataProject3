@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Ionicons } from '../../components/SafeIonicons';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
@@ -18,6 +19,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../utils/theme';
 
 export default function LoginModal() {
+  const { t } = useTranslation();
   const { colors, typography } = useTheme();
   const router = useRouter();
   const { signInWithEmail, signInWithGoogle } = useAuth();
@@ -160,7 +162,7 @@ export default function LoginModal() {
 
   async function handleLogin() {
     if (!email || !password) {
-      Alert.alert('Error', 'Por favor rellena todos los campos');
+      Alert.alert(t('common.error'), t('auth.fillFields'));
       return;
     }
 
@@ -169,7 +171,7 @@ export default function LoginModal() {
       await signInWithEmail(email, password);
       router.replace('/(tabs)');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Error al iniciar sesión');
+      Alert.alert(t('common.error'), error.message || t('auth.errorLogin'));
     } finally {
       setLoading(false);
     }
@@ -179,9 +181,8 @@ export default function LoginModal() {
     setLoading(true);
     try {
       await signInWithGoogle();
-      // On web/mobile, this usually redirects
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Error al iniciar sesión con Google');
+      Alert.alert(t('common.error'), error.message || t('auth.errorGoogle'));
       setLoading(false);
     }
   }
@@ -197,8 +198,8 @@ export default function LoginModal() {
             <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} style={styles.closeButton}>
               <Text style={styles.closeIcon}>✕</Text>
             </TouchableOpacity>
-            <Text style={styles.title}>Bienvenido</Text>
-            <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
+            <Text style={styles.title}>{t('auth.welcome')}</Text>
+            <Text style={styles.subtitle}>{t('auth.signInSubtitle')}</Text>
           </View>
 
           <View style={styles.form}>
@@ -206,7 +207,7 @@ export default function LoginModal() {
               <Ionicons name="mail-outline" size={20} color="#8E8E93" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Email"
+                placeholder={t('auth.email')}
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
@@ -218,7 +219,7 @@ export default function LoginModal() {
               <Ionicons name="lock-closed-outline" size={20} color="#8E8E93" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Contraseña"
+                placeholder={t('auth.password')}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
@@ -233,13 +234,13 @@ export default function LoginModal() {
               {loading ? (
                 <ActivityIndicator color="#FFF" />
               ) : (
-                <Text style={styles.primaryButtonText}>Iniciar sesión</Text>
+                <Text style={styles.primaryButtonText}>{t('auth.signIn')}</Text>
               )}
             </TouchableOpacity>
 
             <View style={styles.divider}>
               <View style={styles.line} />
-              <Text style={styles.dividerText}>o</Text>
+              <Text style={styles.dividerText}>{t('auth.or')}</Text>
               <View style={styles.line} />
             </View>
 
@@ -249,14 +250,14 @@ export default function LoginModal() {
               disabled={loading}
             >
               <Ionicons name="logo-google" size={20} color="#1C1C1E" style={{ marginRight: 10 }} />
-              <Text style={styles.googleButtonText}>Continuar con Google</Text>
+              <Text style={styles.googleButtonText}>{t('auth.googleSignIn')}</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>¿No tienes cuenta? </Text>
+            <Text style={styles.footerText}>{t('auth.dontHaveAccount')} </Text>
             <TouchableOpacity onPress={() => router.push('/(modals)/register')}>
-              <Text style={styles.linkText}>Regístrate</Text>
+              <Text style={styles.linkText}>{t('auth.register')}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -264,4 +265,3 @@ export default function LoginModal() {
     </SafeAreaView>
   );
 }
-

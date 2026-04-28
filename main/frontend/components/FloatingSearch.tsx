@@ -1,13 +1,6 @@
-/**
- * SearchBar — barra de búsqueda siempre visible encima del tab bar.
- *
- * - Input permanente (no pill ni modal) → el usuario escribe directamente
- * - Debounce 350ms → GET /search/universal con GPS real
- * - Resultados ordenados: primero por coincidencia de nombre, luego por distancia
- * - Overlay de resultados se despliega hacia arriba cuando hay texto
- */
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Animated,
@@ -22,8 +15,8 @@ import {
 import { BASE_URL, getCurrentLocation } from '../services/api';
 import { useTheme } from '../utils/theme';
 import GADOIcon from './GADOIcon';
+import Icon from './Icon';
 
-// ── Haversine distance (km) ────────────────────────────────────────────────
 function distKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -40,7 +33,6 @@ function fmtDist(km: number): string {
   return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
 }
 
-// ── Text match score (lower = better) ────────────────────────────────────
 function matchScore(name: string, q: string): number {
   const n = name.toLowerCase();
   const query = q.toLowerCase().trim();
@@ -63,7 +55,8 @@ interface SearchResult {
 }
 
 export const FloatingSearch = () => {
-  const { colors, typography, shadows } = useTheme();
+  const { t } = useTranslation();
+  const { colors, typography, shadows, radii } = useTheme();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -72,21 +65,19 @@ export const FloatingSearch = () => {
   const overlayAnim = useRef(new Animated.Value(0)).current;
   const userPos = useRef<{ lat: number; lng: number } | null>(null);
 
-  // Pre-fetch location so first search is instant
   useEffect(() => {
     getCurrentLocation()
       .then((pos) => { userPos.current = pos; })
       .catch(() => {});
   }, []);
 
-  // Animate results overlay in/out
   const showResults = focused && (results.length > 0 || loading);
   useEffect(() => {
     Animated.spring(overlayAnim, {
       toValue: showResults ? 1 : 0,
       useNativeDriver: false,
-      damping: 22,
-      stiffness: 220,
+      damping: 24,
+      stiffness: 240,
     }).start();
   }, [showResults, overlayAnim]);
 
@@ -109,7 +100,6 @@ export const FloatingSearch = () => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
-      // Attach distance + sort by: match score, then distance
       const withDist: SearchResult[] = (data.results ?? []).map((r: SearchResult) => ({
         ...r,
         _dist: distKm(pos.lat, pos.lng, r.lat ?? pos.lat, r.lng ?? pos.lng),
@@ -150,21 +140,19 @@ export const FloatingSearch = () => {
     }
   };
 
-  // ── Overlay translate (slides up from the bar) ─────────────────────────
   const translateY = overlayAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [16, 0],
+    outputRange: [20, 0],
   });
   const opacity = overlayAnim;
 
   return (
     <View style={styles.root}>
-      {/* Results overlay — appears above the bar */}
       {focused && (
         <Animated.View
           style={[
             styles.overlay,
-            { backgroundColor: colors.surface, ...shadows.lift },
+            { backgroundColor: colors.surface, ...shadows.lift, borderColor: colors.stroke, borderWidth: 1 },
             { opacity, transform: [{ translateY }] },
           ]}
           pointerEvents={showResults ? 'box-none' : 'none'}
@@ -173,7 +161,7 @@ export const FloatingSearch = () => {
             <View style={styles.loadingRow}>
               <ActivityIndicator size="small" color={colors.brand} />
               <Text style={[styles.loadingText, { color: colors.inkMuted, fontFamily: typography.body }]}>
-                Buscando...
+                {t('common.loading')}
               </Text>
             </View>
           )}
@@ -189,8 +177,8 @@ export const FloatingSearch = () => {
                 onPress={() => handleSelect(item)}
                 activeOpacity={0.72}
               >
-                <View style={[styles.iconBox, { backgroundColor: colors.chip }]}>
-                  <GADOIcon name={item.category_id ?? 'explore'} category={item.category_id} size={18} color={colors.brand} />
+                <View style={[styles.iconBox, { backgroundColor: colors.bg, borderColor: colors.stroke, borderWidth: 1 }]}>
+                  <GADOIcon name={item.category_id ?? 'explore'} category={item.item_type as any} size={18} color={colors.brand} />
                 </View>
                 <View style={styles.resultInfo}>
                   <Text style={[styles.resultName, { color: colors.ink, fontFamily: typography.heading }]} numberOfLines={1}>
@@ -203,7 +191,7 @@ export const FloatingSearch = () => {
                   ) : null}
                 </View>
                 {item._dist != null && (
-                  <Text style={[styles.dist, { color: colors.inkMuted, fontFamily: typography.body }]}>
+                  <Text style={[styles.dist, { color: colors.inkMuted, fontFamily: typography.mono }]}>
                     {fmtDist(item._dist)}
                   </Text>
                 )}
@@ -213,17 +201,16 @@ export const FloatingSearch = () => {
         </Animated.View>
       )}
 
-      {/* Search bar */}
       <View style={[styles.bar, { backgroundColor: colors.surface, borderTopColor: colors.stroke }]}>
-        <View style={[styles.inputWrap, { backgroundColor: colors.chip, borderColor: colors.stroke }]}>
-          <Text style={styles.searchIcon}>🔍</Text>
+        <View style={[styles.inputWrap, { backgroundColor: colors.bg, borderColor: colors.strokeStrong }]}>
+          <Icon name="search" size={16} color={colors.inkMuted} strokeWidth={2} />
           <TextInput
-            placeholder="Buscar un lugar..."
-            placeholderTextColor={colors.inkMuted}
+            placeholder={t('home.searchPlaceholder')}
+            placeholderTextColor={colors.inkFaint}
             value={query}
             onChangeText={handleChange}
             onFocus={() => setFocused(true)}
-            onBlur={() => setTimeout(() => setFocused(false), 150)}
+            onBlur={() => setTimeout(() => setFocused(false), 200)}
             onSubmitEditing={() => {
               if (debounceRef.current) clearTimeout(debounceRef.current);
               search(query);
@@ -235,7 +222,7 @@ export const FloatingSearch = () => {
           />
           {query.length > 0 && (
             <TouchableOpacity onPress={handleClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={[styles.clearBtn, { color: colors.inkMuted }]}>✕</Text>
+               <Icon name="close" size={14} color={colors.inkMuted} strokeWidth={2.5} />
             </TouchableOpacity>
           )}
         </View>
@@ -254,59 +241,55 @@ const styles = StyleSheet.create({
     bottom: TAB_H,
     zIndex: 150,
   },
-  // Results overlay
   overlay: {
     position: 'absolute',
-    left: 8,
-    right: 8,
+    left: 12,
+    right: 12,
     bottom: '100%',
-    marginBottom: 6,
-    borderRadius: 18,
+    marginBottom: 12,
+    borderRadius: 24,
     overflow: 'hidden',
   },
   loadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
-  loadingText: { fontSize: 14 },
+  loadingText: { fontSize: 14, fontWeight: '600' },
   resultRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   iconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 9,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   resultInfo: { flex: 1 },
-  resultName: { fontSize: 14, fontWeight: '700', marginBottom: 1 },
+  resultName: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
   resultAddress: { fontSize: 12 },
-  dist: { fontSize: 12, fontWeight: '600' },
-  // Search bar
+  dist: { fontSize: 11, fontWeight: '700' },
   bar: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   inputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 14,
+    borderRadius: 20,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: Platform.OS === 'ios' ? 9 : 6,
-    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    gap: 10,
   },
-  searchIcon: { fontSize: 15, opacity: 0.6 },
-  input: { flex: 1, fontSize: 15 },
-  clearBtn: { fontSize: 13, fontWeight: '700', paddingHorizontal: 2 },
+  input: { flex: 1, fontSize: 15, fontWeight: '500' },
 });

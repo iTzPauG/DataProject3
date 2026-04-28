@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from "react-i18next";
 import { BASE_URL } from '../../services/api';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Image } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../utils/theme';
 import { Ionicons } from '../../components/SafeIonicons';
-import { formatTimeAgo } from '../../utils/format';
 
 export default function EventDetailsModal() {
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors, typography, radii, shadows } = useTheme();
   const [event, setEvent] = useState<any>(null);
@@ -18,7 +19,7 @@ export default function EventDetailsModal() {
     async function loadEvent() {
       try {
         const res = await fetch(`${BASE_URL}/events/${id}`);
-        if (!res.ok) throw new Error('Failed to fetch event details');
+        if (!res.ok) throw new Error(t('eventDetails.notFound'));
         const data = await res.json();
         setEvent(data);
       } catch (err: any) {
@@ -28,7 +29,7 @@ export default function EventDetailsModal() {
       }
     }
     loadEvent();
-  }, [id]);
+  }, [id, t]);
 
   if (loading) {
     return (
@@ -42,9 +43,9 @@ export default function EventDetailsModal() {
     return (
       <View style={[styles.center, { backgroundColor: colors.shell }]}>
         <Ionicons name="alert-circle" size={48} color={colors.danger} />
-        <Text style={[styles.errorText, { color: colors.ink }]}>{error || 'Event not found'}</Text>
+        <Text style={[styles.errorText, { color: colors.ink }]}>{error || t('eventDetails.notFound')}</Text>
         <TouchableOpacity style={[styles.backBtn, { backgroundColor: colors.surface }]} onPress={() => router.back()}>
-          <Text style={{ color: colors.ink }}>Volver</Text>
+          <Text style={{ color: colors.ink }}>{t('common.back')}</Text>
         </TouchableOpacity>
       </View>
     );

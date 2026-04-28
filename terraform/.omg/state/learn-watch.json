@@ -1,0 +1,12 @@
+{
+  "last_session_id": "8900ba09-8be3-44dc-bcd3-a3552ba93dfa",
+  "last_event_key": "8900ba09-8be3-44dc-bcd3-a3552ba93dfa:transcript:b77df99f6b705e6504f5a8dde398a1931c19ba81b86e9ef0087b9417f87e94f9",
+  "last_prompted_session_id": "",
+  "last_reason": "short-session",
+  "last_prompted_at": "",
+  "last_user_message_count": 0,
+  "last_actionable_message_count": 0,
+  "deep_interview_lock_active": false,
+  "deep_interview_lock_source": "/Users/ivanhuertas/Developer/DataProject3/terraform/.omg/state/deep-interview.json",
+  "updated_at": "2026-04-28T22:17:32.775Z"
+}

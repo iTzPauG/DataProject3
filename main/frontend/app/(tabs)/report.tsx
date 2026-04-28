@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Ionicons } from '../../components/SafeIonicons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -38,6 +39,7 @@ const DURATIONS = [
 ];
 
 export default function ReportTab() {
+  const { t } = useTranslation();
   const { colors, radii, shadows, typography } = useTheme();
   const router = useRouter();
   const { user } = useAuth();
@@ -372,7 +374,7 @@ export default function ReportTab() {
       });
       setStep(4);
     } catch (err) {
-      Alert.alert('Error', 'No se pudo enviar el reporte. Por favor, comprueba tu conexión.');
+      Alert.alert(t('common.error'), t('report.submitError'));
     } finally {
       setSubmitting(false);
     }
@@ -408,8 +410,8 @@ export default function ReportTab() {
           <View style={styles.content}>
             {step === 1 && (
               <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
-                <Text style={dynamicStyles.title}>Reportar</Text>
-                <Text style={dynamicStyles.subtitle}>Informa a la comunidad en tiempo real</Text>
+                <Text style={dynamicStyles.title}>{t('report.title')}</Text>
+                <Text style={dynamicStyles.subtitle}>{t('report.subtitle')}</Text>
               </Animated.View>
             )}
 
@@ -427,15 +429,15 @@ export default function ReportTab() {
               {step === 1 && (
                 <View style={styles.stepContainer}>
                   <View style={styles.cardHeader}>
-                    <Text style={dynamicStyles.cardTitle}>¿Qué está pasando?</Text>
-                    <Text style={dynamicStyles.cardSubtitle}>Selecciona una categoría para avisar a otros</Text>
+                    <Text style={dynamicStyles.cardTitle}>{t('report.whatsHappening') || "¿Qué está pasando?"}</Text>
+                    <Text style={dynamicStyles.cardSubtitle}>{t('report.categorySubtitle')}</Text>
                   </View>
 
                   {loadingOptions ? (
                     <ActivityIndicator size="large" color={colors.brand} style={{ marginVertical: 40 }} />
                   ) : loadError ? (
                     <TouchableOpacity style={dynamicStyles.retryBtn} onPress={() => router.replace('/report')}>
-                       <Text style={dynamicStyles.retryBtnText}>Reintentar cargar tipos</Text>
+                       <Text style={dynamicStyles.retryBtnText}>{t('report.retryTypes')}</Text>
                     </TouchableOpacity>
                   ) : (
                     <Animated.ScrollView 
@@ -473,14 +475,14 @@ export default function ReportTab() {
                       <Ionicons name="chevron-back" size={20} color={colors.ink} />
                     </TouchableOpacity>
                     <View style={styles.headerTextGroup}>
-                      <Text style={dynamicStyles.cardTitleSmall}>Detalles del reporte</Text>
+                      <Text style={dynamicStyles.cardTitleSmall}>{t('report.details')}</Text>
                       <Text style={dynamicStyles.cardSubtitleSmall}>{reportType?.label}</Text>
                     </View>
                   </View>
 
                   <TextInput
                     style={dynamicStyles.input}
-                    placeholder="Título (ej. Accidente en carril bici)"
+                    placeholder={t('report.titlePlaceholder')}
                     placeholderTextColor={colors.inkMuted}
                     value={title}
                     onChangeText={setTitle}
@@ -489,7 +491,7 @@ export default function ReportTab() {
                   
                   <TextInput
                     style={[dynamicStyles.input, styles.textarea]}
-                    placeholder="Más detalles (opcional)"
+                    placeholder={t('report.detailsPlaceholder')}
                     placeholderTextColor={colors.inkMuted}
                     value={description}
                     onChangeText={setDescription}
@@ -498,7 +500,7 @@ export default function ReportTab() {
                   />
 
                   <View style={styles.durationSection}>
-                     <Text style={dynamicStyles.sectionLabel}>¿Cuánto tiempo durará?</Text>
+                     <Text style={dynamicStyles.sectionLabel}>{t('report.howLong') || "¿Cuánto tiempo durará?"}</Text>
                      <View style={styles.durationGrid}>
                         {DURATIONS.map(d => (
                           <TouchableOpacity 
@@ -519,7 +521,7 @@ export default function ReportTab() {
                     onPress={() => setStep(3)}
                     disabled={!canContinueDetails}
                   >
-                    <Text style={dynamicStyles.mainBtnText}>Confirmar</Text>
+                    <Text style={dynamicStyles.mainBtnText}>{t('common.confirm')}</Text>
                     <Ionicons name="chevron-forward" size={18} color={colors.ink} />
                   </TouchableOpacity>
                 </View>
@@ -532,15 +534,15 @@ export default function ReportTab() {
                       <Ionicons name="chevron-back" size={20} color={colors.ink} />
                     </TouchableOpacity>
                     <View style={styles.headerTextGroup}>
-                      <Text style={dynamicStyles.cardTitleSmall}>Confirmar envío</Text>
-                      <Text style={dynamicStyles.cardSubtitleSmall}>Resumen de tu aviso</Text>
+                      <Text style={dynamicStyles.cardTitleSmall}>{t('report.confirmTitle')}</Text>
+                      <Text style={dynamicStyles.cardSubtitleSmall}>{t('report.summarySubtitle')}</Text>
                     </View>
                   </View>
 
                   <View style={dynamicStyles.summaryBox}>
                      <View style={[styles.summaryBadge, { backgroundColor: colors.danger + '15' }]}>
                         <View style={[styles.livePulse, { backgroundColor: colors.danger }]} />
-                        <Text style={dynamicStyles.liveText}>EN VIVO · {durationHours}h</Text>
+                        <Text style={dynamicStyles.liveText}>{t('common.live') || "EN VIVO"} · {durationHours}h</Text>
                      </View>
                      <Text style={dynamicStyles.summaryTitle}>{title}</Text>
                      {description ? <Text style={dynamicStyles.summarySub}>{description}</Text> : null}
@@ -553,7 +555,7 @@ export default function ReportTab() {
                     <View style={[dynamicStyles.checkbox, postAnonymously && dynamicStyles.checkboxActive]}>
                       {postAnonymously && <Ionicons name="checkmark" size={14} color={colors.ink} />}
                     </View>
-                    <Text style={dynamicStyles.anonText}>Publicar de forma anónima</Text>
+                    <Text style={dynamicStyles.anonText}>{t('report.anonymous')}</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -565,7 +567,7 @@ export default function ReportTab() {
                       <ActivityIndicator color={colors.ink} />
                     ) : (
                       <>
-                        <Text style={dynamicStyles.mainBtnText}>Publicar ahora</Text>
+                        <Text style={dynamicStyles.mainBtnText}>{t('report.publishNow')}</Text>
                         <Ionicons name="send" size={16} color={colors.ink} style={{marginLeft: 8}} />
                       </>
                     )}
@@ -578,8 +580,8 @@ export default function ReportTab() {
                   <View style={dynamicStyles.successIcon}>
                     <Ionicons name="checkmark" size={40} color={colors.ink} />
                   </View>
-                  <Text style={dynamicStyles.successTitle}>¡Aviso publicado!</Text>
-                  <Text style={dynamicStyles.successText}>Tu reporte ya es visible en el mapa para todos los usuarios.</Text>
+                  <Text style={dynamicStyles.successTitle}>{t('report.successTitle') || "¡Aviso publicado!"}</Text>
+                  <Text style={dynamicStyles.successText}>{t('report.success')}</Text>
                   <TouchableOpacity 
                     style={[dynamicStyles.mainBtn, { marginTop: 20, width: '100%' }]}
                     onPress={() => {
@@ -587,7 +589,7 @@ export default function ReportTab() {
                       router.replace('/(tabs)');
                     }}
                   >
-                    <Text style={dynamicStyles.mainBtnText}>Volver al mapa</Text>
+                    <Text style={dynamicStyles.mainBtnText}>{t('report.backToMap')}</Text>
                   </TouchableOpacity>
                 </View>
               )}

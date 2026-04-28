@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '../../components/SafeIonicons';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -9,17 +10,18 @@ import { useFlowState } from '../../hooks/useFlowState';
 import { CategoryFlowResponse, getCategoryFlow } from '../../services/api';
 import { useTheme } from '../../utils/theme';
 
-const DEFAULT_OPTIONS = [
-  { id: 'popular', label: 'Popular', emoji: '🔥' },
-  { id: 'new', label: 'Nuevo', emoji: '✨' },
-  { id: 'nearby', label: 'Cerca de ti', emoji: '📍' },
-  { id: 'top_rated', label: 'Mejor valorado', emoji: '⭐' },
-];
-
 export default function CategoryScreen() {
-  const { colors, typography } = useTheme();
+  const { t } = useTranslation();
+  const { colors, typography, shadows } = useTheme();
   const { categoryId } = useLocalSearchParams<{ categoryId?: string }>();
   const { reset, setCategory, setParentCategory } = useFlowState();
+
+  const DEFAULT_OPTIONS = useMemo(() => [
+    { id: 'popular', label: t('flow.popular'), emoji: '🔥' },
+    { id: 'new', label: t('common.soon'), emoji: '✨' },
+    { id: 'nearby', label: t('home.locationNow'), emoji: '📍' },
+    { id: 'top_rated', label: t('placeDetails.theBest'), emoji: '⭐' },
+  ], [t]);
 
   const styles = useMemo(() => StyleSheet.create({
     safe: {
@@ -28,50 +30,55 @@ export default function CategoryScreen() {
     },
     container: {
       flex: 1,
-      maxWidth: 560,
+      maxWidth: 600,
       width: '100%',
       alignSelf: 'center',
     },
     navBar: {
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      paddingBottom: 4,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 8,
     },
     backButton: {
-      paddingVertical: 8,
-      paddingHorizontal: 4,
-    },
-    backText: {
-      fontSize: 17,
-      color: colors.ink,
-      fontWeight: '600',
-      fontFamily: typography.heading,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...shadows.soft,
+      borderWidth: 1,
+      borderColor: colors.stroke,
     },
     header: {
-      paddingHorizontal: 24,
-      paddingTop: 28,
-      paddingBottom: 12,
+      paddingHorizontal: 28,
+      paddingTop: 24,
+      paddingBottom: 16,
     },
     step: {
       fontSize: 12,
-      fontWeight: '600',
+      fontWeight: '700',
       color: colors.brand,
-      letterSpacing: 1,
+      letterSpacing: 1.5,
       textTransform: 'uppercase',
-      marginBottom: 6,
+      marginBottom: 8,
       fontFamily: typography.heading,
     },
     title: {
-      fontSize: 28,
+      fontSize: 32,
       fontWeight: '800',
       color: colors.ink,
-      marginBottom: 6,
+      lineHeight: 38,
+      marginBottom: 10,
       fontFamily: typography.heading,
+      letterSpacing: -0.5,
     },
     subtitle: {
-      fontSize: 15,
+      fontSize: 16,
       color: colors.inkMuted,
-      lineHeight: 22,
+      lineHeight: 24,
       fontFamily: typography.body,
     },
     centered: {
@@ -80,15 +87,16 @@ export default function CategoryScreen() {
       justifyContent: 'center',
     },
     scrollContent: {
-      paddingBottom: 16,
+      paddingBottom: 40,
     },
     grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      paddingHorizontal: 12,
-      paddingTop: 8,
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      gap: 12,
     },
-  }), [colors, typography]);
+  }), [colors, typography, shadows]);
 
   const [flow, setFlow] = useState<CategoryFlowResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -106,7 +114,7 @@ export default function CategoryScreen() {
 
   const options = useMemo(
     () => (flow?.subcategories && flow.subcategories.length > 0 ? flow.subcategories : DEFAULT_OPTIONS),
-    [flow],
+    [flow, DEFAULT_OPTIONS],
   );
 
   const totalSteps = flow?.category.requires_price ? 3 : 2;
@@ -124,20 +132,18 @@ export default function CategoryScreen() {
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backButton}
+            activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="Go back"
+            accessibilityLabel={t('common.back')}
           >
-            <View style={styles.backButton}>
-              <Ionicons name="chevron-back" size={24} color={colors.ink} />
-              <Text style={styles.backText}>Back</Text>
-            </View>
+            <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.header}>
-          <Text style={styles.step}>Paso 1 de {totalSteps}</Text>
-          <Text style={styles.title}>¿Qué estás buscando?</Text>
-          <Text style={styles.subtitle}>Elige una opción para ver recomendaciones personalizadas</Text>
+          <Text style={styles.step}>{t('flow.step', { current: 1, total: totalSteps })}</Text>
+          <Text style={styles.title}>{t('flow.categoryTitle')}</Text>
+          <Text style={styles.subtitle}>{t('flow.categorySubtitle')}</Text>
         </View>
 
         {loading ? (

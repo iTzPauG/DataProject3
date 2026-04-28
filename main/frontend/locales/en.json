@@ -1,0 +1,243 @@
+{
+  "common": {
+    "retry": "Retry",
+    "error": "Error",
+    "back": "Back",
+    "close": "Close",
+    "done": "Done",
+    "confirm": "Confirm",
+    "loading": "Loading...",
+    "save": "Save",
+    "search": "Search",
+    "address": "Address",
+    "phone": "Phone",
+    "share": "Share",
+    "call": "Call",
+    "directions": "Directions",
+    "none": "None",
+    "viewMore": "See more",
+    "view": "View",
+    "soon": "Coming soon",
+    "cancel": "Cancel",
+    "exit": "Exit",
+    "live": "LIVE"
+  },
+  "auth": {
+    "welcome": "Welcome",
+    "signInSubtitle": "Sign in to continue",
+    "email": "Email",
+    "password": "Password",
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "googleSignIn": "Continue with Google",
+    "register": "Register",
+    "createAccount": "Create account",
+    "usernameOptional": "Username (optional)",
+    "confirmPassword": "Confirm password",
+    "signUp": "Sign Up",
+    "alreadyHaveAccount": "Already have an account? Sign in",
+    "dontHaveAccount": "Don't have an account? Register",
+    "fillFields": "Please fill in all fields",
+    "errorLogin": "Error signing in",
+    "errorGoogle": "Error signing in with Google",
+    "or": "or",
+    "passwordsDontMatch": "Passwords do not match",
+    "errorRegister": "Error signing up"
+  },
+  "tabs": {
+    "explore": "Explore",
+    "report": "Report",
+    "profile": "Profile",
+    "saved": "Saved",
+    "index": "Map"
+  },
+  "home": {
+    "locationNow": "València · Now",
+    "recenter": "Recenter",
+    "searchPlaceholder": "A place, a street, an event...",
+    "liveReport": "Live report"
+  },
+  "profile": {
+    "dossier": "Your dossier",
+    "reputation": "Reputation",
+    "reports": "Reports",
+    "access": "Access",
+    "version": "Edition 1.0 · València",
+    "greeting": "Hello,",
+    "guestTitle": "València, at your own pace.",
+    "guestSubtitle": "Save places, post alerts.",
+    "guestBody": "Sign in to sync your favorites and participate in community reports.",
+    "guest": "Guest",
+    "reputationHint": "Points for your useful contributions",
+    "reportsHint": "Alerts published to the community",
+    "signOutConfirm": "Are you sure you want to sign out?",
+    "restrictedAccess": "Restricted access",
+    "restrictedAccessMsg": "Sign in to view this section",
+    "menu": {
+      "saved": "Saved",
+      "savedDesc": "Places and events you bookmarked",
+      "settings": "Preferences",
+      "settingsDesc": "Map, notifications, language"
+    }
+  },
+  "report": {
+    "title": "Report",
+    "subtitle": "Inform the community in real time",
+    "whatsHappening": "What's happening?",
+    "categorySubtitle": "Select a category to alert others",
+    "retryTypes": "Retry loading types",
+    "details": "Report details",
+    "titlePlaceholder": "Title (e.g. Accident on bike lane)",
+    "detailsPlaceholder": "More details (optional)",
+    "howLong": "How long will it last?",
+    "confirmTitle": "Confirm submission",
+    "summarySubtitle": "Summary of your alert",
+    "anonymous": "Post anonymously",
+    "publishNow": "Publish now",
+    "successTitle": "Report published!",
+    "success": "Your report is now visible on the map for all users.",
+    "backToMap": "Back to map",
+    "submitError": "Could not send report. Please check your connection."
+  },
+  "explore": {
+    "featured": "Featured",
+    "viewAgenda": "View agenda",
+    "events": "Events",
+    "sections": "Sections",
+    "showingPlaces": "Showing {{count}} places",
+    "issueLine": "No. 01 · City Index",
+    "masterHeadPart1": "Read València",
+    "masterHeadPart2": "like a local.",
+    "deck": "A curated index of what's happening around you — places to eat, drink, solve the day. Choose a section and open the map.",
+    "featuredTitle": "Markets, concerts and nightlife — this week.",
+    "featuredBody": "Events starting near you in the next 48 hours. Filtered by distance, not by algorithm.",
+    "categories": "categories",
+    "notAvailable": "This section is not available yet."
+  },
+  "saved": {
+    "title": "Saved",
+    "emptyTitle": "No saved items",
+    "emptyText": "Places, events and reports you save will appear here."
+  },
+  "reportDetails": {
+    "expired": "Report expired",
+    "confidence": "Community confidence",
+    "confirmations": "Confirmations",
+    "denials": "Denials",
+    "confidenceLevel": "Confidence",
+    "dismiss": "Dismiss"
+  },
+  "placeDetails": {
+    "notFound": "Place not found",
+    "analyzing": "Analyzing reviews...",
+    "theBest": "The good stuff",
+    "watchOut": "Worth knowing",
+    "verdict": "WHIM Verdict",
+    "topReview": "Top review",
+    "whatPeopleSay": "What people say",
+    "noReviews": "No individual reviews available.",
+    "analyzingStrengths": "Analyzing strengths...",
+    "rating": "Rating: {{rating}}",
+    "whimTake": "WHIM's Take",
+    "bookmarkSignInHint": "Sign in to save your favorite places."
+  },
+  "eventDetails": {
+    "notFound": "Event not found"
+  },
+  "flow": {
+    "step": "Step {{current}} of {{total}}",
+    "categoryTitle": "What are you looking for?",
+    "categorySubtitle": "Choose an option to see personalized recommendations",
+    "priceTitle": "What is your budget?",
+    "priceSubtitle": "We will filter the options to fit it",
+    "resultsTitle": "Results for you",
+    "searchError": "Search error",
+    "noResults": "Nothing here yet",
+    "noResultsMsg": "Try another mood or expand the search radius.",
+    "changeFilters": "Change filters",
+    "popular": "Popular",
+    "quiet": "Quiet",
+    "busy": "Busy",
+    "price_1": "Budget",
+    "price_2": "Medium",
+    "price_3": "Premium"
+  },
+  "category": {
+    "food": "Food",
+    "restaurant": "Restaurant",
+    "nightlife": "Nightlife",
+    "shopping": "Shopping",
+    "health": "Health",
+    "nature": "Nature",
+    "culture": "Culture",
+    "services": "Services",
+    "sport": "Sport",
+    "education": "Education",
+    "event": "Event",
+    "market": "Market",
+    "music": "Music",
+    "report": "Alert",
+    "cinema": "Cinema",
+    "explore": "Explore"
+  },
+  "vote": {
+    "liked": "Liked it",
+    "nope": "Nope",
+    "worthIt": "Was this place worth it?"
+  },
+  "map": {
+    "pricesNotAvailable": "Prices not available at this location"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Customize your experience",
+    "sync": {
+      "local": "Local preference only",
+      "saving": "Syncing...",
+      "saved": "Settings saved",
+      "error": "Sync error",
+      "cloud": "Connected to cloud"
+    },
+    "appearance": {
+      "title": "Appearance",
+      "subtitle": "Choose the visual tone of the application.",
+      "system": "System",
+      "dark": "Dark",
+      "light": "Light",
+      "systemDesc": "Match device",
+      "darkDesc": "Night mode",
+      "lightDesc": "Day mode"
+    },
+    "language": {
+      "title": "Language",
+      "subtitle": "Customize the app and reviews language.",
+      "system": "System",
+      "es": "Español",
+      "en": "English",
+      "fr": "Français"
+    },
+    "mapLayer": {
+      "title": "Map Layer",
+      "subtitle": "How the city is rendered under your data.",
+      "minimal": { "label": "Minimal", "desc": "Clean and calm" },
+      "standard": { "label": "Standard", "desc": "Default city map" },
+      "hybrid": { "label": "Hybrid", "desc": "Satellite with labels" },
+      "satellite": { "label": "Satellite", "desc": "Imagery first" },
+      "terrain": { "label": "Terrain", "desc": "Topography and parks" }
+    },
+    "gadoOverlay": {
+      "title": "WHIM Overlay",
+      "subtitle": "Highlight reports and events with strong visual cues.",
+      "liveActivity": "Live activity emphasis",
+      "liveActivityDesc": "Inspired by traffic apps, but for the WHIM community."
+    },
+    "defaultRadius": {
+      "title": "Default Radius",
+      "subtitle": "Map Filters.",
+      "realTime": "Real-time events",
+      "realTimeDesc": "Show community events and reports on the main map.",
+      "autoSearch": "Maximum auto-search distance."
+    },
+    "done": "Done"
+  }
+}

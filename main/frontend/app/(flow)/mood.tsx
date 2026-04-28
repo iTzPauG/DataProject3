@@ -1,4 +1,6 @@
+import { useTranslation } from "react-i18next";
 import { router } from 'expo-router';
+import { Ionicons } from '../../components/SafeIonicons';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,15 +17,16 @@ import { useFlowState } from '../../hooks/useFlowState';
 import { CategoryFlowResponse, getCategoryFlow } from '../../services/api';
 import { useTheme } from '../../utils/theme';
 
-const DEFAULT_MOODS = [
-  { id: 'popular', label: 'Popular', emoji: '🔥' },
-  { id: 'quiet', label: 'Tranquilo', emoji: '🤫' },
-  { id: 'busy', label: 'Animado', emoji: '🎉' },
-];
-
 export default function MoodScreen() {
-  const { colors, typography } = useTheme();
+  const { t } = useTranslation();
+  const { colors, typography, shadows } = useTheme();
   const { parentCategory, category, setMood } = useFlowState();
+
+  const DEFAULT_MOODS = useMemo(() => [
+    { id: 'popular', label: t('flow.popular'), emoji: '🔥' },
+    { id: 'quiet', label: t('flow.quiet'), emoji: '🤫' },
+    { id: 'busy', label: t('flow.busy'), emoji: '🎉' },
+  ], [t]);
 
   const styles = useMemo(() => StyleSheet.create({
     safe: {
@@ -32,50 +35,55 @@ export default function MoodScreen() {
     },
     container: {
       flex: 1,
-      maxWidth: 560,
+      maxWidth: 600,
       width: '100%',
       alignSelf: 'center',
     },
     navBar: {
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      paddingBottom: 4,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 8,
     },
     backButton: {
-      paddingVertical: 8,
-      paddingHorizontal: 4,
-    },
-    backText: {
-      fontSize: 17,
-      color: colors.ink,
-      fontWeight: '600',
-      fontFamily: typography.heading,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...shadows.soft,
+      borderWidth: 1,
+      borderColor: colors.stroke,
     },
     header: {
-      paddingHorizontal: 24,
-      paddingTop: 8,
+      paddingHorizontal: 28,
+      paddingTop: 24,
       paddingBottom: 16,
     },
     step: {
       fontSize: 12,
-      fontWeight: '600',
+      fontWeight: '700',
       color: colors.brand,
-      letterSpacing: 1,
+      letterSpacing: 1.5,
       textTransform: 'uppercase',
-      marginBottom: 6,
+      marginBottom: 8,
       fontFamily: typography.heading,
     },
     title: {
-      fontSize: 28,
+      fontSize: 32,
       fontWeight: '800',
       color: colors.ink,
-      marginBottom: 6,
+      lineHeight: 38,
+      marginBottom: 10,
       fontFamily: typography.heading,
+      letterSpacing: -0.5,
     },
     subtitle: {
-      fontSize: 15,
+      fontSize: 16,
       color: colors.inkMuted,
-      lineHeight: 22,
+      lineHeight: 24,
       fontFamily: typography.body,
     },
     centered: {
@@ -84,18 +92,18 @@ export default function MoodScreen() {
       justifyContent: 'center',
     },
     scrollContent: {
-      paddingBottom: 16,
+      paddingBottom: 40,
     },
     chipsContainer: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      paddingHorizontal: 12,
-      gap: 10,
+      paddingHorizontal: 16,
+      gap: 12,
     },
     chipWrapper: {
       width: '48%',
     },
-  }), [colors, typography]);
+  }), [colors, typography, shadows]);
 
   const [flow, setFlow] = useState<CategoryFlowResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,22 +118,17 @@ export default function MoodScreen() {
 
   const currentMoods = useMemo(
     () => (flow?.moods && flow.moods.length > 0 ? flow.moods : DEFAULT_MOODS),
-    [flow],
+    [flow, DEFAULT_MOODS],
   );
 
-  const title = flow?.category.mood_title ?? '¿Cuál es el plan?';
-  const subtitle = flow?.category.mood_subtitle ?? 'Elige la opción que mejor encaja contigo';
+  const screenTitle = flow?.category.mood_title ?? '¿Cuál es el plan?';
+  const screenSubtitle = flow?.category.mood_subtitle ?? 'Elige la opción que mejor encaja contigo';
   
-  // Logic to determine if we should skip the price screen based on current selections
   const shouldSkipPrice = useMemo(() => {
     if (!flow?.category.requires_price) return true;
-    
     const skipMoods = flow.category.skip_price_moods || [];
     const skipSubcats = flow.category.skip_price_subcategories || [];
-    
-    // Check if current subcategory is in skip list
     if (category && skipSubcats.includes(category)) return true;
-    
     return false;
   }, [flow, category]);
 
@@ -133,11 +136,8 @@ export default function MoodScreen() {
 
   function handleSelect(id: string) {
     setMood(id);
-    
-    // Additional dynamic check for the selected mood
     const skipMoods = flow?.category.skip_price_moods || [];
     const finalSkip = shouldSkipPrice || skipMoods.includes(id);
-    
     router.push(finalSkip ? '/(flow)/results-map' : '/(flow)/price');
   }
 
@@ -149,17 +149,18 @@ export default function MoodScreen() {
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backButton}
+            activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="Go back"
+            accessibilityLabel={t('common.back')}
           >
-            <Text style={styles.backText}>‹ Back</Text>
+            <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.header}>
-          <Text style={styles.step}>Paso 2 de {totalSteps}</Text>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.subtitle}>{subtitle}</Text>
+          <Text style={styles.step}>{t('flow.step', { current: 2, total: totalSteps })}</Text>
+          <Text style={styles.title}>{screenTitle}</Text>
+          <Text style={styles.subtitle}>{screenSubtitle}</Text>
         </View>
 
         {loading ? (
@@ -169,21 +170,19 @@ export default function MoodScreen() {
         ) : (
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={styles.chipsContainer}>
-              {currentMoods.map((item, index) => {
-                return (
-                  <View key={item.id} style={styles.chipWrapper}>
-                    <ChoiceChip
-                      iconName={item.id}
-                      label={item.label}
-                      category={parentCategory ?? 'food'}
-                      selected={false}
-                      onPress={() => handleSelect(item.id)}
-                      halfWidth
-                      index={index}
-                    />
-                  </View>
-                );
-              })}
+              {currentMoods.map((item, index) => (
+                <View key={item.id} style={styles.chipWrapper}>
+                  <ChoiceChip
+                    iconName={item.id}
+                    label={item.label}
+                    category={parentCategory ?? 'food'}
+                    selected={false}
+                    onPress={() => handleSelect(item.id)}
+                    halfWidth
+                    index={index}
+                  />
+                </View>
+              ))}
             </View>
           </ScrollView>
         )}

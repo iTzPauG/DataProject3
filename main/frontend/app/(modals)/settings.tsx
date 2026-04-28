@@ -54,6 +54,7 @@ const staticStyles = StyleSheet.create({
 });
 
 export default function SettingsModal() {
+  const { t } = useTranslation();
   const { colors, radii, typography, shadows } = useTheme();
   const { idToken, loading } = useAuth();
   const { mapPreferences, setMapPreferences } = useAppState();
@@ -61,7 +62,6 @@ export default function SettingsModal() {
   const [remoteLoaded, setRemoteLoaded] = useState(false);
   const lastSyncedPayloadRef = useRef<string | null>(null);
   const latestPreferencesRef = useRef(mapPreferences);
-  const { t } = useTranslation();
 
   useEffect(() => {
     latestPreferencesRef.current = mapPreferences;
@@ -293,57 +293,36 @@ export default function SettingsModal() {
   }), [mapPreferences]);
 
   useEffect(() => {
-    if (loading || !idToken || !remoteLoaded) return;
+    if (!idToken || !remoteLoaded) return;
 
-    const serializedPayload = JSON.stringify(remotePayload);
-    if (serializedPayload === lastSyncedPayloadRef.current) return;
+    const payloadStr = JSON.stringify(remotePayload);
+    if (payloadStr === lastSyncedPayloadRef.current) return;
 
-    let cancelled = false;
-
-    async function syncRemote() {
+    const timer = setTimeout(async () => {
       setSyncState('saving');
-      const ok = await saveRemotePreferences(idToken, remotePayload);
-      if (cancelled) return;
-
-      setSyncState(ok ? 'saved' : 'error');
-      if (ok) {
-        lastSyncedPayloadRef.current = serializedPayload;
+      try {
+        await saveRemotePreferences(idToken, remotePayload);
+        lastSyncedPayloadRef.current = payloadStr;
+        setSyncState('saved');
+      } catch {
+        setSyncState('error');
       }
-    }
+    }, 1000);
 
-    void syncRemote();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [idToken, loading, remoteLoaded, remotePayload]);
-
-  const syncLabel = useMemo(() => {
-    if (!idToken) return t('settings.sync.local');
-    switch (syncState) {
-      case 'saving':
-        return t('settings.sync.saving');
-      case 'saved':
-        return t('settings.sync.saved');
-      case 'error':
-        return t('settings.sync.error');
-      default:
-        return t('settings.sync.cloud');
-    }
-  }, [idToken, syncState, t]);
+    return () => clearTimeout(timer);
+  }, [idToken, remotePayload, remoteLoaded]);
 
   return (
     <SafeAreaView style={dynamicStyles.safe}>
       <View style={dynamicStyles.header}>
         <View style={staticStyles.headerTextGroup}>
-           <Text style={dynamicStyles.title}>{t('settings.title')}</Text>
-           <Text style={dynamicStyles.subtitle}>{t('settings.subtitle')}</Text>
+          <Text style={dynamicStyles.title}>{t('settings.title')}</Text>
+          <Text style={dynamicStyles.subtitle}>{t('settings.subtitle')}</Text>
         </View>
-        <TouchableOpacity
-          accessibilityLabel="Close settings"
-          accessibilityRole="button"
-          onPress={() => router.back()}
+        <TouchableOpacity 
+          onPress={() => router.back()} 
           style={dynamicStyles.closeButton}
+          activeOpacity={0.7}
         >
           <Ionicons name="close" size={24} color={colors.ink} />
         </TouchableOpacity>
@@ -351,89 +330,65 @@ export default function SettingsModal() {
 
       <ScrollView contentContainerStyle={staticStyles.content} showsVerticalScrollIndicator={false}>
         <View style={dynamicStyles.statusPill}>
-          <Ionicons name="cloud-done-outline" size={16} color={colors.brandDeep} />
-          <Text style={dynamicStyles.statusText}>{syncLabel}</Text>
+          <Ionicons 
+            name={syncState === 'saving' ? 'cloud-upload-outline' : syncState === 'saved' ? 'cloud-done-outline' : syncState === 'error' ? 'alert-circle-outline' : 'phone-portrait-outline'} 
+            size={14} 
+            color={colors.brandDeep} 
+          />
+          <Text style={dynamicStyles.statusText}>
+            {!idToken ? t('settings.sync.local') : syncState === 'saving' ? t('settings.sync.saving') : syncState === 'saved' ? t('settings.sync.cloud') : syncState === 'error' ? t('settings.sync.error') : t('settings.sync.cloud')}
+          </Text>
         </View>
 
-        {/* Theme Selection */}
         <View style={dynamicStyles.section}>
           <Text style={dynamicStyles.sectionTitle}>{t('settings.appearance.title')}</Text>
           <Text style={dynamicStyles.sectionSubtitle}>{t('settings.appearance.subtitle')}</Text>
           <View style={dynamicStyles.themeGrid}>
-            {THEME_OPTIONS.map((option) => {
-              const selected = mapPreferences.theme === option.value;
-              return (
-                <TouchableOpacity
-                  key={option.value}
-                  activeOpacity={0.82}
-                  onPress={() => setMapPreferences({ theme: option.value as any })}
-                  style={[
-                    dynamicStyles.themeChip, 
-                    selected && dynamicStyles.themeChipActive
-                  ]}
-                >
-                  <Text style={[dynamicStyles.themeLabel, selected && dynamicStyles.themeLabelActive]}>
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+            {THEME_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt.value}
+                onPress={() => setMapPreferences({ theme: opt.value as any })}
+                style={[dynamicStyles.themeChip, mapPreferences.theme === opt.value && dynamicStyles.themeChipActive]}
+              >
+                <Text style={[dynamicStyles.themeLabel, mapPreferences.theme === opt.value && dynamicStyles.themeLabelActive]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
-        {/* Language Selection */}
         <View style={dynamicStyles.section}>
           <Text style={dynamicStyles.sectionTitle}>{t('settings.language.title')}</Text>
           <Text style={dynamicStyles.sectionSubtitle}>{t('settings.language.subtitle')}</Text>
           <View style={dynamicStyles.themeGrid}>
-            {LANGUAGE_OPTIONS.map((option) => {
-              const selected = (mapPreferences.language || 'system') === option.value;
-              return (
-                <TouchableOpacity
-                  key={option.value}
-                  activeOpacity={0.82}
-                  onPress={() => setMapPreferences({ language: option.value as any })}
-                  style={[
-                    dynamicStyles.themeChip, 
-                    selected && dynamicStyles.themeChipActive
-                  ]}
-                >
-                  <Text style={[dynamicStyles.themeLabel, selected && dynamicStyles.themeLabelActive]}>
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+            {LANGUAGE_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt.value}
+                onPress={() => setMapPreferences({ language: opt.value as any })}
+                style={[dynamicStyles.themeChip, mapPreferences.language === opt.value && dynamicStyles.themeChipActive]}
+              >
+                <Text style={[dynamicStyles.themeLabel, mapPreferences.language === opt.value && dynamicStyles.themeLabelActive]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
-        {/* Map Style */}
         <View style={dynamicStyles.section}>
           <Text style={dynamicStyles.sectionTitle}>{t('settings.mapLayer.title')}</Text>
           <Text style={dynamicStyles.sectionSubtitle}>{t('settings.mapLayer.subtitle')}</Text>
-          <View style={staticStyles.cardGrid}>
-            {MAP_STYLE_OPTIONS.map((option) => {
-              const selected = mapPreferences.mapStyle === option.value;
-              return (
-                <TouchableOpacity
-                  key={option.value}
-                  activeOpacity={0.82}
-                  onPress={() => setMapPreferences({ mapStyle: option.value as any })}
-                  style={[
-                    dynamicStyles.styleCard,
-                    selected && { borderColor: colors.brand, backgroundColor: colors.brand + '08' }
-                  ]}
-                >
-                  <Text style={[dynamicStyles.styleLabel, selected && { color: colors.brandDeep }]}>
-                    {option.label}
-                  </Text>
-                  <Text style={[dynamicStyles.styleDescription, selected && { color: colors.brandDeep }]}>
-                    {option.description}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          {MAP_STYLE_OPTIONS.map((style) => (
+            <TouchableOpacity
+              key={style.value}
+              onPress={() => setMapPreferences({ mapStyle: style.value as any })}
+              style={[dynamicStyles.styleCard, mapPreferences.mapStyle === style.value && { borderColor: colors.brand, backgroundColor: colors.brand + '08' }]}
+            >
+              <Text style={[dynamicStyles.styleLabel, mapPreferences.mapStyle === style.value && { color: colors.brand }]}>{style.label}</Text>
+              <Text style={dynamicStyles.styleDescription}>{style.description}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         <View style={dynamicStyles.section}>
@@ -445,10 +400,9 @@ export default function SettingsModal() {
               <Text style={dynamicStyles.toggleText}>{t('settings.gadoOverlay.liveActivityDesc')}</Text>
             </View>
             <Switch
-              onValueChange={(value) => setMapPreferences({ gadoOverlay: value })}
               value={mapPreferences.gadoOverlay}
-              trackColor={{ false: '#D5D7DB', true: colors.brandDeep }}
-              thumbColor={mapPreferences.gadoOverlay ? colors.brand : '#FFFFFF'}
+              onValueChange={(val) => setMapPreferences({ gadoOverlay: val })}
+              trackColor={{ true: colors.brand, false: colors.stroke }}
             />
           </View>
         </View>
@@ -456,51 +410,41 @@ export default function SettingsModal() {
         <View style={dynamicStyles.section}>
           <Text style={dynamicStyles.sectionTitle}>{t('settings.defaultRadius.title')}</Text>
           <Text style={dynamicStyles.sectionSubtitle}>{t('settings.defaultRadius.subtitle')}</Text>
-          <View style={staticStyles.cardGrid}>
+          
+          <View style={[staticStyles.toggleRow, { marginBottom: 20 }]}>
             <View style={staticStyles.toggleCopy}>
               <Text style={dynamicStyles.toggleTitle}>{t('settings.defaultRadius.realTime')}</Text>
               <Text style={dynamicStyles.toggleText}>{t('settings.defaultRadius.realTimeDesc')}</Text>
             </View>
             <Switch
-              onValueChange={(value) => setMapPreferences({ showRealTimeEvents: value })}
               value={mapPreferences.showRealTimeEvents}
-              trackColor={{ false: '#D5D7DB', true: colors.brandDeep }}
-              thumbColor={mapPreferences.showRealTimeEvents ? colors.brand : '#FFFFFF'}
+              onValueChange={(val) => setMapPreferences({ showRealTimeEvents: val })}
+              trackColor={{ true: colors.brand, false: colors.stroke }}
             />
           </View>
 
-          <Text
-            style={[dynamicStyles.sectionSubtitle, { marginTop: 16, marginBottom: 8 }]}
-          >
-            {t('settings.defaultRadius.autoSearch')}
-          </Text>
+          <Text style={[dynamicStyles.toggleTitle, { marginBottom: 12 }]}>{t('settings.defaultRadius.autoSearch')}</Text>
           <View style={staticStyles.radiusRow}>
-            {RADIUS_OPTIONS.map((value) => {
-              const selected = mapPreferences.defaultRadiusM === value;
-              return (
-                <TouchableOpacity
-                  key={value}
-                  activeOpacity={0.82}
-                  onPress={() => setMapPreferences({ defaultRadiusM: value })}
-                  style={[
-                    dynamicStyles.radiusChip, 
-                    selected && { backgroundColor: colors.brand }
-                  ]}
-                >
-                  <Text style={[dynamicStyles.radiusChipText, selected && { color: '#FFFFFF' }]}>
-                    {formatRadius(value)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+            {RADIUS_OPTIONS.map((val) => (
+              <TouchableOpacity
+                key={val}
+                onPress={() => setMapPreferences({ defaultRadiusM: val })}
+                style={[dynamicStyles.radiusChip, mapPreferences.defaultRadiusM === val && { backgroundColor: colors.brand }]}
+              >
+                <Text style={[dynamicStyles.radiusChipText, mapPreferences.defaultRadiusM === val && { color: '#FFF' }]}>
+                  {formatRadius(val)}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
         <TouchableOpacity 
-          style={dynamicStyles.doneButton}
+          style={dynamicStyles.doneButton} 
           onPress={() => router.back()}
+          activeOpacity={0.8}
         >
-          <Text style={dynamicStyles.doneButtonText}>{t('settings.done')}</Text>
+          <Text style={dynamicStyles.doneButtonText}>{t('common.done')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

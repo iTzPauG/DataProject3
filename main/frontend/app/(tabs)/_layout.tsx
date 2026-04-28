@@ -1,30 +1,18 @@
 import { Tabs } from 'expo-router';
 import React, { useMemo } from 'react';
+import { useTranslation } from "react-i18next";
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import Icon, { IconName } from '../../components/Icon';
 import { useTheme } from '../../utils/theme';
 
-/**
- * Bottom tab bar — editorial, label-first.
- *
- * A small geometric glyph sits above a label set in small-caps.  The active
- * tab is marked by a hairline rule under the label (think magazine running
- * head), not by a filled chip.  We keep only Map / Explore / Profile in the
- * visible bar; the Report tab is routed via a CTA on Explore.
- */
 const TAB_GLYPHS: Record<string, IconName> = {
   index: 'map',
   explore: 'compass',
   profile: 'person',
 };
 
-const TAB_LABELS: Record<string, string> = {
-  index: 'Mapa',
-  explore: 'Explorar',
-  profile: 'Perfil',
-};
-
 export default function TabsLayout() {
+  const { t } = useTranslation();
   const { colors, typography } = useTheme();
 
   const TAB_H = Platform.OS === 'ios' ? 86 : Platform.OS === 'web' ? 64 : 68;
@@ -77,7 +65,7 @@ export default function TabsLayout() {
   );
 
   const renderTab = (routeName: keyof typeof TAB_GLYPHS, focused: boolean) => {
-    const label = TAB_LABELS[routeName];
+    const label = t(`tabs.${routeName === 'index' ? 'index' : routeName}`);
     const glyph = TAB_GLYPHS[routeName];
     const color = focused ? colors.ink : colors.inkFaint;
     return (

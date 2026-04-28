@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Ionicons } from '../../components/SafeIonicons';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
@@ -18,6 +19,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../utils/theme';
 
 export default function RegisterModal() {
+  const { t } = useTranslation();
   const { colors, typography } = useTheme();
   const router = useRouter();
   const { signUpWithEmail } = useAuth();
@@ -112,12 +114,12 @@ export default function RegisterModal() {
 
   async function handleRegister() {
     if (!email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Por favor rellena todos los campos');
+      Alert.alert(t('common.error'), t('auth.fillFields'));
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Las contraseñas no coinciden');
+      Alert.alert(t('common.error'), t('auth.passwordsDontMatch'));
       return;
     }
 
@@ -126,7 +128,7 @@ export default function RegisterModal() {
       await signUpWithEmail(email, password, displayName || undefined);
       router.replace('/(tabs)');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Error al registrarse');
+      Alert.alert(t('common.error'), error.message || t('auth.errorRegister'));
     } finally {
       setLoading(false);
     }
@@ -143,8 +145,8 @@ export default function RegisterModal() {
             <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} style={styles.closeButton}>
               <Ionicons name="close" size={24} color={colors.ink} />
             </TouchableOpacity>
-            <Text style={styles.title}>Crear cuenta</Text>
-            <Text style={styles.subtitle}>Únete a la comunidad de WHIM</Text>
+            <Text style={styles.title}>{t('auth.createAccount')}</Text>
+            <Text style={styles.subtitle}>{t('auth.signUpSubtitle') || "Únete a la comunidad de WHIM"}</Text>
           </View>
 
           <View style={styles.form}>
@@ -152,7 +154,7 @@ export default function RegisterModal() {
               <Ionicons name="mail-outline" size={20} color={colors.inkMuted} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Email"
+                placeholder={t('auth.email')}
                 placeholderTextColor={colors.inkMuted}
                 value={email}
                 onChangeText={setEmail}
@@ -165,7 +167,7 @@ export default function RegisterModal() {
               <Ionicons name="person-outline" size={20} color={colors.inkMuted} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Nombre de usuario (opcional)"
+                placeholder={t('auth.usernameOptional')}
                 placeholderTextColor={colors.inkMuted}
                 value={displayName}
                 onChangeText={setDisplayName}
@@ -177,7 +179,7 @@ export default function RegisterModal() {
               <Ionicons name="lock-closed-outline" size={20} color={colors.inkMuted} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Contraseña"
+                placeholder={t('auth.password')}
                 placeholderTextColor={colors.inkMuted}
                 value={password}
                 onChangeText={setPassword}
@@ -189,7 +191,7 @@ export default function RegisterModal() {
               <Ionicons name="lock-closed-outline" size={20} color={colors.inkMuted} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Confirmar contraseña"
+                placeholder={t('auth.confirmPassword')}
                 placeholderTextColor={colors.inkMuted}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
@@ -205,15 +207,15 @@ export default function RegisterModal() {
               {loading ? (
                 <ActivityIndicator color="#FFF" />
               ) : (
-                <Text style={styles.primaryButtonText}>Registrarse</Text>
+                <Text style={styles.primaryButtonText}>{t('auth.signUp')}</Text>
               )}
             </TouchableOpacity>
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>¿Ya tienes cuenta? </Text>
+            <Text style={styles.footerText}>{t('auth.alreadyHaveAccount')} </Text>
             <TouchableOpacity onPress={() => router.push('/(modals)/login')}>
-              <Text style={styles.linkText}>Inicia sesión</Text>
+              <Text style={styles.linkText}>{t('auth.signIn')}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

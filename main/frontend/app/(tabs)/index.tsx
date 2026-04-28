@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -10,7 +11,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
-import CategoryFilter from '../../components/CategoryFilter';
 import Icon from '../../components/Icon';
 import Map from '../../components/map/Map';
 import NearbySheet from '../../components/NearbySheet';
@@ -32,6 +32,7 @@ type AutocompleteResult = {
 };
 
 export default function MapTab() {
+  const { t } = useTranslation();
   const { colors, typography, shadows } = useTheme();
   const params = useLocalSearchParams<{ category?: string }>();
   const insets = useSafeAreaInsets();
@@ -70,60 +71,53 @@ export default function MapTab() {
           backgroundColor: colors.surface,
           borderWidth: StyleSheet.hairlineWidth,
           borderColor: colors.stroke,
-          borderRadius: 14,
+          borderRadius: 20,
           overflow: 'hidden',
-          ...shadows.soft,
+          ...shadows.lift,
         },
         eyebrowRow: {
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
-          paddingHorizontal: 16,
-          paddingTop: 12,
-          paddingBottom: 6,
+          paddingHorizontal: 20,
+          paddingTop: 14,
+          paddingBottom: 4,
         },
         eyebrow: {
           fontSize: 10,
-          letterSpacing: 1.8,
+          letterSpacing: 2,
           textTransform: 'uppercase',
           color: colors.inkFaint,
           fontFamily: typography.body,
-          fontWeight: '600',
+          fontWeight: '700',
         },
         eyebrowAction: {
           fontSize: 12,
           color: colors.inkMuted,
           fontFamily: typography.body,
-          fontWeight: '500',
+          fontWeight: '600',
         },
         searchRow: {
           flexDirection: 'row',
           alignItems: 'center',
-          paddingHorizontal: 14,
-          paddingBottom: 10,
-          gap: 10,
+          paddingHorizontal: 16,
+          paddingBottom: 14,
+          paddingTop: 4,
+          gap: 12,
         },
         searchInput: {
           flex: 1,
-          fontSize: 16,
+          fontSize: 17,
           fontWeight: '500',
           color: colors.ink,
-          paddingVertical: 6,
+          paddingVertical: 8,
           fontFamily: typography.body,
           // @ts-ignore web-only outline removal
           outlineStyle: 'none',
         } as any,
-        divider: {
-          height: StyleSheet.hairlineWidth,
-          backgroundColor: colors.stroke,
-        },
-        filterRow: {
-          paddingHorizontal: 10,
-          paddingVertical: 10,
-        },
         iconBtn: {
-          width: 32,
-          height: 32,
+          width: 36,
+          height: 36,
           alignItems: 'center',
           justifyContent: 'center',
         },
@@ -132,8 +126,8 @@ export default function MapTab() {
           right: rightOffset,
           bottom: isDesktop ? 34 : Math.max(insets.bottom + 122, 136),
           minHeight: 52,
-          paddingHorizontal: 16,
-          borderRadius: 18,
+          paddingHorizontal: 20,
+          borderRadius: 20,
           backgroundColor: colors.surface,
           borderWidth: StyleSheet.hairlineWidth,
           borderColor: colors.strokeStrong,
@@ -157,8 +151,8 @@ export default function MapTab() {
           top: '100%',
           left: 0,
           right: 0,
-          marginTop: 6,
-          borderRadius: 14,
+          marginTop: 8,
+          borderRadius: 20,
           overflow: 'hidden',
           backgroundColor: colors.surface,
           borderWidth: StyleSheet.hairlineWidth,
@@ -167,22 +161,22 @@ export default function MapTab() {
           zIndex: 20,
         },
         dropdownItem: {
-          paddingHorizontal: 16,
-          paddingVertical: 12,
+          paddingHorizontal: 20,
+          paddingVertical: 14,
           borderBottomWidth: StyleSheet.hairlineWidth,
           borderBottomColor: colors.stroke,
         },
         dropdownName: {
-          fontSize: 14,
+          fontSize: 15,
           fontWeight: '600',
           color: colors.ink,
           fontFamily: typography.body,
           letterSpacing: -0.1,
         },
         dropdownAddress: {
-          fontSize: 12,
+          fontSize: 13,
           color: colors.inkFaint,
-          marginTop: 3,
+          marginTop: 4,
           fontFamily: typography.body,
         },
       }),
@@ -283,13 +277,6 @@ export default function MapTab() {
       });
     }
   }, [location, setMapRegion]);
-
-  const handleCategorySelect = useCallback(
-    (categoryId: string | null) => {
-      setSelectedCategory(categoryId);
-    },
-    [setSelectedCategory],
-  );
 
   useEffect(() => {
     if (!selectedId) return;
@@ -433,11 +420,11 @@ export default function MapTab() {
         >
           <View style={styles.panel}>
             <View style={styles.eyebrowRow}>
-              <Text style={styles.eyebrow}>València · Ahora</Text>
+              <Text style={styles.eyebrow}>{t("home.locationNow")}</Text>
               <TouchableOpacity
                 onPress={handleCenterOnUser}
                 activeOpacity={0.7}
-                accessibilityLabel="Centrar en mi ubicación"
+                accessibilityLabel={t("home.recenter")}
                 accessibilityRole="button"
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
@@ -448,7 +435,7 @@ export default function MapTab() {
                   color={colors.inkMuted}
                   strokeWidth={1.2}
                 />
-                <Text style={styles.eyebrowAction}>Recentrar</Text>
+                <Text style={styles.eyebrowAction}>{t("home.recenter")}</Text>
               </TouchableOpacity>
             </View>
 
@@ -456,19 +443,19 @@ export default function MapTab() {
               <View style={styles.iconBtn}>
                 <Icon
                   name="search"
-                  size={18}
+                  size={20}
                   color={colors.inkMuted}
-                  strokeWidth={1.5}
+                  strokeWidth={1.8}
                 />
               </View>
               <TextInput
                 style={styles.searchInput}
-                placeholder="Un sitio, una calle, un evento…"
+                placeholder={t("home.searchPlaceholder")}
                 placeholderTextColor={colors.inkFaint}
                 value={searchQuery}
                 onChangeText={handleSearchChange}
                 clearButtonMode="while-editing"
-                accessibilityLabel="Campo de búsqueda"
+                accessibilityLabel={t("common.search")}
               />
               {searchQuery.length > 0 ? (
                 <TouchableOpacity
@@ -479,27 +466,17 @@ export default function MapTab() {
                     setAcResults([]);
                     setSelectedSearchItem(null);
                   }}
-                  accessibilityLabel="Limpiar búsqueda"
+                  accessibilityLabel={t("common.close")}
                   accessibilityRole="button"
                 >
                   <Icon
                     name="close"
-                    size={14}
+                    size={16}
                     color={colors.inkMuted}
-                    strokeWidth={1.4}
+                    strokeWidth={1.6}
                   />
                 </TouchableOpacity>
               ) : null}
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.filterRow}>
-              <CategoryFilter
-                categories={categories}
-                selected={selectedCategory}
-                onSelect={handleCategorySelect}
-              />
             </View>
           </View>
 
@@ -538,7 +515,7 @@ export default function MapTab() {
           activeOpacity={0.85}
           onPress={() => router.push('/(tabs)/report')}
           accessibilityRole="button"
-          accessibilityLabel="Reportar algo en el mapa"
+          accessibilityLabel={t("report.title")}
         >
           <Icon
             name="plus"
@@ -546,7 +523,7 @@ export default function MapTab() {
             color={colors.brand}
             strokeWidth={1.8}
           />
-          <Text style={styles.reportFabText}>Reportar en vivo</Text>
+          <Text style={styles.reportFabText}>{t("home.liveReport")}</Text>
         </TouchableOpacity>
 
         <NearbySheet

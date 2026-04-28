@@ -1,0 +1,243 @@
+{
+  "common": {
+    "retry": "Reintentar",
+    "error": "Error",
+    "back": "Volver",
+    "close": "Cerrar",
+    "done": "Listo",
+    "confirm": "Confirmar",
+    "loading": "Cargando...",
+    "save": "Guardar",
+    "search": "Buscar",
+    "address": "Dirección",
+    "phone": "Teléfono",
+    "share": "Compartir",
+    "call": "Llamar",
+    "directions": "Indicaciones",
+    "none": "Ninguno",
+    "viewMore": "Ver más",
+    "view": "Ver",
+    "soon": "Próximamente",
+    "cancel": "Cancelar",
+    "exit": "Salir",
+    "live": "EN VIVO"
+  },
+  "auth": {
+    "welcome": "Bienvenido",
+    "signInSubtitle": "Inicia sesión para continuar",
+    "email": "Email",
+    "password": "Contraseña",
+    "signIn": "Iniciar sesión",
+    "signOut": "Cerrar sesión",
+    "googleSignIn": "Continuar con Google",
+    "register": "Regístrate",
+    "createAccount": "Crear cuenta",
+    "usernameOptional": "Nombre de usuario (opcional)",
+    "confirmPassword": "Confirmar contraseña",
+    "signUp": "Registrarse",
+    "alreadyHaveAccount": "¿Ya tienes cuenta? Inicia sesión",
+    "dontHaveAccount": "¿No tienes cuenta? Regístrate",
+    "fillFields": "Por favor rellena todos los campos",
+    "errorLogin": "Error al iniciar sesión",
+    "errorGoogle": "Error al iniciar sesión con Google",
+    "or": "o",
+    "passwordsDontMatch": "Las contraseñas no coinciden",
+    "errorRegister": "Error al registrarse"
+  },
+  "tabs": {
+    "explore": "Explorar",
+    "report": "Reportar",
+    "profile": "Perfil",
+    "saved": "Guardados",
+    "index": "Mapa"
+  },
+  "home": {
+    "locationNow": "València · Ahora",
+    "recenter": "Recentrar",
+    "searchPlaceholder": "Un sitio, una calle, un evento…",
+    "liveReport": "Reportar en vivo"
+  },
+  "profile": {
+    "dossier": "Tu dossier",
+    "reputation": "Reputación",
+    "reports": "Reportes",
+    "access": "Acceso",
+    "version": "Edición 1.0 · València",
+    "greeting": "Hola,",
+    "guestTitle": "València, a tu ritmo.",
+    "guestSubtitle": "Guarda lugares, publica avisos.",
+    "guestBody": "Inicia sesión para sincronizar tus favoritos y participar en los reportes de la comunidad.",
+    "guest": "Invitado",
+    "reputationHint": "Puntos por tus aportes útiles",
+    "reportsHint": "Avisos publicados a la comunidad",
+    "signOutConfirm": "¿Seguro que quieres cerrar sesión?",
+    "restrictedAccess": "Acceso restringido",
+    "restrictedAccessMsg": "Inicia sesión para ver esta sección",
+    "menu": {
+      "saved": "Guardados",
+      "savedDesc": "Los sitios y eventos que marcaste",
+      "settings": "Preferencias",
+      "settingsDesc": "Mapa, notificaciones, idioma"
+    }
+  },
+  "report": {
+    "title": "Reportar",
+    "subtitle": "Informa a la comunidad en tiempo real",
+    "whatsHappening": "¿Qué está pasando?",
+    "categorySubtitle": "Selecciona una categoría para avisar a otros",
+    "retryTypes": "Reintentar cargar tipos",
+    "details": "Detalles del reporte",
+    "titlePlaceholder": "Título (ej. Accidente en carril bici)",
+    "detailsPlaceholder": "Más detalles (opcional)",
+    "howLong": "¿Cuánto tiempo durará?",
+    "confirmTitle": "Confirmar envío",
+    "summarySubtitle": "Resumen de tu aviso",
+    "anonymous": "Publicar de forma anónima",
+    "publishNow": "Publicar ahora",
+    "successTitle": "¡Aviso publicado!",
+    "success": "Tu reporte ya es visible en el mapa para todos los usuarios.",
+    "backToMap": "Volver al mapa",
+    "submitError": "No se pudo enviar el reporte. Por favor, comprueba tu conexión."
+  },
+  "explore": {
+    "featured": "En portada",
+    "viewAgenda": "Ver agenda",
+    "events": "Eventos",
+    "sections": "Secciones",
+    "showingPlaces": "Mostrando {{count}} lugares",
+    "issueLine": "Nº 01 · Índice de la ciudad",
+    "masterHeadPart1": "Lee València",
+    "masterHeadPart2": "como un local.",
+    "deck": "Un índice curado de lo que pasa a tu alrededor — sitios para comer, tomar, resolver el día. Elige una sección y abre el mapa.",
+    "featuredTitle": "Mercados, conciertos y vida nocturna — esta semana.",
+    "featuredBody": "Eventos que empiezan cerca de ti en las próximas 48 horas. Filtrado por distancia, no por algoritmo.",
+    "categories": "categorías",
+    "notAvailable": "Esta sección aún no está disponible."
+  },
+  "saved": {
+    "title": "Guardados",
+    "emptyTitle": "Sin guardados",
+    "emptyText": "Los lugares, eventos y reportes que guardes aparecerán aquí."
+  },
+  "reportDetails": {
+    "expired": "Reporte expirado",
+    "confidence": "Confianza de la comunidad",
+    "confirmations": "Confirmaciones",
+    "denials": "Denegaciones",
+    "confidenceLevel": "Confianza",
+    "dismiss": "Descartar"
+  },
+  "placeDetails": {
+    "notFound": "Lugar no encontrado",
+    "analyzing": "Analizando reseñas...",
+    "theBest": "Lo mejor",
+    "watchOut": "Ojo con esto",
+    "verdict": "Veredicto WHIM",
+    "topReview": "Reseña destacada",
+    "whatPeopleSay": "Lo que dice la gente",
+    "noReviews": "No hay reseñas individuales disponibles.",
+    "analyzingStrengths": "Analizando puntos fuertes...",
+    "rating": "Puntuación: {{rating}}",
+    "whimTake": "WHIM's Take",
+    "bookmarkSignInHint": "Inicia sesión para guardar tus sitios favoritos."
+  },
+  "eventDetails": {
+    "notFound": "Evento no encontrado"
+  },
+  "flow": {
+    "step": "Paso {{current}} de {{total}}",
+    "categoryTitle": "¿Qué estás buscando?",
+    "categorySubtitle": "Elige una opción para ver recomendaciones personalizadas",
+    "priceTitle": "¿Cuál es tu presupuesto?",
+    "priceSubtitle": "Filtraremos las opciones para ajustarnos a él",
+    "resultsTitle": "Resultados para ti",
+    "searchError": "Error en la búsqueda",
+    "noResults": "Nada por aquí todavía",
+    "noResultsMsg": "Prueba con otro mood o amplía el radio de búsqueda.",
+    "changeFilters": "Cambiar filtros",
+    "popular": "Popular",
+    "quiet": "Tranquilo",
+    "busy": "Animado",
+    "price_1": "Económico",
+    "price_2": "Medio",
+    "price_3": "Premium"
+  },
+  "category": {
+    "food": "Comida",
+    "restaurant": "Restaurante",
+    "nightlife": "Ocio nocturno",
+    "shopping": "Compras",
+    "health": "Salud",
+    "nature": "Naturaleza",
+    "culture": "Cultura",
+    "services": "Servicios",
+    "sport": "Deporte",
+    "education": "Educación",
+    "event": "Evento",
+    "market": "Mercado",
+    "music": "Música",
+    "report": "Aviso",
+    "cinema": "Cine",
+    "explore": "Explorar"
+  },
+  "vote": {
+    "liked": "Me gustó",
+    "nope": "Paso",
+    "worthIt": "¿Valió la pena este lugar?"
+  },
+  "map": {
+    "pricesNotAvailable": "Precios no disponibles en esta ubicación"
+  },
+  "settings": {
+    "title": "Ajustes",
+    "subtitle": "Personaliza tu experiencia",
+    "sync": {
+      "local": "Preferencia local únicamente",
+      "saving": "Sincronizando...",
+      "saved": "Ajustes guardados",
+      "error": "Error de sincronización",
+      "cloud": "Conectado a la nube"
+    },
+    "appearance": {
+      "title": "Apariencia",
+      "subtitle": "Elige el tono visual de la aplicación.",
+      "system": "Sistema",
+      "dark": "Oscuro",
+      "light": "Claro",
+      "systemDesc": "Match dispositivo",
+      "darkDesc": "Modo noche",
+      "lightDesc": "Modo día"
+    },
+    "language": {
+      "title": "Idioma",
+      "subtitle": "Personaliza el idioma de la app y las reseñas.",
+      "system": "Sistema",
+      "es": "Español",
+      "en": "Inglés",
+      "fr": "Francés"
+    },
+    "mapLayer": {
+      "title": "Capa de Mapa",
+      "subtitle": "Cómo se renderiza la ciudad bajo tus datos.",
+      "minimal": { "label": "Minimalista", "desc": "Limpio y tranquilo" },
+      "standard": { "label": "Estándar", "desc": "Mapa de ciudad por defecto" },
+      "hybrid": { "label": "Híbrido", "desc": "Satélite con etiquetas" },
+      "satellite": { "label": "Satélite", "desc": "Imagen primero" },
+      "terrain": { "label": "Terreno", "desc": "Topografía y parques" }
+    },
+    "gadoOverlay": {
+      "title": "Superposición WHIM",
+      "subtitle": "Resalta reportes y eventos con señales visuales fuertes.",
+      "liveActivity": "Énfasis en actividad viva",
+      "liveActivityDesc": "Inspirado en apps de tráfico, pero para la comunidad WHIM."
+    },
+    "defaultRadius": {
+      "title": "Radio por Defecto",
+      "subtitle": "Filtros del Mapa.",
+      "realTime": "Eventos en tiempo real",
+      "realTimeDesc": "Muestra eventos y reportes de la comunidad en el mapa principal.",
+      "autoSearch": "Distancia máxima de búsqueda automática."
+    },
+    "done": "Listo"
+  }
+}

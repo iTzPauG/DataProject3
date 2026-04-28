@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { router } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -18,13 +19,9 @@ import { useTheme } from '../../utils/theme';
 
 /**
  * Explore — editorial index.
- *
- * Replaces the colored-icon grid with a magazine-style contents list:
- * featured lede at top, numbered index of categories below. No emoji,
- * no tint-box icons — category identity is
- * carried by its monogram ring.
  */
 export default function ExploreTab() {
+  const { t } = useTranslation();
   const { colors, typography } = useTheme();
   const [categories, setCategories] = useState<ExploreCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -219,7 +216,7 @@ export default function ExploreTab() {
 
   function handleCategoryPress(category: ExploreCategory) {
     if (category.active === false) {
-      Alert.alert('Próximamente', 'Esta sección aún no está disponible.');
+      Alert.alert(t('common.soon'), t('explore.notAvailable'));
       return;
     }
     if (category.id === 'report') {
@@ -258,29 +255,27 @@ export default function ExploreTab() {
         >
           <View style={styles.container}>
             <View style={styles.masthead}>
-              <Text style={styles.issueLine}>Nº 01 · Índice de la ciudad</Text>
+              <Text style={styles.issueLine}>{t('explore.issueLine') || "Nº 01 · Índice de la ciudad"}</Text>
               <Text style={styles.masterHead}>
-                Lee València{'\n'}
-                <Text style={styles.masterHeadAccent}>como un local.</Text>
+                {t('explore.masterHeadPart1') || "Lee València"}{'\n'}
+                <Text style={styles.masterHeadAccent}>{t('explore.masterHeadPart2') || "como un local."}</Text>
               </Text>
               <Text style={styles.deck}>
-                Un índice curado de lo que pasa a tu alrededor — sitios para
-                comer, tomar, resolver el día. Elige una sección y abre el mapa.
+                {t('explore.deck')}
               </Text>
             </View>
 
             <View style={styles.ruleBlock} />
 
             <View style={styles.featured}>
-              <Text style={styles.featuredEyebrow}>En portada</Text>
+              <Text style={styles.featuredEyebrow}>{t('explore.featured')}</Text>
               <View style={styles.featuredRow}>
                 <View style={styles.featuredTextBlock}>
                   <Text style={styles.featuredTitle}>
-                    Mercados, conciertos y vida nocturna — esta semana.
+                    {t('explore.featuredTitle')}
                   </Text>
                   <Text style={styles.featuredBody}>
-                    Eventos que empiezan cerca de ti en las próximas 48 horas.
-                    Filtrado por distancia, no por algoritmo.
+                    {t('explore.featuredBody')}
                   </Text>
                   <TouchableOpacity
                     style={styles.featuredAction}
@@ -291,12 +286,12 @@ export default function ExploreTab() {
                         params: {
                           categoryId: 'event',
                           itemType: 'event',
-                          title: 'Eventos',
+                          title: t('explore.events'),
                         },
                       })
                     }
                   >
-                    <Text style={styles.featuredActionText}>Ver agenda</Text>
+                    <Text style={styles.featuredActionText}>{t('explore.viewAgenda')}</Text>
                     <Icon
                       name="arrow-right"
                       size={14}
@@ -307,17 +302,17 @@ export default function ExploreTab() {
                 </View>
                 <CategoryMonogram
                   categoryId="event"
-                  label="Eventos"
+                  label={t('explore.events')}
                   size={74}
                   variant="ring"
                 />
               </View>
             </View>
 
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Secciones</Text>
+            <View style={sectionHeaderStyles.sectionHeader}>
+              <Text style={styles.sectionTitle}>{t('explore.sections')}</Text>
               <Text style={styles.sectionCount}>
-                {String(indexed.length).padStart(2, '0')} categorías
+                {String(indexed.length).padStart(2, '0')} {t('explore.categories') || "categorías"}
               </Text>
             </View>
 
@@ -361,7 +356,7 @@ export default function ExploreTab() {
                         ) : null}
                       </View>
                       {cat.active === false ? (
-                        <Text style={styles.rowMeta}>Pronto</Text>
+                        <Text style={styles.rowMeta}>{t('common.soon')}</Text>
                       ) : (
                         <Icon
                           name="chevron-right"
@@ -381,3 +376,13 @@ export default function ExploreTab() {
     </AnimatedTabScene>
   );
 }
+
+const sectionHeaderStyles = StyleSheet.create({
+  sectionHeader: {
+    paddingHorizontal: 24,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+});
