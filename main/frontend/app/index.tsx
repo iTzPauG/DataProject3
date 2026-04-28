@@ -76,7 +76,7 @@ export default function SplashScreen() {
     logoOpacity.value = withTiming(1, { duration: 1000, easing: Easing.out(Easing.quad) });
     logoScale.value = withSpring(1, { damping: 20, stiffness: 60, mass: 1.2 });
 
-    // Phase 2: "WHIM" text slides up
+    // Phase 2: Brand text slides up
     titleOpacity.value = withDelay(900, withTiming(1, { duration: 800, easing: Easing.out(Easing.quad) }));
     titleY.value = withDelay(900, withSpring(0, { damping: 20, stiffness: 70 }));
 
@@ -143,13 +143,13 @@ export default function SplashScreen() {
       <Animated.View style={styles.content}>
         <Animated.View style={[styles.logoWrap, logoStyle]}>
           <Image
-            source={require('../assets/whim-logo.png')}
+            source={require('../assets/gado-logo.png')}
             style={styles.logo}
             resizeMode="contain"
           />
         </Animated.View>
 
-        <Animated.Text style={[dynamicStyles.title, titleStyle]}>WHIM</Animated.Text>
+        <Animated.Text style={[dynamicStyles.title, titleStyle]}>GADO</Animated.Text>
 
         <Animated.Text style={[dynamicStyles.tagline, tagStyle]}>
           {slogan}

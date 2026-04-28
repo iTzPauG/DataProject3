@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "WHIM",
-    "slug": "whim",
+    "name": "GADO",
+    "slug": "gado",
     "version": "1.0.0",
-    "scheme": "whim",
+    "scheme": "gado",
     "orientation": "portrait",
-    "icon": "./assets/whim-logo.png",
+    "icon": "./assets/gado-logo.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/whim-logo.png",
+      "image": "./assets/gado-logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#4AABB3"
     },
@@ -18,7 +18,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/whim-logo.png",
+        "foregroundImage": "./assets/gado-logo.png",
         "backgroundColor": "#4AABB3"
       },
       "package": "com.whim.app"
@@ -26,7 +26,7 @@
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/whim-logo.png"
+      "favicon": "./assets/gado-logo.png"
     },
     "plugins": [
       "expo-router"

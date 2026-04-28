@@ -294,8 +294,6 @@ const FLOW_FALLBACKS: Record<string, CategoryFlowResponse> = {
       { id: 'private_school', label: 'Privado', emoji: '🏫' },
       { id: 'concerted_school', label: 'Concertado', emoji: '🤝' },
       { id: 'special_education', label: 'Especial', emoji: '⭐' },
-      { id: 'university', label: 'Universidad', emoji: '🎓' },
-      { id: 'vocational_training', label: 'FP', emoji: '🛠️' },
     ],
     moods: [
       { id: 'infant_primary', label: 'Infantil / Primaria', emoji: '🧒' },
