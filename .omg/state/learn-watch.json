@@ -1,12 +1,12 @@
 {
-  "last_session_id": "a211c4c1-17aa-4f1d-ac99-6c668a4e92e0",
-  "last_event_key": "a211c4c1-17aa-4f1d-ac99-6c668a4e92e0:transcript:247353d34d69f20a3de8ae42985d97ff077bc319aef65aef821c166c48413e9b",
+  "last_session_id": "d98c6474-15b9-4212-ba65-672888e341be",
+  "last_event_key": "d98c6474-15b9-4212-ba65-672888e341be:transcript:a7cca26ba3ef3c4533db809a5209ce0c99de4579640dd4697b1ff9258b4c923d",
   "last_prompted_session_id": "",
   "last_reason": "short-session",
   "last_prompted_at": "",
   "last_user_message_count": 0,
   "last_actionable_message_count": 0,
   "deep_interview_lock_active": false,
-  "deep_interview_lock_source": "/Users/ivanhuertas/Desktop/Proyectos/DataProject3/.omg/state/deep-interview.json",
-  "updated_at": "2026-04-25T08:35:24.652Z"
+  "deep_interview_lock_source": "/Users/ivanhuertas/Developer/DataProject3/.omg/state/deep-interview.json",
+  "updated_at": "2026-04-28T23:11:19.972Z"
 }
