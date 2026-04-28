@@ -1,7 +1,6 @@
 import { Ionicons } from '../../components/SafeIonicons';
-import { BASE_URL } from '../../services/api';
 import { router } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -12,7 +11,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
-import { MapStyle, useAppState } from '../../hooks/useAppState';
+import { useAppState } from '../../hooks/useAppState';
+import {
+  fetchRemotePreferences,
+  saveRemotePreferences,
+  toLocalPreferences,
+  toRemotePreferences,
+} from '../../services/preferences';
 import { useTheme } from '../../utils/theme';
 import { useTranslation } from 'react-i18next';
 
@@ -22,13 +27,45 @@ function formatRadius(value: number): string {
 
 const RADIUS_OPTIONS = [2000, 5000, 10000, 20000];
 
+const staticStyles = StyleSheet.create({
+  headerTextGroup: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+  },
+  cardGrid: {
+    gap: 0,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  toggleCopy: {
+    flex: 1,
+  },
+  radiusRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+});
+
 export default function SettingsModal() {
   const { colors, radii, typography, shadows } = useTheme();
-  const { idToken } = useAuth();
+  const { idToken, loading } = useAuth();
   const { mapPreferences, setMapPreferences } = useAppState();
   const [syncState, setSyncState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [remoteLoaded, setRemoteLoaded] = useState(false);
+  const lastSyncedPayloadRef = useRef<string | null>(null);
+  const latestPreferencesRef = useRef(mapPreferences);
   const { t } = useTranslation();
+
+  useEffect(() => {
+    latestPreferencesRef.current = mapPreferences;
+  }, [mapPreferences]);
 
   const MAP_STYLE_OPTIONS = useMemo(() => [
     { value: 'minimal', label: t('settings.mapLayer.minimal.label'), description: t('settings.mapLayer.minimal.desc') },
@@ -213,69 +250,73 @@ export default function SettingsModal() {
   }), [colors, typography, shadows, radii]);
 
   useEffect(() => {
+    if (loading) return;
+
+    let cancelled = false;
+
     async function loadRemote() {
       if (!idToken) {
+        setSyncState('idle');
         setRemoteLoaded(true);
         return;
       }
-      try {
-        const res = await fetch(`${BASE_URL}/preferences`, {
-          headers: {
-            Authorization: `Bearer ${idToken}`,
-          },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        const prefs = data.preferences ?? data;
-        setMapPreferences({
-          mapStyle: prefs.map_minimal ? 'minimal' : (prefs.map_style ?? mapPreferences.mapStyle),
-          gadoOverlay: prefs.gado_overlay_on ?? mapPreferences.gadoOverlay,
-          showRealTimeEvents: prefs.show_real_time_events ?? mapPreferences.showRealTimeEvents,
-          defaultRadiusM: prefs.default_radius_m ?? mapPreferences.defaultRadiusM,
-          theme: prefs.theme ?? mapPreferences.theme,
-          language: prefs.language ?? mapPreferences.language,
-        });
-      } catch {
-        // Keep local preferences when remote sync is unavailable.
-      } finally {
-        setRemoteLoaded(true);
+
+      const remote = await fetchRemotePreferences(idToken);
+      if (cancelled) return;
+
+      if (remote) {
+        const nextPreferences = toLocalPreferences(remote, latestPreferencesRef.current);
+        lastSyncedPayloadRef.current = JSON.stringify(toRemotePreferences(nextPreferences));
+        setMapPreferences(nextPreferences);
+        setSyncState('saved');
+      } else {
+        setSyncState('error');
       }
+
+      setRemoteLoaded(true);
     }
 
     void loadRemote();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idToken]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [idToken, loading, setMapPreferences]);
+
+  const remotePayload = useMemo(() => toRemotePreferences({
+    mapStyle: mapPreferences.mapStyle,
+    gadoOverlay: mapPreferences.gadoOverlay,
+    showRealTimeEvents: mapPreferences.showRealTimeEvents,
+    defaultRadiusM: mapPreferences.defaultRadiusM,
+    theme: mapPreferences.theme,
+    language: mapPreferences.language,
+  }), [mapPreferences]);
 
   useEffect(() => {
+    if (loading || !idToken || !remoteLoaded) return;
+
+    const serializedPayload = JSON.stringify(remotePayload);
+    if (serializedPayload === lastSyncedPayloadRef.current) return;
+
+    let cancelled = false;
+
     async function syncRemote() {
-      if (!idToken || !remoteLoaded) return;
       setSyncState('saving');
-      try {
-        const res = await fetch(`${BASE_URL}/preferences`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({
-            map_style: mapPreferences.mapStyle === 'minimal' ? 'standard' : mapPreferences.mapStyle,
-            map_minimal: mapPreferences.mapStyle === 'minimal',
-            map_preset: mapPreferences.gadoOverlay ? 'drive' : 'classic',
-            gado_overlay_on: mapPreferences.gadoOverlay,
-            show_real_time_events: mapPreferences.showRealTimeEvents,
-            default_radius_m: mapPreferences.defaultRadiusM,
-            theme: mapPreferences.theme,
-            language: mapPreferences.language,
-          }),
-        });
-        setSyncState(res.ok ? 'saved' : 'error');
-      } catch {
-        setSyncState('error');
+      const ok = await saveRemotePreferences(idToken, remotePayload);
+      if (cancelled) return;
+
+      setSyncState(ok ? 'saved' : 'error');
+      if (ok) {
+        lastSyncedPayloadRef.current = serializedPayload;
       }
     }
 
     void syncRemote();
-  }, [mapPreferences, remoteLoaded, idToken]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [idToken, loading, remoteLoaded, remotePayload]);
 
   const syncLabel = useMemo(() => {
     if (!idToken) return t('settings.sync.local');
@@ -294,7 +335,7 @@ export default function SettingsModal() {
   return (
     <SafeAreaView style={dynamicStyles.safe}>
       <View style={dynamicStyles.header}>
-        <View style={styles.headerTextGroup}>
+        <View style={staticStyles.headerTextGroup}>
            <Text style={dynamicStyles.title}>{t('settings.title')}</Text>
            <Text style={dynamicStyles.subtitle}>{t('settings.subtitle')}</Text>
         </View>
@@ -308,7 +349,7 @@ export default function SettingsModal() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={staticStyles.content} showsVerticalScrollIndicator={false}>
         <View style={dynamicStyles.statusPill}>
           <Ionicons name="cloud-done-outline" size={16} color={colors.brandDeep} />
           <Text style={dynamicStyles.statusText}>{syncLabel}</Text>
@@ -370,7 +411,7 @@ export default function SettingsModal() {
         <View style={dynamicStyles.section}>
           <Text style={dynamicStyles.sectionTitle}>{t('settings.mapLayer.title')}</Text>
           <Text style={dynamicStyles.sectionSubtitle}>{t('settings.mapLayer.subtitle')}</Text>
-          <View style={styles.cardGrid}>
+          <View style={staticStyles.cardGrid}>
             {MAP_STYLE_OPTIONS.map((option) => {
               const selected = mapPreferences.mapStyle === option.value;
               return (
@@ -398,8 +439,8 @@ export default function SettingsModal() {
         <View style={dynamicStyles.section}>
           <Text style={dynamicStyles.sectionTitle}>{t('settings.gadoOverlay.title')}</Text>
           <Text style={dynamicStyles.sectionSubtitle}>{t('settings.gadoOverlay.subtitle')}</Text>
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleCopy}>
+          <View style={staticStyles.toggleRow}>
+            <View style={staticStyles.toggleCopy}>
               <Text style={dynamicStyles.toggleTitle}>{t('settings.gadoOverlay.liveActivity')}</Text>
               <Text style={dynamicStyles.toggleText}>{t('settings.gadoOverlay.liveActivityDesc')}</Text>
             </View>
@@ -415,8 +456,8 @@ export default function SettingsModal() {
         <View style={dynamicStyles.section}>
           <Text style={dynamicStyles.sectionTitle}>{t('settings.defaultRadius.title')}</Text>
           <Text style={dynamicStyles.sectionSubtitle}>{t('settings.defaultRadius.subtitle')}</Text>
-          <View style={styles.cardGrid}>
-            <View style={styles.toggleCopy}>
+          <View style={staticStyles.cardGrid}>
+            <View style={staticStyles.toggleCopy}>
               <Text style={dynamicStyles.toggleTitle}>{t('settings.defaultRadius.realTime')}</Text>
               <Text style={dynamicStyles.toggleText}>{t('settings.defaultRadius.realTimeDesc')}</Text>
             </View>
@@ -428,8 +469,12 @@ export default function SettingsModal() {
             />
           </View>
 
-          <Text style={dynamicStyles.sectionSubtitle} style={{marginTop: 16, marginBottom: 8}}>{t('settings.defaultRadius.autoSearch')}</Text>
-          <View style={styles.radiusRow}>
+          <Text
+            style={[dynamicStyles.sectionSubtitle, { marginTop: 16, marginBottom: 8 }]}
+          >
+            {t('settings.defaultRadius.autoSearch')}
+          </Text>
+          <View style={staticStyles.radiusRow}>
             {RADIUS_OPTIONS.map((value) => {
               const selected = mapPreferences.defaultRadiusM === value;
               return (
@@ -461,29 +506,3 @@ export default function SettingsModal() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  headerTextGroup: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingBottom: 32,
-  },
-  cardGrid: {
-    gap: 0,
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  toggleCopy: {
-    flex: 1,
-  },
-  radiusRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-});

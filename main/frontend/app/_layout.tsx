@@ -1,10 +1,10 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppStateProvider, useAppState } from '../hooks/useAppState';
 import { useAuth } from '../hooks/useAuth';
-import { BASE_URL } from '../services/api';
+import { fetchRemotePreferences, toLocalPreferences } from '../services/preferences';
 import { GADOLogger } from '../utils/logger';
 import WebFontLoader from '../components/WebFontLoader';
 import '../utils/i18n';
@@ -34,28 +34,32 @@ function LanguageSyncer() {
 
 // Loads remote preferences into AppState whenever the user logs in
 function PreferencesSyncer() {
-  const { idToken } = useAuth();
-  const { setMapPreferences } = useAppState();
+  const { idToken, loading } = useAuth();
+  const { mapPreferences, setMapPreferences } = useAppState();
+  const latestPreferencesRef = useRef(mapPreferences);
 
   useEffect(() => {
-    if (!idToken) return;
-    fetch(`${BASE_URL}/preferences`, {
-      headers: { Authorization: `Bearer ${idToken}` },
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!data) return;
-        setMapPreferences({
-          mapStyle: data.map_minimal ? 'minimal' : (data.map_style ?? 'standard'),
-          gadoOverlay: data.gado_overlay_on ?? true,
-          defaultRadiusM: data.default_radius_m ?? 10000,
-          language: data.language ?? 'system',
-          theme: data.theme ?? 'system',
-          showRealTimeEvents: data.show_real_time_events ?? true,
-        });
-      })
-      .catch(() => {});
-  }, [idToken]);
+    latestPreferencesRef.current = mapPreferences;
+  }, [mapPreferences]);
+
+  useEffect(() => {
+    if (loading || !idToken) return;
+
+    let cancelled = false;
+
+    async function syncRemotePreferences() {
+      const remote = await fetchRemotePreferences(idToken);
+      if (!remote || cancelled) return;
+
+      setMapPreferences(toLocalPreferences(remote, latestPreferencesRef.current));
+    }
+
+    void syncRemotePreferences();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [idToken, loading, setMapPreferences]);
 
   return null;
 }

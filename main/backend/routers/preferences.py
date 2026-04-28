@@ -24,7 +24,7 @@ class PreferencesUpdate(BaseModel):
     show_real_time_events: Optional[bool] = None
 
 
-async def _get_profile_id(request: Request) -> int:
+async def _get_profile_id(request: Request) -> str:
     firebase_uid = get_optional_user(request)
     if not firebase_uid:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -35,10 +35,9 @@ async def _get_profile_id(request: Request) -> int:
         if not p_row:
             raise HTTPException(status_code=404, detail="Profile not found")
 
-    return int(p_row["id"])
+    return str(p_row["id"])
 
-
-async def _ensure_preferences_row(user_id: int):
+async def _ensure_preferences_row(user_id: str):
     async with get_db() as db:
         cursor = await db.execute("SELECT * FROM user_preferences WHERE user_id=?", (user_id,))
         row = await cursor.fetchone()
