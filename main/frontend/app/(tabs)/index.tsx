@@ -56,6 +56,10 @@ export default function MapTab() {
   const hasAutoCentered = useRef(false);
   const acTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const desktopWidth = Math.min(windowWidth - 40, 620);
+  const leftOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
+  const rightOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
+  const minimalist = mapPreferences.mapStyle === 'minimal';
 
   const styles = useMemo(
     () =>
@@ -389,11 +393,6 @@ export default function MapTab() {
       if (fetchTimer.current) clearTimeout(fetchTimer.current);
     };
   }, [selectedCategory]);
-
-  const desktopWidth = Math.min(windowWidth - 40, 620);
-  const leftOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
-  const rightOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
-  const minimalist = mapPreferences.mapStyle === 'minimal';
 
   const displayItems = useMemo(() => {
     if (!selectedSearchItem) return nearbyItems;
