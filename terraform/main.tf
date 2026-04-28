@@ -22,7 +22,15 @@ terraform {
 
 locals {
   allowed_workspaces = ["dev-ia", "dev-data", "main"]
-  _workspace_check   = contains(local.allowed_workspaces, terraform.workspace) ? true : tobool("ERROR: Workspace '${terraform.workspace}' no permitido. Usa: terraform workspace select dev-ia|dev-data")
+}
+
+resource "terraform_data" "workspace_guard" {
+  lifecycle {
+    precondition {
+      condition     = contains(local.allowed_workspaces, terraform.workspace)
+      error_message = "ERROR: Workspace '${terraform.workspace}' no permitido. Usa: terraform workspace select dev-ia|dev-data|main"
+    }
+  }
 }
 
 provider "google" {
