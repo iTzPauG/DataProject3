@@ -23,6 +23,12 @@ import { useTranslation } from 'react-i18next';
 const { width } = Dimensions.get('window');
 const LOGO_SIZE = Math.min(width * 0.38, 150);
 
+const useDotStyle = (sv: Animated.SharedValue<number>) =>
+  useAnimatedStyle(() => ({
+    opacity: sv.value,
+    transform: [{ scale: 0.6 + sv.value * 0.6 }],
+  }));
+
 export default function SplashScreen() {
   const { colors, typography } = useTheme();
   const { t } = useTranslation();
@@ -187,12 +193,6 @@ export default function SplashScreen() {
     opacity: sloganOpacity.value,
   }));
 
-  const useDotStyle = (sv: Animated.SharedValue<number>) =>
-    useAnimatedStyle(() => ({
-      opacity: sv.value,
-      transform: [{ scale: 0.6 + sv.value * 0.6 }],
-    }));
-
   const dot1Style = useDotStyle(dot1);
   const dot2Style = useDotStyle(dot2);
   const dot3Style = useDotStyle(dot3);
@@ -228,7 +228,11 @@ export default function SplashScreen() {
           </Animated.Text>
         </Animated.View>
 
-        <Animated.View style={[styles.dotsRow, tagStyle]}>
+        <Animated.View 
+          style={[styles.dotsRow, tagStyle]}
+          importantForAccessibility="no-hide-descendants"
+          accessibilityElementsHidden={true}
+        >
           <Animated.View style={[dynamicStyles.dot, dot1Style]} />
           <Animated.View style={[dynamicStyles.dot, dot2Style]} />
           <Animated.View style={[dynamicStyles.dot, dot3Style]} />
