@@ -8,6 +8,7 @@
  * glyph that leaked through as "🍴 Comida y bebida".
  */
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Category } from '../types';
 import { useTheme } from '../utils/theme';
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export default function CategoryFilter({ categories, selected, onSelect }: Props) {
+  const { t } = useTranslation();
   const { colors, typography } = useTheme();
 
   const styles = useMemo(
@@ -84,7 +86,7 @@ export default function CategoryFilter({ categories, selected, onSelect }: Props
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
       >
-        {chip('__all__', 'Todo', selected === null, () => onSelect(null))}
+        {chip('__all__', t('common.all'), selected === null, () => onSelect(null))}
         {categories.map((cat) =>
           chip(cat.id, cat.label, selected === cat.id, () =>
             onSelect(selected === cat.id ? null : cat.id),
@@ -94,3 +96,4 @@ export default function CategoryFilter({ categories, selected, onSelect }: Props
     </View>
   );
 }
+

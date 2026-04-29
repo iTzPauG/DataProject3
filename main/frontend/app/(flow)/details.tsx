@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import GADOIcon from "../../components/GADOIcon";
+import WhimIcon from "../../components/WhimIcon";
 import LiveDataAddon from "../../components/LiveDataAddon";
 import PrimaryButton from "../../components/PrimaryButton";
 import VoteButtons from "../../components/VoteButtons";
@@ -426,7 +426,7 @@ export default function DetailsScreen() {
             <Image source={{ uri: restaurant.photoUrl }} style={styles.photo} resizeMode="cover" />
           ) : (
             <View style={styles.photoPlaceholder}>
-              <GADOIcon name="restaurant" category="food" size={44} color={colors.brand} />
+              <WhimIcon name="restaurant" category="food" size={44} color={colors.brand} />
             </View>
           )}
         </View>
@@ -461,14 +461,14 @@ export default function DetailsScreen() {
             <Text style={styles.blockTitle}>The good stuff</Text>
             {(restaurant.pros || []).map((pro) => (
               <View key={pro} style={styles.listRow}>
-                <GADOIcon name="like" category="feedback" size={14} color={colors.success} />
+                <WhimIcon name="like" category="feedback" size={14} color={colors.success} />
                 {renderBoldText(pro, styles.listText)}
               </View>
             ))}
             <Text style={[styles.blockTitle, styles.blockTitleWarn]}>Worth knowing</Text>
             {(restaurant.cons || []).map((con) => (
               <View key={con} style={styles.listRow}>
-                <GADOIcon name="warning" category="feedback" size={14} color={colors.warning} />
+                <WhimIcon name="warning" category="feedback" size={14} color={colors.warning} />
                 {renderBoldText(con, styles.listText)}
               </View>
             ))}

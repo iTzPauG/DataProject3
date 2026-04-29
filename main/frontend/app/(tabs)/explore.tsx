@@ -16,6 +16,7 @@ import CategoryMonogram from '../../components/CategoryMonogram';
 import Icon from '../../components/Icon';
 import { ExploreCategory, getExploreCategories } from '../../services/api';
 import { useTheme } from '../../utils/theme';
+import { useLocation } from '../../hooks/useLocation';
 
 /**
  * Explore — editorial index.
@@ -23,8 +24,17 @@ import { useTheme } from '../../utils/theme';
 export default function ExploreTab() {
   const { t } = useTranslation();
   const { colors, typography } = useTheme();
+  const { city } = useLocation();
   const [categories, setCategories] = useState<ExploreCategory[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const exploreVerbs = useMemo(() => t('explore.exploreVerbs', { returnObjects: true }) as string[], [t]);
+  const randomVerb = useMemo(() => {
+    if (Array.isArray(exploreVerbs) && exploreVerbs.length > 0) {
+      return exploreVerbs[Math.floor(Math.random() * exploreVerbs.length)];
+    }
+    return "Explore";
+  }, [exploreVerbs]);
 
   const styles = useMemo(
     () =>
@@ -242,9 +252,9 @@ export default function ExploreTab() {
   }
 
   // exclude report / event from the index (report gets its own block, events are in the featured strip)
-  const indexed = categories.filter(
+  const indexed = useMemo(() => categories.filter(
     (c) => c.id !== 'report' && c.id !== 'event',
-  );
+  ), [categories]);
 
   return (
     <AnimatedTabScene>
@@ -257,7 +267,7 @@ export default function ExploreTab() {
             <View style={styles.masthead}>
               <Text style={styles.issueLine}>{t('explore.issueLine') || "Nº 01 · Índice de la ciudad"}</Text>
               <Text style={styles.masterHead}>
-                {t('explore.masterHeadPart1') || "Lee València"}{'\n'}
+                {randomVerb} {city || "València"}{'\n'}
                 <Text style={styles.masterHeadAccent}>{t('explore.masterHeadPart2') || "como un local."}</Text>
               </Text>
               <Text style={styles.deck}>

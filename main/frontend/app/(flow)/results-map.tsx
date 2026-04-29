@@ -1,5 +1,6 @@
 import { router, useRootNavigationState } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Animated,
@@ -17,7 +18,7 @@ import Map from "../../components/map/Map";
 import PrimaryButton from "../../components/PrimaryButton";
 import RestaurantCard from "../../components/RestaurantCard";
 import BottomSheet from "../../components/sheet/BottomSheet";
-import GADOIcon from "../../components/GADOIcon";
+import WhimIcon from "../../components/WhimIcon";
 import { BottomSheetRef } from "../../components/sheet/types";
 import { useAppState } from "../../hooks/useAppState";
 import { useFlowState } from "../../hooks/useFlowState";
@@ -101,12 +102,15 @@ function LoadingIndicator({ message, sub }: { message: string; sub?: string }) {
 }
 
 function StreamingIndicator({ found, total }: { found: number; total?: number }) {
+  const { t } = useTranslation();
   const { colors, typography } = useTheme();
   return (
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 16, gap: 10 }}>
       <ActivityIndicator size="small" color={colors.brand} />
       <Text style={{ fontSize: 13, color: colors.inkMuted, fontFamily: typography.body }}>
-        Analizando lugares... ({found}{total ? ` de ${total}` : ""})
+        {total
+          ? t("flow.foundCountOf", { count: found, total })
+          : t("flow.foundCount", { count: found })}
       </Text>
     </View>
   );
@@ -168,6 +172,7 @@ function MapStatusHero({
   priceLabel: string;
   errorMsg: string;
 }) {
+  const { t } = useTranslation();
   const { colors, radii, shadows, typography } = useTheme();
 
   // Animated glow
@@ -289,13 +294,13 @@ function MapStatusHero({
   const isLoading = status === "loading";
   const isError = status === "error";
 
-  const eyebrow = isLoading ? "Buscando cerca" : isError ? "Búsqueda pausada" : "Sin coincidencias";
-  const title = isLoading ? "Preparando tu lista" : isError ? "Hubo un problema" : "No encontramos nada";
+  const eyebrow = isLoading ? t("flow.searchingNearby") : isError ? t("flow.searchPaused") : t("flow.noMatches");
+  const title = isLoading ? t("flow.preparingList") : isError ? t("flow.searchError") : t("flow.noResults");
   const description = isLoading
-    ? "Analizando reseñas, calidad y ambiente para recomendarte solo lo mejor."
+    ? t("flow.analyzingDescription")
     : isError
-      ? errorMsg || "No se pudo completar la petición."
-      : "Prueba con otro mood o amplía la zona.";
+      ? errorMsg || t("flow.requestFailed")
+      : t("flow.noResultsMsg");
 
   return (
     <View style={styles.mapPlaceholder}>
@@ -312,9 +317,9 @@ function MapStatusHero({
         <Text style={styles.headline}>{title}</Text>
         <Text style={styles.description}>{description}</Text>
         <View style={styles.pillsRow}>
-          {categoryLabel ? <View style={styles.pill}><GADOIcon name="bookmark" size={14} color={colors.ink} /><Text style={styles.pillText}>{categoryLabel}</Text></View> : null}
-          {moodLabel ? <View style={styles.pill}><GADOIcon name="happy" size={14} color={colors.ink} /><Text style={styles.pillText}>{moodLabel}</Text></View> : null}
-          {priceLabel ? <View style={styles.pill}><GADOIcon name="cash" size={14} color={colors.ink} /><Text style={styles.pillText}>{priceLabel}</Text></View> : null}
+          {categoryLabel ? <View style={styles.pill}><WhimIcon name="bookmark" size={14} color={colors.ink} /><Text style={styles.pillText}>{categoryLabel}</Text></View> : null}
+          {moodLabel ? <View style={styles.pill}><WhimIcon name="happy" size={14} color={colors.ink} /><Text style={styles.pillText}>{moodLabel}</Text></View> : null}
+          {priceLabel ? <View style={styles.pill}><WhimIcon name="cash" size={14} color={colors.ink} /><Text style={styles.pillText}>{priceLabel}</Text></View> : null}
         </View>
         {isLoading && (
           <View style={styles.dotsRow}>
@@ -331,6 +336,7 @@ function MapStatusHero({
 // ── Main screen ─────────────────────────────────────────────────────────────
 
 export default function ResultsMapScreen() {
+  const { t } = useTranslation();
   const { colors, radii, shadows, typography } = useTheme();
   const { parentCategory, category, mood, priceLevel, results, setResults, isHydrated } = useFlowState();
 
@@ -517,13 +523,13 @@ export default function ResultsMapScreen() {
         setStatus("success");
         loadVotes(top);
       } catch (error) {
-        setErrorMsg(error instanceof Error ? error.message : "Algo salió mal.");
+        setErrorMsg(error instanceof Error ? error.message : t("flow.requestFailed"));
         setStatus("error");
       }
     } finally {
       fetchingRef.current = false;
     }
-  }, [canNavigate, category, isHydrated, loadVotes, mapPreferences.language, mood, parentCategory, priceLevel, results, setResults]);
+  }, [canNavigate, category, isHydrated, loadVotes, mapPreferences.language, mood, parentCategory, priceLevel, results, setResults, t]);
 
   useEffect(() => {
     void load();
@@ -564,20 +570,24 @@ export default function ResultsMapScreen() {
   // ── Sheet header ────────────────────────────────────────────────────────
 
   const sheetCountText = (() => {
-    if (status === "loading") return "Buscando cerca...";
+    if (status === "loading") return t("flow.searchingNearbyDots");
     const count = (restaurants || []).length;
-    if (isStreaming) return `Encontrados ${count}${totalExpected ? ` de ${totalExpected}` : ""}...`;
-    return `Mostrando ${count} lugares`;
+    if (isStreaming) {
+      return totalExpected
+        ? t("flow.foundCountOf", { count, total: totalExpected })
+        : t("flow.foundCount", { count });
+    }
+    return t("flow.showingPlaces", { count });
   })();
 
   const sheetHeader = (
     <View style={styles.sheetHeader}>
-      <Text style={styles.sheetTitle}>Resultados para ti</Text>
+      <Text style={styles.sheetTitle}>{t("explore.resultsForYou")}</Text>
       <Text style={styles.sheetCount}>{sheetCountText}</Text>
       <View style={styles.pills}>
-        {categoryLabel ? <View style={styles.pill}><GADOIcon name="bookmark" size={14} color={colors.ink} /><Text style={styles.pillText}>{categoryLabel}</Text></View> : null}
-        {moodLabel ? <View style={styles.pill}><GADOIcon name="happy" size={14} color={colors.ink} /><Text style={styles.pillText}>{moodLabel}</Text></View> : null}
-        {priceLabel ? <View style={styles.pill}><GADOIcon name="cash" size={14} color={colors.ink} /><Text style={styles.pillText}>{priceLabel}</Text></View> : null}
+        {categoryLabel ? <View style={styles.pill}><WhimIcon name="bookmark" size={14} color={colors.ink} /><Text style={styles.pillText}>{categoryLabel}</Text></View> : null}
+        {moodLabel ? <View style={styles.pill}><WhimIcon name="happy" size={14} color={colors.ink} /><Text style={styles.pillText}>{moodLabel}</Text></View> : null}
+        {priceLabel ? <View style={styles.pill}><WhimIcon name="cash" size={14} color={colors.ink} /><Text style={styles.pillText}>{priceLabel}</Text></View> : null}
       </View>
     </View>
   );
@@ -588,8 +598,8 @@ export default function ResultsMapScreen() {
     if (status === "loading" && (!results || results.length === 0)) {
       return (
         <LoadingIndicator
-          message="Buscando los mejores lugares..."
-          sub="Analizando reseñas, calidad y ambiente."
+          message={t("flow.searchingBestPlaces")}
+          sub={t("flow.analyzingDescriptionShort")}
         />
       );
     }
@@ -597,10 +607,10 @@ export default function ResultsMapScreen() {
     if (status === "error") {
       return (
         <View style={styles.centered}>
-          <Text style={styles.errorTitle}>Error en la búsqueda</Text>
+          <Text style={styles.errorTitle}>{t("flow.searchError")}</Text>
           <Text style={styles.errorMsg}>{errorMsg}</Text>
           <View style={styles.retryBtn}>
-            <PrimaryButton label="Reintentar" onPress={() => void load()} />
+            <PrimaryButton label={t("common.retry")} onPress={() => void load()} />
           </View>
         </View>
       );
@@ -609,10 +619,10 @@ export default function ResultsMapScreen() {
     if (status === "success" && restaurants.length === 0) {
       return (
         <View style={styles.centered}>
-          <Text style={styles.errorTitle}>Nada por aquí todavía</Text>
-          <Text style={styles.errorMsg}>Prueba con otro mood o amplía el radio de búsqueda.</Text>
+          <Text style={styles.errorTitle}>{t("flow.noResults")}</Text>
+          <Text style={styles.errorMsg}>{t("flow.noResultsMsg")}</Text>
           <View style={styles.retryBtn}>
-            <PrimaryButton label="Cambiar filtros" onPress={() => router.back()} />
+            <PrimaryButton label={t("flow.changeFilters")} onPress={() => router.back()} />
           </View>
         </View>
       );
@@ -664,10 +674,10 @@ export default function ResultsMapScreen() {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.replace("/(tabs)")}
-          accessibilityLabel="Volver atrás"
+          accessibilityLabel={t("common.back")}
           accessibilityRole="button"
         >
-          <Text style={styles.backText}>‹ Volver</Text>
+          <Text style={styles.backText}>{t("flow.backWithArrow")}</Text>
         </TouchableOpacity>
       </SafeAreaView>
 

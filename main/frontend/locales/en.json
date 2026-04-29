@@ -20,7 +20,11 @@
     "soon": "Coming soon",
     "cancel": "Cancel",
     "exit": "Exit",
-    "live": "LIVE"
+    "live": "LIVE",
+    "nope": "Nope",
+    "likedIt": "Liked it",
+    "beFirstToRate": "Be the first to rate",
+    "all": "All"
   },
   "splash": {
     "slogans": [
@@ -122,6 +126,7 @@
     "featuredBody": "Events starting near you in the next 48 hours. Filtered by distance, not by algorithm.",
     "categories": "categories",
     "notAvailable": "This section is not available yet.",
+    "resultsForYou": "Results for you",
     "exploreVerbs": ["Explore", "Discover", "Live", "Find", "Feel", "Track", "Know"]
   },
   "saved": {
@@ -147,9 +152,21 @@
     "whatPeopleSay": "What people say",
     "noReviews": "No individual reviews available.",
     "analyzingStrengths": "Analyzing strengths...",
+    "strengths": "Analyzing strengths...",
+    "recommended": "Recommended place",
     "rating": "Rating: {{rating}}",
     "whimTake": "WHIM's Take",
     "bookmarkSignInHint": "Sign in to save your favorite places."
+  },
+  "liveData": {
+    "notAvailable": "Price info not available",
+    "realtime": "Real-time info",
+    "fuelPrices": "Fuel prices",
+    "pharmacyDuty": "Pharmacy on duty",
+    "cinemaShowtimes": "Today's showtimes",
+    "evCharging": "EV charging",
+    "weatherNow": "Weather now",
+    "viewFullSchedule": "View full schedule"
   },
   "eventDetails": {
     "notFound": "Event not found"
@@ -165,6 +182,22 @@
     "noResults": "Nothing here yet",
     "noResultsMsg": "Try another mood or expand the search radius.",
     "changeFilters": "Change filters",
+    "analyzingPlaces": "Analyzing places...",
+    "searchingNearby": "Searching nearby",
+    "searchPaused": "Search paused",
+    "noMatches": "No matches",
+    "preparingList": "Preparing your list",
+    "analyzingDescription": "Analyzing reviews, quality, and atmosphere to recommend only the best.",
+    "requestFailed": "The request could not be completed.",
+    "searchingNearbyDots": "Searching nearby...",
+    "foundCount": "Found {{count}}",
+    "foundCountOf": "Found {{count}} of {{total}}...",
+    "showingPlaces": "Showing {{count}} places",
+    "searchingBestPlaces": "Searching for the best places...",
+    "analyzingDescriptionShort": "Analyzing reviews, quality, and atmosphere.",
+    "moodTitleFallback": "What's the plan?",
+    "moodSubtitleFallback": "Choose the option that best fits you",
+    "backWithArrow": "‹ Back",
     "popular": "Popular",
     "quiet": "Quiet",
     "busy": "Busy",

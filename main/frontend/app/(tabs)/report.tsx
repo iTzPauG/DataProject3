@@ -20,7 +20,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
-import GADOIcon from '../../components/GADOIcon';
+import WhimIcon from '../../components/WhimIcon';
 import Map from '../../components/map/Map';
 import { useAppState } from '../../hooks/useAppState';
 import { useAuth } from '../../hooks/useAuth';
@@ -429,7 +429,7 @@ export default function ReportTab() {
               {step === 1 && (
                 <View style={styles.stepContainer}>
                   <View style={styles.cardHeader}>
-                    <Text style={dynamicStyles.cardTitle}>{t('report.whatsHappening') || "¿Qué está pasando?"}</Text>
+                    <Text style={dynamicStyles.cardTitle}>{t('report.whatsHappening')}</Text>
                     <Text style={dynamicStyles.cardSubtitle}>{t('report.categorySubtitle')}</Text>
                   </View>
 
@@ -457,7 +457,7 @@ export default function ReportTab() {
                         >
                           <View style={dynamicStyles.categoryIcon}>
                              <View style={{ backgroundColor: (option.color || colors.brand) + '15', borderRadius: 16, padding: 12 }}>
-                               <GADOIcon name={option.id === 'report' ? 'report' : option.id} category="report" size={28} color={option.color || colors.brand} />
+                               <WhimIcon name={option.id === 'report' ? 'report' : option.id} category="report" size={28} color={option.color || colors.brand} />
                              </View>
                           </View>
                           <Text style={dynamicStyles.categoryLabel}>{option.label}</Text>
@@ -500,7 +500,7 @@ export default function ReportTab() {
                   />
 
                   <View style={styles.durationSection}>
-                     <Text style={dynamicStyles.sectionLabel}>{t('report.howLong') || "¿Cuánto tiempo durará?"}</Text>
+                     <Text style={dynamicStyles.sectionLabel}>{t('report.howLong')}</Text>
                      <View style={styles.durationGrid}>
                         {DURATIONS.map(d => (
                           <TouchableOpacity 
@@ -542,7 +542,7 @@ export default function ReportTab() {
                   <View style={dynamicStyles.summaryBox}>
                      <View style={[styles.summaryBadge, { backgroundColor: colors.danger + '15' }]}>
                         <View style={[styles.livePulse, { backgroundColor: colors.danger }]} />
-                        <Text style={dynamicStyles.liveText}>{t('common.live') || "EN VIVO"} · {durationHours}h</Text>
+                        <Text style={dynamicStyles.liveText}>{t('common.live')} · {durationHours}h</Text>
                      </View>
                      <Text style={dynamicStyles.summaryTitle}>{title}</Text>
                      {description ? <Text style={dynamicStyles.summarySub}>{description}</Text> : null}
@@ -580,7 +580,7 @@ export default function ReportTab() {
                   <View style={dynamicStyles.successIcon}>
                     <Ionicons name="checkmark" size={40} color={colors.ink} />
                   </View>
-                  <Text style={dynamicStyles.successTitle}>{t('report.successTitle') || "¡Aviso publicado!"}</Text>
+                  <Text style={dynamicStyles.successTitle}>{t('report.successTitle')}</Text>
                   <Text style={dynamicStyles.successText}>{t('report.success')}</Text>
                   <TouchableOpacity 
                     style={[dynamicStyles.mainBtn, { marginTop: 20, width: '100%' }]}

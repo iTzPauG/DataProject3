@@ -117,11 +117,11 @@ export const UniversalHeader: React.FC<UniversalHeaderProps> = ({
           ) : (
             <View style={styles.logoContainer}>
               <Image
-                source={require('../assets/gado-logo.png')}
+                source={require('../assets/whim-logo-new.png')}
                 style={styles.logo}
                 resizeMode="contain"
               />
-              <Text style={styles.logoText}>GADO</Text>
+              <Text style={styles.logoText}>WHIM</Text>
             </View>
           )}
         </View>

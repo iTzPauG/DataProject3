@@ -206,10 +206,10 @@ export default function SplashScreen() {
       <Animated.View style={styles.content}>
         <Animated.View style={[styles.logoWrap, logoStyle]}>
           <Image
-            source={require('../assets/gado-logo.png')}
+            source={require('../assets/whim-logo-new.png')}
             style={styles.logo}
             resizeMode="contain"
-            accessibilityLabel="GADO Logo"
+            accessibilityLabel="WHIM Logo"
           />
         </Animated.View>
 

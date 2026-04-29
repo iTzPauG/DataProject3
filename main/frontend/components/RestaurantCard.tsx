@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Image,
   Platform,
@@ -34,6 +35,7 @@ export default function RestaurantCard({
   selected = false,
   voteData,
 }: Props) {
+  const { t } = useTranslation();
   const { colors, radii, shadows, typography } = useTheme();
   const distance = restaurant.distanceM > 0 ? formatDistance(restaurant.distanceM) : null;
   const pros = restaurant.pros.slice(0, 2);
@@ -199,7 +201,7 @@ export default function RestaurantCard({
   return (
     <Pressable
       onPress={onPress}
-      accessibilityLabel={`Tarjeta de ${restaurant.name}. Puntuación ${formatRating(restaurant.rating)}. ${restaurant.tagline || ""}`}
+      accessibilityLabel={`${t('common.cardOf', { defaultValue: 'Card of' })} ${restaurant.name}. ${t('placeDetails.rating', { rating: formatRating(restaurant.rating) })}. ${restaurant.tagline || ""}`}
       accessibilityRole="button"
       style={({ pressed }) => [
         styles.card,
@@ -212,10 +214,10 @@ export default function RestaurantCard({
           <Image source={{ uri: restaurant.photoUrl }} style={styles.heroImage} resizeMode="cover" />
         ) : (
           <View style={styles.heroPlaceholder}>
-            <WhimIcon name="restaurant" category="food" size={34} color={colors.brand} accessibilityLabel="Marcador de posición de restaurante" />
+            <WhimIcon name="restaurant" category="food" size={34} color={colors.brand} accessibilityLabel={t('common.restaurantPlaceholder', { defaultValue: 'Restaurant placeholder' })} />
           </View>
         )}
-        <View style={styles.ratingBadge} accessibilityLabel={`Puntuación ${formatRating(restaurant.rating)}`}>
+        <View style={styles.ratingBadge} accessibilityLabel={t('placeDetails.rating', { rating: formatRating(restaurant.rating) })}>
           <Text style={styles.ratingBadgeText}>{formatRating(restaurant.rating)} ★</Text>
         </View>
       </View>
@@ -225,38 +227,38 @@ export default function RestaurantCard({
           <View style={styles.headerCopy}>
             <Text style={styles.name} numberOfLines={1}>{restaurant.name}</Text>
             <Text style={styles.metaLine} numberOfLines={1}>
-              {restaurant.tagline || "Lugar recomendado"}
+              {restaurant.tagline || t('placeDetails.recommended')}
               {distance ? ` · ${distance}` : ""}
             </Text>
           </View>
-          <Text style={styles.priceDots} accessibilityLabel={`Precio nivel ${restaurant.priceLevel}`}>
+          <Text style={styles.priceDots} accessibilityLabel={`${t('common.priceLevel', { defaultValue: 'Price level' })} ${restaurant.priceLevel}`}>
             {priceDots(restaurant.priceLevel)}
           </Text>
         </View>
 
         <View style={styles.scoreRow}>
-          <Text style={styles.scoreText}>Rating: {formatRating(restaurant.rating)}</Text>
-          <Text style={styles.reviewText}>{formatReviews(restaurant.reviewsCount)} reseñas</Text>
+          <Text style={styles.scoreText}>{t('placeDetails.rating', { rating: formatRating(restaurant.rating) })}</Text>
+          <Text style={styles.reviewText}>{formatReviews(restaurant.reviewsCount)} {t('common.reviews', { defaultValue: 'reviews' })}</Text>
         </View>
 <View style={styles.signalBox}>
   {(pros || []).length > 0 ? (
     pros.map((pro, i) => (
       <View key={`pro-${i}`} style={styles.signalRow}>
-        <WhimIcon name="like" category="feedback" size={14} color={colors.success} accessibilityLabel="Punto positivo" />
+        <WhimIcon name="like" category="feedback" size={14} color={colors.success} accessibilityLabel={t('common.positivePoint', { defaultValue: 'Positive point' })} />
         {renderBoldText(pro, styles.signalGood, 1)}
       </View>
     ))
   ) : (
     <View style={styles.signalRow}>
       <WhimIcon name="like" category="feedback" size={14} color={colors.success} />
-      <Text style={styles.signalGood} numberOfLines={1}>Analizando puntos fuertes...</Text>
+      <Text style={styles.signalGood} numberOfLines={1}>{t('placeDetails.strengths')}</Text>
     </View>
   )}
 
   {(cons || []).length > 0 ? (
     cons.map((con, i) => (
       <View key={`con-${i}`} style={styles.signalRow}>
-        <WhimIcon name="warning" category="feedback" size={14} color={colors.warning} accessibilityLabel="Punto de atención" />
+        <WhimIcon name="warning" category="feedback" size={14} color={colors.warning} accessibilityLabel={t('common.attentionPoint', { defaultValue: 'Attention point' })} />
         {renderBoldText(con, styles.signalBad, 1)}
       </View>
     ))
@@ -264,10 +266,10 @@ export default function RestaurantCard({
 </View>
         <View style={styles.footerRow}>
           <View style={styles.voteWrap}>
-            <VoteButtons itemId={restaurant.id} itemType="place" initial={voteData} title="Veredicto WHIM" />
+            <VoteButtons itemId={restaurant.id} itemType="place" initial={voteData} title={t('placeDetails.verdict')} />
           </View>
-          <View style={styles.moreWrap} accessibilityLabel="Ver más detalles">
-            <Text style={styles.moreText}>Ver más</Text>
+          <View style={styles.moreWrap} accessibilityLabel={t('common.viewMore')}>
+            <Text style={styles.moreText}>{t('common.viewMore')}</Text>
             <Ionicons name="chevron-forward" size={16} color={colors.brandDeep} />
           </View>
         </View>
@@ -275,3 +277,4 @@ export default function RestaurantCard({
     </Pressable>
   );
 }
+

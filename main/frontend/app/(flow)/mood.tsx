@@ -118,8 +118,8 @@ export default function MoodScreen() {
     [flow, DEFAULT_MOODS],
   );
 
-  const screenTitle = flow?.category.mood_title ?? '¿Cuál es el plan?';
-  const screenSubtitle = flow?.category.mood_subtitle ?? 'Elige la opción que mejor encaja contigo';
+  const screenTitle = flow?.category.mood_title ?? t('flow.moodTitleFallback');
+  const screenSubtitle = flow?.category.mood_subtitle ?? t('flow.moodSubtitleFallback');
   
   const shouldSkipPrice = useMemo(() => {
     if (!flow?.category.requires_price) return true;
