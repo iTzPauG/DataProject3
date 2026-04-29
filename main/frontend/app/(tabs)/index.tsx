@@ -187,7 +187,7 @@ export default function MapTab() {
   }, [location, setMapRegion]);
 
   const handleCategorySelect = useCallback(
-    (categoryId: string | null) => { setSelectedCategory(categoryId); },
+    (categoryId: string | null) => { setSelectedCategory(categoryId || 'food'); },
     [setSelectedCategory],
   );
 
@@ -223,12 +223,14 @@ export default function MapTab() {
   }, [selectedId]);
 
   useEffect(() => {
-    fetchCategories().then(setCategories).catch(() => {});
-    setSelectedCategory(null); // always start with "Todos"
+    fetchCategories()
+      .then((all) => setCategories(all.filter((cat) => cat.id === 'food')))
+      .catch(() => setCategories([]));
+    setSelectedCategory('food');
   }, []);
 
   useEffect(() => {
-    if (params.category && params.category !== selectedCategory) {
+    if (params.category === 'food' && params.category !== selectedCategory) {
       setSelectedCategory(params.category);
     }
   }, [params.category, selectedCategory, setSelectedCategory]);
@@ -351,6 +353,8 @@ export default function MapTab() {
               categories={categories}
               selected={selectedCategory}
               onSelect={handleCategorySelect}
+              showAllOption={false}
+              allowDeselectActive={false}
             />
           </View>
         </BlurView>

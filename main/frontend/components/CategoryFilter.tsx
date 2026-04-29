@@ -10,9 +10,17 @@ interface Props {
   categories: Category[];
   selected: string | null;
   onSelect: (categoryId: string | null) => void;
+  showAllOption?: boolean;
+  allowDeselectActive?: boolean;
 }
 
-export default function CategoryFilter({ categories, selected, onSelect }: Props) {
+export default function CategoryFilter({
+  categories,
+  selected,
+  onSelect,
+  showAllOption = true,
+  allowDeselectActive = true,
+}: Props) {
   const { colors, typography, shadows, radii } = useTheme();
 
   const dynamicStyles = useMemo(() => StyleSheet.create({
@@ -47,16 +55,17 @@ export default function CategoryFilter({ categories, selected, onSelect }: Props
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
       >
-        {/* "Todos" pill */}
-        <TouchableOpacity
-          style={[dynamicStyles.pill, !selected && dynamicStyles.pillActive]}
-          onPress={() => onSelect(null)}
-          activeOpacity={0.7}
-        >
-          <Text style={[dynamicStyles.pillText, !selected && dynamicStyles.pillTextActive]}>
-            Todos
-          </Text>
-        </TouchableOpacity>
+        {showAllOption ? (
+          <TouchableOpacity
+            style={[dynamicStyles.pill, !selected && dynamicStyles.pillActive]}
+            onPress={() => onSelect(null)}
+            activeOpacity={0.7}
+          >
+            <Text style={[dynamicStyles.pillText, !selected && dynamicStyles.pillTextActive]}>
+              Todos
+            </Text>
+          </TouchableOpacity>
+        ) : null}
 
         {categories.map((cat) => {
           const isActive = selected === cat.id;
@@ -67,7 +76,7 @@ export default function CategoryFilter({ categories, selected, onSelect }: Props
                 dynamicStyles.pill,
                 isActive && { backgroundColor: cat.color || colors.brand, borderColor: cat.color || colors.brand },
               ]}
-              onPress={() => onSelect(isActive ? null : cat.id)}
+              onPress={() => onSelect(isActive && allowDeselectActive ? null : cat.id)}
               activeOpacity={0.7}
             >
               <Text

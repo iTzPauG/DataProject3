@@ -1,4 +1,5 @@
 import { Restaurant } from '../types/restaurant';
+import { CartaSection, CartaRestaurant, RestaurantCategories, ReviewMetrics } from '../types/carta';
 import { auth } from './supabase';
 import { storage } from '../utils/storage';
 import { Category, CommunityReport, MapItem, ReportType, SavedItem } from '../types';
@@ -446,6 +447,62 @@ function sanitize(raw: Record<string, unknown>): Restaurant {
   };
 }
 
+const DEFAULT_METRICS: ReviewMetrics = {
+  calidad_precio: 50,
+  servicio: 50,
+  comida: 50,
+  ambiente: 50,
+  rapidez: 50,
+};
+
+const DEFAULT_CATEGORIES: RestaurantCategories = {
+  romantico: 0.3,
+  tapas: 0.3,
+  comida_rapida: 0.3,
+  premium: 0.3,
+  familiar: 0.3,
+  para_amigos: 0.3,
+  turistico: 0.3,
+  local_hidden_gem: 0.2,
+};
+
+function sanitizeMetrics(raw: unknown): ReviewMetrics {
+  const obj = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+  return {
+    calidad_precio: clamp(Number(obj.calidad_precio ?? DEFAULT_METRICS.calidad_precio)),
+    servicio: clamp(Number(obj.servicio ?? DEFAULT_METRICS.servicio)),
+    comida: clamp(Number(obj.comida ?? DEFAULT_METRICS.comida)),
+    ambiente: clamp(Number(obj.ambiente ?? DEFAULT_METRICS.ambiente)),
+    rapidez: clamp(Number(obj.rapidez ?? DEFAULT_METRICS.rapidez)),
+  };
+}
+
+function sanitizeCategories(raw: unknown): RestaurantCategories {
+  const obj = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const clamp = (n: number) => Math.max(0, Math.min(1, n));
+  return {
+    romantico: clamp(Number(obj.romantico ?? DEFAULT_CATEGORIES.romantico)),
+    tapas: clamp(Number(obj.tapas ?? DEFAULT_CATEGORIES.tapas)),
+    comida_rapida: clamp(Number(obj.comida_rapida ?? DEFAULT_CATEGORIES.comida_rapida)),
+    premium: clamp(Number(obj.premium ?? DEFAULT_CATEGORIES.premium)),
+    familiar: clamp(Number(obj.familiar ?? DEFAULT_CATEGORIES.familiar)),
+    para_amigos: clamp(Number(obj.para_amigos ?? DEFAULT_CATEGORIES.para_amigos)),
+    turistico: clamp(Number(obj.turistico ?? DEFAULT_CATEGORIES.turistico)),
+    local_hidden_gem: clamp(Number(obj.local_hidden_gem ?? DEFAULT_CATEGORIES.local_hidden_gem)),
+  };
+}
+
+const ALLOWED_CUISINES = new Set([
+  'italian',
+  'japanese',
+  'spanish',
+  'mexican',
+  'indian',
+  'american',
+  'other',
+]);
+
 // ── Voting ──────────────────────────────────────────────────────────────────
 
 export interface VoteData {
@@ -614,6 +671,69 @@ export async function searchUniversalPlaces(params: {
 }
 
 // ── Recommend ───────────────────────────────────────────────────────────────
+
+export async function getCartaRecommendations(params: {
+  lat: number;
+  lng: number;
+  priceLevel?: 1 | 2 | 3 | null;
+  language?: string;
+}): Promise<CartaSection[]> {
+  const cartaUrl = buildUrl('/api/carta', {
+    lat: String(params.lat),
+    lng: String(params.lng),
+    price_level: params.priceLevel ? String(params.priceLevel) : undefined,
+    language: params.language ?? 'es',
+  });
+
+  try {
+    const res = await fetch(cartaUrl, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) return [];
+
+    const data = await res.json() as { sections?: Array<Record<string, unknown>> };
+    if (!Array.isArray(data.sections)) return [];
+
+    return data.sections
+      .map((section, index) => {
+        const rawRestaurants = Array.isArray(section.restaurants)
+          ? (section.restaurants as Array<Record<string, unknown>>)
+          : [];
+
+        const dedup = new Map<string, CartaRestaurant>();
+        for (const raw of rawRestaurants) {
+          const base = sanitize(raw);
+          if (!base.id) continue;
+
+          const summary = String(raw.summary ?? raw.tagline ?? raw.why ?? '').trim();
+          const cuisineRaw = String(raw.cuisine ?? 'other').toLowerCase();
+          const cuisine = ALLOWED_CUISINES.has(cuisineRaw)
+            ? (cuisineRaw as CartaRestaurant['cuisine'])
+            : 'other';
+
+          dedup.set(base.id, {
+            ...base,
+            tagline: summary || base.tagline,
+            why: summary || base.why,
+            summary: summary || base.tagline || base.why,
+            cuisine,
+            metrics: sanitizeMetrics(raw.metrics),
+            categories: sanitizeCategories(raw.categories),
+          });
+        }
+
+        return {
+          id: String(section.id ?? `carta_${index}`),
+          title: String(section.title ?? 'Sección'),
+          restaurants: Array.from(dedup.values()).slice(0, 10),
+        };
+      })
+      .filter((section) => section.restaurants.length > 0);
+  } catch {
+    return [];
+  }
+}
 
 interface RecommendInput {
   parentCategory: string;
