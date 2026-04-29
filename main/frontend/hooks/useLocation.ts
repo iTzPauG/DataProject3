@@ -8,6 +8,7 @@ export interface LocationState {
   lat: number | null;
   lng: number | null;
   accuracy: number | null;
+  city: string | null;
   loading: boolean;
   error: string | null;
 }
@@ -17,6 +18,7 @@ export function useLocation(): LocationState {
     lat: null,
     lng: null,
     accuracy: null,
+    city: null,
     loading: true,
     error: null,
   });
