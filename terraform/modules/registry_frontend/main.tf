@@ -18,9 +18,11 @@ resource "null_resource" "docker_build_push" {
       filesha256("${path.module}/../../../main/frontend/package.json"),
     ]))
     backend_url = var.backend_url
+    always_run  = timestamp()
   }
 
   provisioner "local-exec" {
+    interpreter = ["C:/PROGRA~1/Git/bin/bash.exe", "-c"]
     command = <<EOT
       gcloud auth configure-docker ${var.region}-docker.pkg.dev --quiet
       docker build --platform linux/amd64 --provenance=false --no-cache \

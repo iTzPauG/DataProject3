@@ -12,13 +12,15 @@ resource "null_resource" "docker_build_push" {
   depends_on = [google_artifact_registry_repository.api]
 
   triggers = {
-    src_hash = sha256(join("", [
+    src_hash   = sha256(join("", [
       filesha256("${path.module}/../../../main/backend/Dockerfile"),
       filesha256("${path.module}/../../../main/backend/requirements.txt"),
     ]))
+    always_run = timestamp()
   }
 
   provisioner "local-exec" {
+    interpreter = ["C:/PROGRA~1/Git/bin/bash.exe", "-c"]
     command = <<EOT
       gcloud auth configure-docker ${var.region}-docker.pkg.dev --quiet
       docker build --platform linux/amd64 --provenance=false -t ${local.image} ${path.module}/../../../main/backend
