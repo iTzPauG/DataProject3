@@ -4,6 +4,21 @@ import { Platform } from 'react-native';
 // Metro bundler provides require as a global — declare it for TypeScript
 declare const require: (module: string) => any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
+async function getCityName(lat: number, lng: number): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=jsonv2&addressdetails=1`,
+      {
+        headers: { 'User-Agent': 'WHIM-App/1.0' },
+      },
+    );
+    const data = await res.json();
+    return data.address.city || data.address.town || data.address.village || null;
+  } catch {
+    return null;
+  }
+}
+
 export interface LocationState {
   lat: number | null;
   lng: number | null;
