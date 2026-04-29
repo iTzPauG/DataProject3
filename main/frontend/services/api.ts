@@ -3,6 +3,7 @@ import { auth } from './supabase';
 import { storage } from '../utils/storage';
 import { Category, CommunityReport, MapItem, ReportType, SavedItem } from '../types';
 import { FALLBACK_CATEGORIES } from './mapService';
+import i18n from '../utils/i18n';
 
 // Derive the backend URL with autodetection for Railway production
 const getBaseUrl = () => {
@@ -476,6 +477,7 @@ export async function castVote(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Accept-Language': i18n.language || 'es',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({ item_id: itemId, item_type: itemType, vote }),
@@ -500,7 +502,10 @@ export async function getVotesBatch(
   try {
       const res = await fetch(`${BASE_URL}/votes/batch`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept-Language': i18n.language || 'es'
+        },
         body: JSON.stringify({ ids }),
       });
       if (!res.ok) return {};
@@ -515,7 +520,9 @@ export async function getVotes(
   itemId: string,
 ): Promise<VoteData | null> {
   try {
-      const res = await fetch(`${BASE_URL}/votes/${itemId}`);
+      const res = await fetch(`${BASE_URL}/votes/${itemId}`, {
+        headers: { 'Accept-Language': i18n.language || 'es' }
+      });
       if (!res.ok) return null;
       return await res.json();
   } catch {
@@ -601,7 +608,10 @@ export async function searchUniversalPlaces(params: {
 
   try {
     const res = await fetch(searchUrl, {
-      headers: { Accept: 'application/json' },
+      headers: { 
+        Accept: 'application/json',
+        'Accept-Language': i18n.language || 'es'
+      },
       signal: AbortSignal.timeout(12000),
     });
     if (!res.ok) return [];
@@ -635,7 +645,10 @@ export async function recommendRestaurants(
 
   const res = await fetch(recommendUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'Accept-Language': i18n.language || 'es'
+    },
     body: JSON.stringify({
       parent_category: parentCategory,
       subcategory,
@@ -686,7 +699,10 @@ export async function recommendRestaurantsStream(
   // Step 1: Start the job
   const startRes = await fetch(`${BASE_URL}/recommend/start`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'Accept-Language': i18n.language || 'es'
+    },
     body: JSON.stringify({
       parent_category: parentCategory,
       subcategory,
@@ -713,7 +729,9 @@ export async function recommendRestaurantsStream(
   return new Promise<void>((resolve, reject) => {
     const poll = async () => {
       try {
-        const res = await fetch(`${BASE_URL}/recommend/poll/${job_id}?after=${cursor}`);
+        const res = await fetch(`${BASE_URL}/recommend/poll/${job_id}?after=${cursor}`, {
+          headers: { 'Accept-Language': i18n.language || 'es' }
+        });
         if (!res.ok) {
           throw new Error(`Poll error ${res.status}`);
         }
@@ -773,6 +791,7 @@ export async function getCategoryFlow(categoryId: string): Promise<CategoryFlowR
 
   try {
     const res = await fetch(`${BASE_URL}/categories/flow/${categoryId}`, {
+      headers: { 'Accept-Language': i18n.language || 'es' },
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) throw new Error('Failed to fetch category flow');
@@ -794,6 +813,7 @@ export async function getCategoryFlow(categoryId: string): Promise<CategoryFlowR
 export async function getExploreCategories(): Promise<ExploreCategory[]> {
   try {
     const res = await fetch(`${BASE_URL}/categories`, {
+      headers: { 'Accept-Language': i18n.language || 'es' },
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) throw new Error('Failed to fetch categories');
@@ -806,7 +826,9 @@ export async function getExploreCategories(): Promise<ExploreCategory[]> {
 
 export async function getReportTypes(): Promise<ReportType[]> {
   try {
-    const res = await fetch(`${BASE_URL}/reports/types`);
+    const res = await fetch(`${BASE_URL}/reports/types`, {
+      headers: { 'Accept-Language': i18n.language || 'es' }
+    });
     if (!res.ok) throw new Error('Failed to fetch report types');
     const data = await res.json();
     return data.types && data.types.length > 0 ? data.types : DEFAULT_REPORT_TYPES;
@@ -856,6 +878,7 @@ export async function createReport(input: CreateReportInput): Promise<{ report: 
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Accept-Language': i18n.language || 'es',
       ...(session ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
     },
     body: JSON.stringify(payload),
@@ -887,6 +910,7 @@ export async function toggleBookmark(
 
   const headers = {
     'Content-Type': 'application/json',
+    'Accept-Language': i18n.language || 'es',
     'Authorization': `Bearer ${session.access_token}`,
   };
 
@@ -914,6 +938,7 @@ export async function getBookmarks(): Promise<SavedItem[]> {
 
     const res = await fetch(`${BASE_URL}/bookmarks`, {
       headers: {
+        'Accept-Language': i18n.language || 'es',
         'Authorization': `Bearer ${session.access_token}`,
       },
     });
@@ -932,7 +957,10 @@ export async function checkBookmark(itemId: string): Promise<boolean> {
     if (!session) return false;
 
     const res = await fetch(`${BASE_URL}/bookmarks/${itemId}/check`, {
-      headers: { 'Authorization': `Bearer ${session.access_token}` },
+      headers: { 
+        'Accept-Language': i18n.language || 'es',
+        'Authorization': `Bearer ${session.access_token}` 
+      },
     });
     if (!res.ok) return false;
     const data = await res.json();
@@ -950,6 +978,7 @@ export async function getMyReports(): Promise<CommunityReport[]> {
 
     const res = await fetch(`${BASE_URL}/reports/me`, {
       headers: {
+        'Accept-Language': i18n.language || 'es',
         'Authorization': `Bearer ${session.access_token}`,
       },
     });
@@ -1037,7 +1066,12 @@ export async function getPlaceLiveData(params: {
       city: params.city,
     });
 
-    const res = await fetch(liveDataUrl, { headers: { Accept: 'application/json' } });
+    const res = await fetch(liveDataUrl, { 
+      headers: { 
+        Accept: 'application/json',
+        'Accept-Language': i18n.language || 'es'
+      } 
+    });
     if (!res.ok) return { type: 'none' };
     return await res.json();
   } catch {
@@ -1073,7 +1107,12 @@ export async function getPlaceTake(params: {
       price_level: params.priceLevel != null ? String(params.priceLevel) : undefined,
       user_rating_count: params.reviewsCount != null ? String(params.reviewsCount) : undefined,
     });
-    const res = await fetch(takeUrl, { headers: { Accept: 'application/json' } });
+    const res = await fetch(takeUrl, { 
+      headers: { 
+        Accept: 'application/json',
+        'Accept-Language': i18n.language || 'es'
+      } 
+    });
     if (!res.ok) return null;
     return sanitize(await res.json());
   } catch {
@@ -1099,7 +1138,10 @@ export async function fetchNearbyItems(
         const mapItemsUrl = `${BASE_URL}/map/items?${qsParts.join('&')}`;
 
         const res = await fetch(mapItemsUrl, {
-            headers: { 'Accept': 'application/json' }
+            headers: { 
+              'Accept': 'application/json',
+              'Accept-Language': i18n.language || 'es'
+            }
         });
         if (!res.ok) return [];
         const data = await res.json();

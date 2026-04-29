@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   Image,
@@ -24,26 +25,30 @@ interface MenuEntry {
   route?: string;
 }
 
-const MENU: MenuEntry[] = [
-  {
-    id: 'saved',
-    label: 'Guardados',
-    description: 'Los sitios y eventos que marcaste',
-    icon: 'bookmark',
-    route: '/(modals)/saved-items',
-  },
-  {
-    id: 'settings',
-    label: 'Preferencias',
-    description: 'Mapa, notificaciones, idioma',
-    icon: 'sliders',
-  },
-];
-
 export default function ProfileTab() {
   const { colors, typography } = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const { user, profile, signOut } = useAuth();
+
+  const MENU: MenuEntry[] = useMemo(
+    () => [
+      {
+        id: 'saved',
+        label: t('profile.menu.saved'),
+        description: t('profile.menu.savedDesc'),
+        icon: 'bookmark',
+        route: '/(modals)/saved-items',
+      },
+      {
+        id: 'settings',
+        label: t('profile.menu.settings'),
+        description: t('profile.menu.settingsDesc'),
+        icon: 'sliders',
+      },
+    ],
+    [t],
+  );
 
   const styles = useMemo(
     () =>
@@ -293,9 +298,9 @@ export default function ProfileTab() {
 
   function handleMenuPress(item: MenuEntry) {
     if (!user && item.id !== 'settings') {
-      Alert.alert('Acceso restringido', 'Inicia sesión para ver esta sección', [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Iniciar sesión', onPress: handleSignIn },
+      Alert.alert(t('profile.restrictedAccess'), t('profile.restrictedAccessMsg'), [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('auth.signIn'), onPress: handleSignIn },
       ]);
       return;
     }
@@ -308,17 +313,21 @@ export default function ProfileTab() {
 
   function handleSignOut() {
     if (typeof window !== 'undefined') {
-      if (window.confirm('¿Seguro que quieres cerrar sesión?')) signOut();
+      if (window.confirm(t('profile.signOutConfirm'))) signOut();
       return;
     }
-    Alert.alert('Cerrar sesión', '¿Seguro?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Salir', style: 'destructive', onPress: signOut },
+    Alert.alert(t('auth.signOut'), t('profile.signOutConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('common.exit'), style: 'destructive', onPress: signOut },
     ]);
   }
 
-  const displayName = profile?.display_name || user?.email?.split('@')[0] || 'Invitado';
+  const displayName = profile?.display_name || user?.email?.split('@')[0] || t('profile.guest');
   const firstName = displayName.split(/[\s@]/)[0];
+
+  const guestTitleParts = t('profile.guestTitle').split(',');
+  const guestTitleMain = guestTitleParts[0];
+  const guestTitleSub = guestTitleParts[1]?.trim() || '';
 
   return (
     <AnimatedTabScene>
@@ -329,11 +338,11 @@ export default function ProfileTab() {
         >
           <View style={styles.container}>
             <View style={styles.masthead}>
-              <Text style={styles.eyebrow}>Tu dossier</Text>
+              <Text style={styles.eyebrow}>{t('profile.dossier')}</Text>
               {user ? (
                 <>
                   <Text style={styles.nameDisplay}>
-                    Hola,{'\n'}
+                    {t('profile.greeting')}{'\n'}
                     <Text style={styles.nameItalic}>{firstName}.</Text>
                   </Text>
                   <View style={styles.avatarRow}>
@@ -354,8 +363,8 @@ export default function ProfileTab() {
                 </>
               ) : (
                 <Text style={styles.nameDisplay}>
-                  València,{'\n'}
-                  <Text style={styles.nameItalic}>a tu ritmo.</Text>
+                  {guestTitleMain},{'\n'}
+                  <Text style={styles.nameItalic}>{guestTitleSub}</Text>
                 </Text>
               )}
             </View>
@@ -365,43 +374,42 @@ export default function ProfileTab() {
                 <View style={styles.rule} />
                 <View style={styles.statsRow}>
                   <View style={styles.stat}>
-                    <Text style={styles.statLabel}>Reputación</Text>
+                    <Text style={styles.statLabel}>{t('profile.reputation')}</Text>
                     <Text style={styles.statValue}>
                       {profile?.reputation_score ?? 0}
                     </Text>
                     <Text style={styles.statHint}>
-                      Puntos por tus aportes útiles
+                      {t('profile.reputationHint')}
                     </Text>
                   </View>
                   <View style={styles.stat}>
-                    <Text style={styles.statLabel}>Reportes</Text>
+                    <Text style={styles.statLabel}>{t('profile.reports')}</Text>
                     <Text style={styles.statValue}>
                       {profile?.reports_count ?? 0}
                     </Text>
                     <Text style={styles.statHint}>
-                      Avisos publicados a la comunidad
+                      {t('profile.reportsHint')}
                     </Text>
                   </View>
                 </View>
               </>
             ) : (
               <View style={styles.guest}>
-                <Text style={styles.guestEyebrow}>Acceso</Text>
+                <Text style={styles.guestEyebrow}>{t('profile.access')}</Text>
                 <Text style={styles.guestTitle}>
-                  Guarda lugares, publica avisos.
+                  {t('profile.guestSubtitle')}
                 </Text>
                 <Text style={styles.guestBody}>
-                  Inicia sesión para sincronizar tus favoritos y participar en
-                  los reportes de la comunidad.
+                  {t('profile.guestBody')}
                 </Text>
                 <TouchableOpacity
                   style={styles.guestButton}
                   activeOpacity={0.8}
                   onPress={handleSignIn}
                   accessibilityRole="button"
-                  accessibilityLabel="Iniciar sesión"
+                  accessibilityLabel={t('auth.signIn')}
                 >
-                  <Text style={styles.guestButtonText}>Iniciar sesión</Text>
+                  <Text style={styles.guestButtonText}>{t('auth.signIn')}</Text>
                   <Icon
                     name="arrow-right"
                     size={13}
@@ -453,7 +461,7 @@ export default function ProfileTab() {
                 onPress={handleSignOut}
                 activeOpacity={0.7}
                 accessibilityRole="button"
-                accessibilityLabel="Cerrar sesión"
+                accessibilityLabel={t('auth.signOut')}
               >
                 <Icon
                   name="logout"
@@ -461,13 +469,13 @@ export default function ProfileTab() {
                   color={colors.danger}
                   strokeWidth={1.4}
                 />
-                <Text style={styles.signOutText}>Cerrar sesión</Text>
+                <Text style={styles.signOutText}>{t('auth.signOut')}</Text>
               </TouchableOpacity>
             ) : null}
 
             <View style={styles.footer}>
               <Text style={styles.footerMark}>G·A·D·O</Text>
-              <Text style={styles.footerVersion}>Edición 1.0 · València</Text>
+              <Text style={styles.footerVersion}>{t('profile.version')}</Text>
             </View>
           </View>
         </ScrollView>
@@ -475,3 +483,4 @@ export default function ProfileTab() {
     </AnimatedTabScene>
   );
 }
+
