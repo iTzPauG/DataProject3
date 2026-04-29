@@ -16,17 +16,7 @@ import { useTheme } from '../utils/theme';
 
 // ── Fuel label map ────────────────────────────────────────────────────────────
 
-const FUEL_LABELS: Record<string, string> = {
-  gasolina_95:     'Gasolina 95',
-  gasolina_98:     'Gasolina 98',
-  gasoleo_a:       'Diésel',
-  gasoleo_premium: 'Diésel Premium',
-  glp:             'GLP',
-  gas_natural:     'Gas Natural',
-  hidrogeno:       'Hidrógeno',
-};
-
-const FUEL_ORDER = ['gasolina_95', 'gasolina_98', 'gasoleo_a', 'gasoleo_premium', 'glp', 'gas_natural', 'hidrogeno'];
+const FUEL_ORDER = ['gasolina_95', 'gasolina_98', 'diesel', 'diesel_plus', 'glp', 'gas_natural', 'hidrogeno'];
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 

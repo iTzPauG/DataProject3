@@ -162,10 +162,10 @@
     "bookmarkSignInHint": "Sign in to save your favorite places."
   },
     "fuel": {
-      "gasolina_95": "Gasoline 95",
-      "gasolina_98": "Gasoline 98",
-      "gasoleo_a": "Diesel",
-      "gasoleo_premium": "Premium Diesel",
+      "gasolina_95": "Gasolina 95",
+      "gasolina_98": "Gasolina 98",
+      "diesel": "Diésel",
+      "diesel_plus": "Diésel +",
       "glp": "LPG",
       "gas_natural": "Natural Gas",
       "hidrogeno": "Hydrogen"

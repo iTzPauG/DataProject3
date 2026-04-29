@@ -163,8 +163,8 @@
     "fuel": {
       "gasolina_95": "Gasolina 95",
       "gasolina_98": "Gasolina 98",
-      "gasoleo_a": "Diésel",
-      "gasoleo_premium": "Diésel Premium",
+      "diesel": "Diésel",
+      "diesel_plus": "Diésel +",
       "glp": "GLP",
       "gas_natural": "Gas Natural",
       "hidrogeno": "Hidrógeno"
