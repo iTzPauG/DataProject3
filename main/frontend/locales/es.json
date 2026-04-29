@@ -112,7 +112,8 @@
     "featuredTitle": "Mercados, conciertos y vida nocturna — esta semana.",
     "featuredBody": "Eventos que empiezan cerca de ti en las próximas 48 horas. Filtrado por distancia, no por algoritmo.",
     "categories": "categorías",
-    "notAvailable": "Esta sección aún no está disponible."
+    "notAvailable": "Esta sección aún no está disponible.",
+    "exploreVerbs": ["Explora", "Descubre", "Vive", "Encuentra", "Siente", "Rastrea", "Conoce"]
   },
   "saved": {
     "title": "Guardados",

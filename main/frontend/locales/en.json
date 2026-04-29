@@ -112,7 +112,8 @@
     "featuredTitle": "Markets, concerts and nightlife — this week.",
     "featuredBody": "Events starting near you in the next 48 hours. Filtered by distance, not by algorithm.",
     "categories": "categories",
-    "notAvailable": "This section is not available yet."
+    "notAvailable": "This section is not available yet.",
+    "exploreVerbs": ["Explore", "Discover", "Live", "Find", "Feel", "Track", "Know"]
   },
   "saved": {
     "title": "Saved",
