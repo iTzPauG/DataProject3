@@ -8,7 +8,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useTheme } from "../utils/theme";
-import GADOIcon from "./GADOIcon";
+import CategoryMonogram from "./CategoryMonogram";
 
 interface Props {
   iconName: string;
@@ -27,70 +27,59 @@ export default function ChoiceCard({
   category,
   index = 0,
 }: Props) {
-  const { colors, radii, shadows, typography } = useTheme();
-  const scale = useSharedValue(0.9);
+  const { colors, typography, space } = useTheme();
   const opacity = useSharedValue(0);
+  const translateX = useSharedValue(-10);
 
   const styles = useMemo(() => StyleSheet.create({
     wrapper: {
-      width: "50%",
-      padding: 8,
+      width: "100%",
     },
-    card: {
-      minHeight: 154,
-      borderRadius: radii.lg,
-      paddingHorizontal: 16,
-      paddingVertical: 18,
-      justifyContent: "center",
+    container: {
+      flexDirection: "row",
       alignItems: "center",
+      paddingVertical: space.lg,
+      paddingHorizontal: space.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.stroke,
+    },
+    containerSelected: {
       backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.stroke,
-      ...shadows.soft,
     },
-    cardSelected: {
-      borderColor: colors.brand,
-      backgroundColor: colors.chip,
+    containerPressed: {
+      backgroundColor: colors.surface,
+      opacity: 0.8,
     },
-    cardPressed: {
-      transform: [{ scale: 0.98 }],
-    },
-    iconBadge: {
-      width: 68,
-      height: 68,
-      borderRadius: 22,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: colors.chip,
-      marginBottom: 14,
-    },
-    iconBadgeSelected: {
-      backgroundColor: colors.chip,
-      borderWidth: 1,
-      borderColor: colors.brand,
+    content: {
+      flex: 1,
+      marginLeft: space.lg,
     },
     label: {
-      textAlign: "center",
       color: colors.ink,
-      fontSize: 15,
-      lineHeight: 20,
-      fontWeight: "700",
+      fontSize: 18,
+      fontWeight: "600",
       fontFamily: typography.heading,
+      letterSpacing: -0.4,
     },
     labelSelected: {
-      color: colors.brandDeep,
+      color: colors.brand,
     },
-  }), [colors, radii, shadows, typography]);
+    arrow: {
+      color: colors.inkWhisper,
+      fontSize: 20,
+      fontFamily: typography.mono,
+    }
+  }), [colors, typography, space]);
 
   useEffect(() => {
-    const delay = index * 70;
-    opacity.value = withDelay(delay, withTiming(1, { duration: 350 }));
-    scale.value = withDelay(delay, withSpring(1, { damping: 16, stiffness: 120 }));
-  }, [index, opacity, scale]);
+    const delay = index * 40;
+    opacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
+    translateX.value = withDelay(delay, withSpring(0, { damping: 20, stiffness: 90 }));
+  }, [index, opacity, translateX]);
 
   const animStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
-    transform: [{ scale: scale.value }],
+    transform: [{ translateX: translateX.value }],
   }));
 
   return (
@@ -98,23 +87,24 @@ export default function ChoiceCard({
       {({ pressed }) => (
         <Animated.View
           style={[
-            styles.card,
-            selected && styles.cardSelected,
-            pressed && styles.cardPressed,
+            styles.container,
+            selected && styles.containerSelected,
+            pressed && styles.containerPressed,
             animStyle,
           ]}
         >
-          <View style={[styles.iconBadge, selected && styles.iconBadgeSelected]}>
-            <GADOIcon
-              category={category}
-              name={iconName}
-              size={34}
-              color={selected ? colors.brandDeep : colors.brand}
-            />
+          <CategoryMonogram 
+            categoryId={iconName} 
+            label={label} 
+            size={48} 
+            variant={selected ? 'filled' : 'ring'}
+          />
+          <View style={styles.content}>
+            <Text style={[styles.label, selected && styles.labelSelected]} numberOfLines={1}>
+              {label}
+            </Text>
           </View>
-          <Text style={[styles.label, selected && styles.labelSelected]} numberOfLines={2}>
-            {label}
-          </Text>
+          <Text style={styles.arrow}>→</Text>
         </Animated.View>
       )}
     </Pressable>

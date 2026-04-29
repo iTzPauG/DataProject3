@@ -26,7 +26,7 @@ const PRICE_LEVELS: Array<{
 
 export default function PriceScreen() {
   const { t } = useTranslation();
-  const { colors, radii, shadows, typography } = useTheme();
+  const { colors, typography, space } = useTheme();
   const { setPriceLevel } = useFlowState();
 
   const styles = useMemo(() => StyleSheet.create({
@@ -43,89 +43,92 @@ export default function PriceScreen() {
     navBar: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 20,
-      paddingTop: 16,
-      paddingBottom: 8,
+      paddingHorizontal: space.lg,
+      paddingTop: space.xl,
+      paddingBottom: space.sm,
     },
     backButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       backgroundColor: colors.surface,
       alignItems: 'center',
       justifyContent: 'center',
-      ...shadows.soft,
       borderWidth: 1,
       borderColor: colors.stroke,
     },
     header: {
-      paddingHorizontal: 28,
-      paddingTop: 24,
-      paddingBottom: 32,
+      paddingHorizontal: space.xl,
+      paddingTop: space.xxxl,
+      paddingBottom: space.xl,
     },
     step: {
-      fontSize: 12,
+      fontSize: 11,
       fontWeight: '700',
       color: colors.brand,
-      letterSpacing: 1.5,
+      letterSpacing: 1.6,
       textTransform: 'uppercase',
-      marginBottom: 8,
-      fontFamily: typography.heading,
+      marginBottom: space.sm,
+      fontFamily: typography.mono,
     },
     title: {
-      fontSize: 32,
+      fontSize: 40,
       fontWeight: '800',
       color: colors.ink,
-      lineHeight: 38,
-      marginBottom: 10,
+      lineHeight: 44,
+      marginBottom: space.sm,
       fontFamily: typography.heading,
-      letterSpacing: -0.5,
+      letterSpacing: -0.8,
     },
     subtitle: {
-      fontSize: 16,
+      fontSize: 18,
       color: colors.inkMuted,
-      lineHeight: 24,
+      lineHeight: 26,
       fontFamily: typography.body,
+      letterSpacing: -0.1,
     },
     segmentWrapper: {
-      paddingHorizontal: 24,
+      paddingHorizontal: space.lg,
     },
     segment: {
-      flexDirection: 'row',
-      borderRadius: radii.xl,
+      borderRadius: 16,
       overflow: 'hidden',
       borderWidth: 1,
       borderColor: colors.stroke,
       backgroundColor: colors.surface,
-      ...shadows.soft,
     },
     segmentItem: {
-      flex: 1,
-      paddingVertical: 32,
+      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
+      paddingVertical: space.xl,
+      paddingHorizontal: space.lg,
       backgroundColor: colors.surface,
-    },
-    segmentItemBorder: {
-      borderRightWidth: 1,
-      borderRightColor: colors.stroke,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.stroke,
     },
     segmentLabel: {
-      fontSize: 28,
+      fontSize: 24,
       fontWeight: '800',
       color: colors.brand,
       fontFamily: typography.heading,
-      marginBottom: 6,
+      width: 60,
+    },
+    segmentContent: {
+      flex: 1,
     },
     segmentDesc: {
-      fontSize: 12,
-      color: colors.inkMuted,
+      fontSize: 14,
+      color: colors.ink,
       fontWeight: '600',
-      fontFamily: typography.body,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
+      fontFamily: typography.heading,
+      letterSpacing: -0.2,
     },
-  }), [colors, radii, shadows, typography]);
+    arrow: {
+      color: colors.inkWhisper,
+      fontSize: 18,
+      fontFamily: typography.mono,
+    }
+  }), [colors, typography, space]);
 
   function handleSelect(value: 1 | 2 | 3) {
     setPriceLevel(value);
@@ -164,16 +167,19 @@ export default function PriceScreen() {
                   onPress={() => handleSelect(pl.value)}
                   style={[
                     styles.segmentItem,
-                    !isLast && styles.segmentItemBorder,
+                    isLast && { borderBottomWidth: 0 },
                   ]}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.segmentLabel}>
                     {pl.label}
                   </Text>
-                  <Text style={styles.segmentDesc}>
-                    {t(`flow.${pl.descriptionKey}`) || pl.descriptionKey}
-                  </Text>
+                  <View style={styles.segmentContent}>
+                    <Text style={styles.segmentDesc}>
+                      {t(`flow.${pl.descriptionKey}`) || pl.descriptionKey}
+                    </Text>
+                  </View>
+                  <Text style={styles.arrow}>→</Text>
                 </TouchableOpacity>
               );
             })}

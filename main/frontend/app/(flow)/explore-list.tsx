@@ -21,7 +21,7 @@ type ItemTypeParam = 'place' | 'event';
 
 export default function ExploreListScreen() {
   const { t } = useTranslation();
-  const { colors, typography, shadows, radii } = useTheme();
+  const { colors, typography, space } = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams<{
     categoryId?: string;
@@ -44,101 +44,85 @@ export default function ExploreListScreen() {
       alignSelf: 'center',
     },
     header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 20,
-      paddingTop: 16,
-      paddingBottom: 16,
+      paddingHorizontal: space.lg,
+      paddingTop: space.xl,
+      paddingBottom: space.xl,
       borderBottomWidth: 1,
       borderBottomColor: colors.stroke,
     },
+    navBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: space.lg,
+    },
     backButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       backgroundColor: colors.surface,
       alignItems: 'center',
       justifyContent: 'center',
-      marginRight: 16,
-      ...shadows.soft,
       borderWidth: 1,
       borderColor: colors.stroke,
     },
     title: {
-      fontSize: 22,
+      fontSize: 32,
       fontWeight: '800',
       color: colors.ink,
       fontFamily: typography.heading,
-      letterSpacing: -0.5,
+      letterSpacing: -0.8,
     },
     counter: {
       fontSize: 13,
       color: colors.inkMuted,
-      fontFamily: typography.body,
-      marginTop: 2,
+      fontFamily: typography.mono,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      marginTop: 4,
     },
     listContent: {
-      padding: 16,
       paddingBottom: 40,
     },
-    card: {
-      backgroundColor: colors.surface,
-      borderRadius: 20,
-      padding: 18,
-      marginBottom: 12,
-      borderWidth: 1,
-      borderColor: colors.stroke,
-      ...shadows.soft,
-    },
-    cardHeader: {
+    itemRow: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      gap: 12,
+      alignItems: 'center',
+      paddingVertical: space.xl,
+      paddingHorizontal: space.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.stroke,
     },
-    cardTitle: {
+    itemContent: {
       flex: 1,
-      fontSize: 17,
+    },
+    itemTitle: {
+      fontSize: 18,
       fontWeight: '700',
       color: colors.ink,
       fontFamily: typography.heading,
+      letterSpacing: -0.4,
     },
-    cardSubtitle: {
-      marginTop: 6,
+    itemSubtitle: {
+      marginTop: 4,
       fontSize: 14,
       color: colors.inkMuted,
       fontFamily: typography.body,
-      lineHeight: 20,
     },
-    cardFooter: {
-      marginTop: 12,
+    itemFooter: {
+      marginTop: 8,
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingTop: 12,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.stroke,
-    },
-    distanceTag: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      backgroundColor: colors.bg,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 8,
+      gap: 12,
     },
     distanceText: {
       fontSize: 12,
-      color: colors.ink,
+      color: colors.brand,
       fontFamily: typography.mono,
       fontWeight: '600',
     },
-    viewText: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: colors.brand,
-      fontFamily: typography.heading,
+    arrow: {
+      color: colors.inkWhisper,
+      fontSize: 20,
+      fontFamily: typography.mono,
     },
     center: {
       flex: 1,
@@ -152,7 +136,7 @@ export default function ExploreListScreen() {
       textAlign: 'center',
       fontFamily: typography.body,
     },
-  }), [colors, typography, shadows]);
+  }), [colors, typography, space]);
 
   const categoryId = params.categoryId ?? null;
   const itemType: ItemTypeParam = params.itemType === 'event' ? 'event' : 'place';
@@ -189,7 +173,7 @@ export default function ExploreListScreen() {
 
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={styles.itemRow}
         activeOpacity={0.8}
         onPress={() =>
           router.push({
@@ -198,21 +182,16 @@ export default function ExploreListScreen() {
           })
         }
       >
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-          <Ionicons name="chevron-forward" size={18} color={colors.inkWhisper} />
-        </View>
-        {subtitle ? <Text style={styles.cardSubtitle} numberOfLines={1}>{subtitle}</Text> : null}
-        
-        <View style={styles.cardFooter}>
+        <View style={styles.itemContent}>
+          <Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text>
+          {subtitle ? <Text style={styles.itemSubtitle} numberOfLines={1}>{subtitle}</Text> : null}
           {distance ? (
-            <View style={styles.distanceTag}>
-              <Ionicons name="navigate" size={12} color={colors.brand} />
+            <View style={styles.itemFooter}>
               <Text style={styles.distanceText}>{distance}</Text>
             </View>
-          ) : <View />}
-          <Text style={styles.viewText}>{t('common.view')} →</Text>
+          ) : null}
         </View>
+        <Text style={styles.arrow}>→</Text>
       </TouchableOpacity>
     );
   }
@@ -221,13 +200,13 @@ export default function ExploreListScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.7}>
-            <Ionicons name="chevron-back" size={22} color={colors.ink} />
-          </TouchableOpacity>
-          <View>
-            <Text style={styles.title}>{displayTitle}</Text>
-            <Text style={styles.counter}>{t('explore.showingPlaces', { count: items.length })}</Text>
+          <View style={styles.navBar}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.7}>
+              <Ionicons name="chevron-back" size={22} color={colors.ink} />
+            </TouchableOpacity>
           </View>
+          <Text style={styles.title}>{displayTitle}</Text>
+          <Text style={styles.counter}>{t('explore.showingPlaces', { count: items.length })}</Text>
         </View>
 
         {loading ? (

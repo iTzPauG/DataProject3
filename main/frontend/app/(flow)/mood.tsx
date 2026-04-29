@@ -19,13 +19,13 @@ import { useTheme } from '../../utils/theme';
 
 export default function MoodScreen() {
   const { t } = useTranslation();
-  const { colors, typography, shadows } = useTheme();
+  const { colors, typography, space } = useTheme();
   const { parentCategory, category, setMood } = useFlowState();
 
   const DEFAULT_MOODS = useMemo(() => [
-    { id: 'popular', label: t('flow.popular'), emoji: '🔥' },
-    { id: 'quiet', label: t('flow.quiet'), emoji: '🤫' },
-    { id: 'busy', label: t('flow.busy'), emoji: '🎉' },
+    { id: 'popular', label: t('flow.popular') },
+    { id: 'quiet', label: t('flow.quiet') },
+    { id: 'busy', label: t('flow.busy') },
   ], [t]);
 
   const styles = useMemo(() => StyleSheet.create({
@@ -42,49 +42,49 @@ export default function MoodScreen() {
     navBar: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 20,
-      paddingTop: 16,
-      paddingBottom: 8,
+      paddingHorizontal: space.lg,
+      paddingTop: space.xl,
+      paddingBottom: space.sm,
     },
     backButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       backgroundColor: colors.surface,
       alignItems: 'center',
       justifyContent: 'center',
-      ...shadows.soft,
       borderWidth: 1,
       borderColor: colors.stroke,
     },
     header: {
-      paddingHorizontal: 28,
-      paddingTop: 24,
-      paddingBottom: 16,
+      paddingHorizontal: space.xl,
+      paddingTop: space.xxxl,
+      paddingBottom: space.xl,
     },
     step: {
-      fontSize: 12,
+      fontSize: 11,
       fontWeight: '700',
       color: colors.brand,
-      letterSpacing: 1.5,
+      letterSpacing: 1.6,
       textTransform: 'uppercase',
-      marginBottom: 8,
-      fontFamily: typography.heading,
+      marginBottom: space.sm,
+      fontFamily: typography.mono,
     },
     title: {
-      fontSize: 32,
+      fontSize: 40,
       fontWeight: '800',
       color: colors.ink,
-      lineHeight: 38,
-      marginBottom: 10,
+      lineHeight: 44,
+      marginBottom: space.sm,
       fontFamily: typography.heading,
-      letterSpacing: -0.5,
+      letterSpacing: -0.8,
     },
     subtitle: {
-      fontSize: 16,
+      fontSize: 18,
       color: colors.inkMuted,
-      lineHeight: 24,
+      lineHeight: 26,
       fontFamily: typography.body,
+      letterSpacing: -0.1,
     },
     centered: {
       flex: 1,
@@ -92,18 +92,15 @@ export default function MoodScreen() {
       justifyContent: 'center',
     },
     scrollContent: {
-      paddingBottom: 40,
+      paddingBottom: space.hero,
     },
     chipsContainer: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      paddingHorizontal: 16,
+      paddingHorizontal: space.lg,
       gap: 12,
     },
-    chipWrapper: {
-      width: '48%',
-    },
-  }), [colors, typography, shadows]);
+  }), [colors, typography, space]);
 
   const [flow, setFlow] = useState<CategoryFlowResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -171,17 +168,16 @@ export default function MoodScreen() {
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={styles.chipsContainer}>
               {currentMoods.map((item, index) => (
-                <View key={item.id} style={styles.chipWrapper}>
-                  <ChoiceChip
-                    iconName={item.id}
-                    label={item.label}
-                    category={parentCategory ?? 'food'}
-                    selected={false}
-                    onPress={() => handleSelect(item.id)}
-                    halfWidth
-                    index={index}
-                  />
-                </View>
+                <ChoiceChip
+                  key={item.id}
+                  iconName={item.id}
+                  label={item.label}
+                  category={parentCategory ?? 'food'}
+                  selected={false}
+                  onPress={() => handleSelect(item.id)}
+                  halfWidth
+                  index={index}
+                />
               ))}
             </View>
           </ScrollView>

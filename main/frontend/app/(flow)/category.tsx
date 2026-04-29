@@ -12,15 +12,15 @@ import { useTheme } from '../../utils/theme';
 
 export default function CategoryScreen() {
   const { t } = useTranslation();
-  const { colors, typography, shadows } = useTheme();
+  const { colors, typography, space } = useTheme();
   const { categoryId } = useLocalSearchParams<{ categoryId?: string }>();
   const { reset, setCategory, setParentCategory } = useFlowState();
 
   const DEFAULT_OPTIONS = useMemo(() => [
-    { id: 'popular', label: t('flow.popular'), emoji: '🔥' },
-    { id: 'new', label: t('common.soon'), emoji: '✨' },
-    { id: 'nearby', label: t('home.locationNow'), emoji: '📍' },
-    { id: 'top_rated', label: t('placeDetails.theBest'), emoji: '⭐' },
+    { id: 'popular', label: t('flow.popular') },
+    { id: 'new', label: t('common.soon') },
+    { id: 'nearby', label: t('home.locationNow') },
+    { id: 'top_rated', label: t('placeDetails.theBest') },
   ], [t]);
 
   const styles = useMemo(() => StyleSheet.create({
@@ -37,49 +37,49 @@ export default function CategoryScreen() {
     navBar: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 20,
-      paddingTop: 16,
-      paddingBottom: 8,
+      paddingHorizontal: space.lg,
+      paddingTop: space.xl,
+      paddingBottom: space.sm,
     },
     backButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       backgroundColor: colors.surface,
       alignItems: 'center',
       justifyContent: 'center',
-      ...shadows.soft,
       borderWidth: 1,
       borderColor: colors.stroke,
     },
     header: {
-      paddingHorizontal: 28,
-      paddingTop: 24,
-      paddingBottom: 16,
+      paddingHorizontal: space.xl,
+      paddingTop: space.xxxl,
+      paddingBottom: space.xl,
     },
     step: {
-      fontSize: 12,
+      fontSize: 11,
       fontWeight: '700',
       color: colors.brand,
-      letterSpacing: 1.5,
+      letterSpacing: 1.6,
       textTransform: 'uppercase',
-      marginBottom: 8,
-      fontFamily: typography.heading,
+      marginBottom: space.sm,
+      fontFamily: typography.mono,
     },
     title: {
-      fontSize: 32,
+      fontSize: 40,
       fontWeight: '800',
       color: colors.ink,
-      lineHeight: 38,
-      marginBottom: 10,
+      lineHeight: 44,
+      marginBottom: space.sm,
       fontFamily: typography.heading,
-      letterSpacing: -0.5,
+      letterSpacing: -0.8,
     },
     subtitle: {
-      fontSize: 16,
+      fontSize: 18,
       color: colors.inkMuted,
-      lineHeight: 24,
+      lineHeight: 26,
       fontFamily: typography.body,
+      letterSpacing: -0.1,
     },
     centered: {
       flex: 1,
@@ -87,16 +87,12 @@ export default function CategoryScreen() {
       justifyContent: 'center',
     },
     scrollContent: {
-      paddingBottom: 40,
+      paddingBottom: space.hero,
     },
-    grid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      paddingHorizontal: 16,
-      paddingTop: 12,
-      gap: 12,
+    list: {
+      paddingTop: space.md,
     },
-  }), [colors, typography, shadows]);
+  }), [colors, typography, space]);
 
   const [flow, setFlow] = useState<CategoryFlowResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -155,7 +151,7 @@ export default function CategoryScreen() {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            <View style={styles.grid}>
+            <View style={styles.list}>
               {options.map((cat, i) => (
                 <ChoiceCard
                   key={cat.id}

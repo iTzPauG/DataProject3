@@ -16,25 +16,8 @@ import { useDeviceType } from '../hooks/useDeviceType';
 import { MapItem } from '../types/map';
 import { formatDistance } from '../utils/format';
 import { useTheme } from '../utils/theme';
-import GADOIcon from './GADOIcon';
+import CategoryMonogram from './CategoryMonogram';
 import Icon from './Icon';
-
-const CATEGORY_COLORS: Record<string, string> = {
-  food:       '#FF6B35',
-  restaurant: '#FF6B35',
-  nightlife:  '#3B82F6',
-  shopping:   '#10B981',
-  health:     '#EF4444',
-  nature:     '#22C55E',
-  culture:    '#F59E0B',
-  services:   '#94A3B8',
-  sport:      '#0EA5E9',
-  education:  '#8B5CF6',
-  event:      '#EC4899',
-  market:     '#F97316',
-  music:      '#A855F7',
-  report:     '#EF4444',
-};
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const COLLAPSED_HEIGHT = 100;
@@ -60,8 +43,7 @@ function NearbyItem({
   onNavigate: () => void;
 }) {
   const { t } = useTranslation();
-  const { colors, radii, typography, shadows } = useTheme();
-  const catColor = CATEGORY_COLORS[item.category_id] ?? colors.inkWhisper;
+  const { colors, typography, space } = useTheme();
   const rating = item.metadata?.rating as number | undefined;
   const distance = item.distance_m > 0 ? formatDistance(item.distance_m) : '';
 
@@ -69,25 +51,19 @@ function NearbyItem({
     itemRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 12,
-      paddingHorizontal: 12,
-      borderRadius: 18,
-      marginBottom: 6,
+      paddingVertical: space.md,
+      paddingHorizontal: space.md,
+      marginBottom: 1,
       backgroundColor: selected ? colors.surface : 'transparent',
-      borderWidth: 1,
-      borderColor: selected ? colors.strokeStrong : 'transparent',
-      ... (selected ? shadows.soft : {}),
+      borderBottomWidth: 1,
+      borderBottomColor: colors.stroke,
     },
     itemIconBox: {
-      width: 44,
-      height: 44,
-      borderRadius: 14,
+      width: 48,
+      height: 48,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.bg,
-      marginRight: 14,
-      borderWidth: 1,
-      borderColor: colors.stroke,
+      marginRight: space.md,
     },
     itemContent: {
       flex: 1,
@@ -97,7 +73,7 @@ function NearbyItem({
       fontWeight: '600',
       fontFamily: typography.heading,
       color: colors.ink,
-      marginBottom: 3,
+      marginBottom: 2,
     },
     itemMeta: {
       flexDirection: 'row',
@@ -107,7 +83,7 @@ function NearbyItem({
     itemRating: {
       fontSize: 12,
       fontWeight: '700',
-      color: '#FFB800',
+      color: colors.accent,
       fontFamily: typography.mono,
     },
     itemDistance: {
@@ -119,13 +95,13 @@ function NearbyItem({
     navBtn: {
       width: 36,
       height: 36,
-      borderRadius: 12,
+      borderRadius: 18,
       backgroundColor: colors.ink,
       alignItems: 'center',
       justifyContent: 'center',
       marginLeft: 8,
     }
-  }), [colors, radii, typography, selected, shadows]);
+  }), [colors, typography, selected, space]);
 
   return (
     <TouchableOpacity
@@ -134,7 +110,12 @@ function NearbyItem({
       activeOpacity={0.7}
     >
       <View style={styles.itemIconBox}>
-        <GADOIcon name={item.category_id || 'explore'} category={item.item_type as any} size={22} color={catColor} />
+        <CategoryMonogram 
+          categoryId={item.category_id} 
+          label={item.title} 
+          size={44} 
+          variant={selected ? 'filled' : 'ring'}
+        />
       </View>
       <View style={styles.itemContent}>
         <Text style={styles.itemTitle} numberOfLines={1}>
@@ -166,7 +147,7 @@ function NearbyItem({
 
 export default function NearbySheet({ items, selectedId, onSelectItem, loading, hasSearched }: Props) {
   const { t } = useTranslation();
-  const { colors, radii, shadows, typography } = useTheme();
+  const { colors, radii, shadows, typography, space } = useTheme();
   const { isDesktop } = useDeviceType();
   const [expanded, setExpanded] = useState(false);
   const animHeight = useRef(new Animated.Value(COLLAPSED_HEIGHT)).current;
@@ -188,22 +169,21 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
       borderTopLeftRadius: 32,
       borderTopRightRadius: 32,
       overflow: 'hidden',
-      ...shadows.lift,
       borderWidth: 1,
       borderColor: colors.stroke,
     },
     header: {
       alignItems: 'center',
-      paddingTop: 10,
-      paddingBottom: 14,
-      paddingHorizontal: 20,
+      paddingTop: space.sm,
+      paddingBottom: space.md,
+      paddingHorizontal: space.lg,
     },
     handle: {
       width: 40,
       height: 4,
       backgroundColor: colors.strokeStrong,
       borderRadius: 2,
-      marginBottom: 10,
+      marginBottom: space.sm,
     },
     headerText: {
       fontSize: 14,
@@ -213,10 +193,9 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
       letterSpacing: -0.1,
     },
     list: {
-      paddingHorizontal: 16,
-      paddingBottom: 30,
+      paddingBottom: 40,
     },
-  }), [colors, radii, shadows, typography]);
+  }), [colors, radii, shadows, typography, space]);
 
   const toggle = useCallback(() => {
     const toExpanded = !expanded;

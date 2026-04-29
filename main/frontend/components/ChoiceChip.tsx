@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
@@ -8,7 +8,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useTheme } from "../utils/theme";
-import GADOIcon from "./GADOIcon";
+import CategoryMonogram from "./CategoryMonogram";
 
 interface Props {
   label: string;
@@ -29,76 +29,76 @@ export default function ChoiceChip({
   halfWidth = false,
   index = 0,
 }: Props) {
-  const { colors, radii, typography } = useTheme();
-  const scale = useSharedValue(0.92);
+  const { colors, typography, space } = useTheme();
   const opacity = useSharedValue(0);
+  const translateY = useSharedValue(10);
 
-  const styles = useMemo(() => StyleSheet.create({
-    halfWidth: {
-      width: "48%",
+  const styles = React.useMemo(() => StyleSheet.create({
+    wrapper: {
+      width: halfWidth ? "48%" : "100%",
     },
-    chip: {
-      minHeight: 48,
-      borderRadius: radii.pill,
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.stroke,
+    container: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
+      paddingVertical: space.md,
+      paddingHorizontal: space.md,
+      borderRadius: 12,
+      backgroundColor: selected ? colors.surface : "transparent",
+      borderWidth: 1,
+      borderColor: selected ? colors.brand : colors.stroke,
     },
-    chipSelected: {
-      backgroundColor: colors.brand,
-      borderColor: colors.brand,
+    containerPressed: {
+      opacity: 0.8,
+      backgroundColor: colors.surface,
     },
-    chipPressed: {
-      opacity: 0.9,
+    content: {
+      flex: 1,
+      marginLeft: space.md,
     },
     label: {
-      color: colors.inkMuted,
+      color: colors.ink,
       fontSize: 14,
       fontWeight: "600",
-      fontFamily: typography.body,
+      fontFamily: typography.heading,
+      letterSpacing: -0.2,
     },
     labelSelected: {
-      color: colors.surface,
+      color: colors.brand,
     },
-  }), [colors, radii, typography]);
+  }), [colors, typography, space, selected, halfWidth]);
 
   useEffect(() => {
-    const delay = index * 50;
-    opacity.value = withDelay(delay, withTiming(1, { duration: 300 }));
-    scale.value = withDelay(delay, withSpring(1, { damping: 18, stiffness: 150 }));
-  }, [index, opacity, scale]);
+    const delay = index * 40;
+    opacity.value = withDelay(delay, withTiming(1, { duration: 400 }));
+    translateY.value = withDelay(delay, withSpring(0, { damping: 20, stiffness: 90 }));
+  }, [index, opacity, translateY]);
 
   const animStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
-    transform: [{ scale: scale.value }],
+    transform: [{ translateY: translateY.value }],
   }));
 
   return (
-    <Animated.View style={[halfWidth && styles.halfWidth, animStyle]}>
+    <Animated.View style={[styles.wrapper, animStyle]}>
       <Pressable onPress={onPress}>
         {({ pressed }) => (
           <View
             style={[
-              styles.chip,
-              selected && styles.chipSelected,
-              pressed && styles.chipPressed,
+              styles.container,
+              pressed && styles.containerPressed,
             ]}
           >
-            {iconName ? (
-              <GADOIcon
-                category={category}
-                name={iconName}
-                size={18}
-                color={selected ? colors.surface : colors.brand}
-              />
-            ) : null}
-            <Text style={[styles.label, selected && styles.labelSelected]}>{label}</Text>
+            <CategoryMonogram 
+              categoryId={iconName} 
+              label={label} 
+              size={36} 
+              variant={selected ? 'filled' : 'ring'}
+            />
+            <View style={styles.content}>
+              <Text style={[styles.label, selected && styles.labelSelected]} numberOfLines={1}>
+                {label}
+              </Text>
+            </View>
           </View>
         )}
       </Pressable>
