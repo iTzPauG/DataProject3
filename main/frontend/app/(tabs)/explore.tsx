@@ -267,7 +267,13 @@ export default function ExploreTab() {
             <View style={styles.masthead}>
               <Text style={styles.issueLine}>{t('explore.issueLine') || "Nº 01 · Índice de la ciudad"}</Text>
               <Text style={styles.masterHead}>
-                {randomVerb} {city || "València"}{'\n'}
+                {randomVerb}{' '}
+                {city ? (
+                  city
+                ) : (
+                  <ActivityIndicator size="small" color={colors.ink} />
+                )}
+                {'\n'}
                 <Text style={styles.masterHeadAccent}>{t('explore.masterHeadPart2') || "como un local."}</Text>
               </Text>
               <Text style={styles.deck}>
