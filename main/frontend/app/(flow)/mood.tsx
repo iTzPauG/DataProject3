@@ -171,7 +171,7 @@ export default function MoodScreen() {
                 <ChoiceChip
                   key={item.id}
                   iconName={item.id}
-                  label={item.label}
+                  label={t(`mood.${item.id}`, item.label)}
                   category={parentCategory ?? 'food'}
                   selected={false}
                   onPress={() => handleSelect(item.id)}

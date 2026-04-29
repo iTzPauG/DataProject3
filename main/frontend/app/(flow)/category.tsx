@@ -157,7 +157,7 @@ export default function CategoryScreen() {
                   key={cat.id}
                   iconName={cat.id}
                   category={flow?.category.id ?? categoryId ?? 'food'}
-                  label={cat.label}
+                  label={t(`subcategory.${cat.id}`, cat.label)}
                   selected={false}
                   onPress={() => handleSelect(cat.id)}
                   index={i}

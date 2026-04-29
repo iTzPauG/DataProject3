@@ -181,8 +181,6 @@ EDUCATION_SUBCATEGORY_SEED = [
     ("private_school", "education", "Privado", "🏫", 2),
     ("concerted_school", "education", "Concertado", "🤝", 3),
     ("special_education", "education", "Especial", "⭐", 4),
-    ("university", "education", "Universidad", "🎓", 5),
-    ("vocational_training", "education", "FP", "🛠️", 6),
 ]
 
 EDUCATION_MOOD_SEED = [

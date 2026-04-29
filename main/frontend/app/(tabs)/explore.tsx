@@ -224,6 +224,9 @@ export default function ExploreTab() {
       .finally(() => setLoading(false));
   }, []);
 
+  const getCategoryLabel = (category: ExploreCategory) =>
+    t(`category.${category.id}`, category.label.includes('.') ? t(category.label) : category.label);
+
   function handleCategoryPress(category: ExploreCategory) {
     if (category.active === false) {
       Alert.alert(t('common.soon'), t('explore.notAvailable'));
@@ -240,7 +243,7 @@ export default function ExploreTab() {
         params: {
           categoryId: category.id,
           itemType: 'event',
-          title: category.label,
+          title: getCategoryLabel(category),
         },
       });
       return;
@@ -349,7 +352,7 @@ export default function ExploreTab() {
                       activeOpacity={0.7}
                       onPress={() => handleCategoryPress(cat)}
                       accessibilityRole="button"
-                      accessibilityLabel={cat.label}
+                      accessibilityLabel={getCategoryLabel(cat)}
                       style={[
                         styles.row,
                         isLast && styles.rowLast,
@@ -359,12 +362,12 @@ export default function ExploreTab() {
                       <Text style={styles.rowNumber}>{number}</Text>
                       <CategoryMonogram
                         categoryId={cat.id}
-                        label={cat.label}
+                        label={getCategoryLabel(cat)}
                         size={40}
                         variant="ring"
                       />
                       <View style={styles.rowBody}>
-                        <Text style={styles.rowTitle}>{cat.label}</Text>
+                        <Text style={styles.rowTitle}>{getCategoryLabel(cat)}</Text>
                         {cat.description ? (
                           <Text style={styles.rowDescription} numberOfLines={2}>
                             {cat.description}
