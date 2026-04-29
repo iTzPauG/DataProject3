@@ -63,12 +63,20 @@ export function useLocation(): LocationState {
             },
             (loc: { coords: { latitude: number; longitude: number; accuracy: number | null } }) => {
               if (!cancelled) {
-                setLocation({
-                  lat: loc.coords.latitude,
-                  lng: loc.coords.longitude,
-                  accuracy: loc.coords.accuracy,
+                const { latitude, longitude, accuracy } = loc.coords;
+                setLocation((prev) => ({
+                  ...prev,
+                  lat: latitude,
+                  lng: longitude,
+                  accuracy: accuracy,
                   loading: false,
                   error: null,
+                }));
+
+                getCityName(latitude, longitude).then((city) => {
+                  if (!cancelled) {
+                    setLocation((prev) => ({ ...prev, city }));
+                  }
                 });
               }
             },
@@ -85,12 +93,20 @@ export function useLocation(): LocationState {
         const watchId = navigator.geolocation.watchPosition(
           (pos) => {
             if (!cancelled) {
-              setLocation({
-                lat: pos.coords.latitude,
-                lng: pos.coords.longitude,
-                accuracy: pos.coords.accuracy,
+              const { latitude, longitude, accuracy } = pos.coords;
+              setLocation((prev) => ({
+                ...prev,
+                lat: latitude,
+                lng: longitude,
+                accuracy: accuracy,
                 loading: false,
                 error: null,
+              }));
+
+              getCityName(latitude, longitude).then((city) => {
+                if (!cancelled) {
+                  setLocation((prev) => ({ ...prev, city }));
+                }
               });
             }
           },
