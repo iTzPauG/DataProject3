@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { castVote, VoteData } from "../services/api";
 import { useTheme } from "../utils/theme";
-import GADOIcon from "./GADOIcon";
+import WhimIcon from "./WhimIcon";
 
 interface Props {
   itemId: string;
@@ -141,7 +141,7 @@ export default function VoteButtons({
             ]}
             disabled={loading}
           >
-            <GADOIcon name="like" category="feedback" size={18} color={userVote === 1 ? colors.success : colors.inkMuted} />
+            <WhimIcon name="like" category="feedback" size={18} color={userVote === 1 ? colors.success : colors.inkMuted} />
             <Text style={[styles.buttonLabel, userVote === 1 && styles.likeLabelActive]}>Liked it</Text>
           </Pressable>
         </Animated.View>
@@ -156,7 +156,7 @@ export default function VoteButtons({
             ]}
             disabled={loading}
           >
-            <GADOIcon name="dislike" category="feedback" size={18} color={userVote === -1 ? colors.danger : colors.inkMuted} />
+            <WhimIcon name="dislike" category="feedback" size={18} color={userVote === -1 ? colors.danger : colors.inkMuted} />
             <Text style={[styles.buttonLabel, userVote === -1 && styles.dislikeLabelActive]}>Nope</Text>
           </Pressable>
         </Animated.View>

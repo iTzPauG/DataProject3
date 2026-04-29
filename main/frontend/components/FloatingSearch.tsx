@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { BASE_URL, getCurrentLocation } from '../services/api';
 import { useTheme } from '../utils/theme';
-import GADOIcon from './GADOIcon';
+import WhimIcon from './WhimIcon';
 import Icon from './Icon';
 
 function distKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -178,7 +178,7 @@ export const FloatingSearch = () => {
                 activeOpacity={0.72}
               >
                 <View style={[styles.iconBox, { backgroundColor: colors.bg, borderColor: colors.stroke, borderWidth: 1 }]}>
-                  <GADOIcon name={item.category_id ?? 'explore'} category={item.item_type as any} size={18} color={colors.brand} />
+                  <WhimIcon name={item.category_id ?? 'explore'} category={item.item_type as any} size={18} color={colors.brand} />
                 </View>
                 <View style={styles.resultInfo}>
                   <Text style={[styles.resultName, { color: colors.ink, fontFamily: typography.heading }]} numberOfLines={1}>

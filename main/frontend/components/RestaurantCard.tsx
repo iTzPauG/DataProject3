@@ -12,7 +12,7 @@ import { VoteData } from "../services/api";
 import { Restaurant } from "../types/restaurant";
 import { formatDistance, formatRating, formatReviews } from "../utils/format";
 import { useTheme } from "../utils/theme";
-import GADOIcon from "./GADOIcon";
+import WhimIcon from "./WhimIcon";
 import VoteButtons from "./VoteButtons";
 
 interface Props {
@@ -212,7 +212,7 @@ export default function RestaurantCard({
           <Image source={{ uri: restaurant.photoUrl }} style={styles.heroImage} resizeMode="cover" />
         ) : (
           <View style={styles.heroPlaceholder}>
-            <GADOIcon name="restaurant" category="food" size={34} color={colors.brand} accessibilityLabel="Marcador de posición de restaurante" />
+            <WhimIcon name="restaurant" category="food" size={34} color={colors.brand} accessibilityLabel="Marcador de posición de restaurante" />
           </View>
         )}
         <View style={styles.ratingBadge} accessibilityLabel={`Puntuación ${formatRating(restaurant.rating)}`}>
@@ -242,13 +242,13 @@ export default function RestaurantCard({
   {(pros || []).length > 0 ? (
     pros.map((pro, i) => (
       <View key={`pro-${i}`} style={styles.signalRow}>
-        <GADOIcon name="like" category="feedback" size={14} color={colors.success} accessibilityLabel="Punto positivo" />
+        <WhimIcon name="like" category="feedback" size={14} color={colors.success} accessibilityLabel="Punto positivo" />
         {renderBoldText(pro, styles.signalGood, 1)}
       </View>
     ))
   ) : (
     <View style={styles.signalRow}>
-      <GADOIcon name="like" category="feedback" size={14} color={colors.success} />
+      <WhimIcon name="like" category="feedback" size={14} color={colors.success} />
       <Text style={styles.signalGood} numberOfLines={1}>Analizando puntos fuertes...</Text>
     </View>
   )}
@@ -256,7 +256,7 @@ export default function RestaurantCard({
   {(cons || []).length > 0 ? (
     cons.map((con, i) => (
       <View key={`con-${i}`} style={styles.signalRow}>
-        <GADOIcon name="warning" category="feedback" size={14} color={colors.warning} accessibilityLabel="Punto de atención" />
+        <WhimIcon name="warning" category="feedback" size={14} color={colors.warning} accessibilityLabel="Punto de atención" />
         {renderBoldText(con, styles.signalBad, 1)}
       </View>
     ))
