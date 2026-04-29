@@ -58,7 +58,9 @@
     "errorRegister": "Error al registrarse"
   },
   "tabs": {
-    "explore": "Explorar",
+    "wellness": "Bienestar",
+    "pets": "Mascotas",
+    "automotive": "Automoción",
     "report": "Reportar",
     "profile": "Perfil",
     "saved": "Guardados",
@@ -158,16 +160,15 @@
     "whimTake": "WHIM's Take",
     "bookmarkSignInHint": "Inicia sesión para guardar tus sitios favoritos."
   },
-  "liveData": {
-    "notAvailable": "Precios no disponibles",
-    "realtime": "Info en tiempo real",
-    "fuelPrices": "Precios del combustible",
-    "pharmacyDuty": "Farmacia de guardia",
-    "cinemaShowtimes": "Cartelera de hoy",
-    "evCharging": "Carga eléctrica",
-    "weatherNow": "El tiempo ahora",
-    "viewFullSchedule": "Ver horarios completos"
-  },
+    "fuel": {
+      "gasolina_95": "Gasolina 95",
+      "gasolina_98": "Gasolina 98",
+      "gasoleo_a": "Diésel",
+      "gasoleo_premium": "Diésel Premium",
+      "glp": "GLP",
+      "gas_natural": "Gas Natural",
+      "hidrogeno": "Hidrógeno"
+    },
   "eventDetails": {
     "notFound": "Evento no encontrado"
   },
@@ -221,7 +222,9 @@
     "music": "Música",
     "report": "Aviso",
     "cinema": "Cine",
-    "explore": "Explorar"
+    "wellness": "Bienestar",
+    "pets": "Mascotas",
+    "automotive": "Automoción"
   },
   "vote": {
     "liked": "Me gustó",

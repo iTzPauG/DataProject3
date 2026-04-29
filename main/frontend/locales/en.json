@@ -59,6 +59,9 @@
   },
   "tabs": {
     "explore": "Explore",
+    "wellness": "Wellness",
+    "pets": "Pets",
+    "automotive": "Automotive",
     "report": "Report",
     "profile": "Profile",
     "saved": "Saved",
@@ -158,16 +161,15 @@
     "whimTake": "WHIM's Take",
     "bookmarkSignInHint": "Sign in to save your favorite places."
   },
-  "liveData": {
-    "notAvailable": "Price info not available",
-    "realtime": "Real-time info",
-    "fuelPrices": "Fuel prices",
-    "pharmacyDuty": "Pharmacy on duty",
-    "cinemaShowtimes": "Today's showtimes",
-    "evCharging": "EV charging",
-    "weatherNow": "Weather now",
-    "viewFullSchedule": "View full schedule"
-  },
+    "fuel": {
+      "gasolina_95": "Gasoline 95",
+      "gasolina_98": "Gasoline 98",
+      "gasoleo_a": "Diesel",
+      "gasoleo_premium": "Premium Diesel",
+      "glp": "LPG",
+      "gas_natural": "Natural Gas",
+      "hidrogeno": "Hydrogen"
+    },
   "eventDetails": {
     "notFound": "Event not found"
   },
@@ -221,7 +223,10 @@
     "music": "Music",
     "report": "Alert",
     "cinema": "Cinema",
-    "explore": "Explore"
+    "explore": "Explore",
+    "wellness": "Wellness",
+    "pets": "Pets",
+    "automotive": "Automotive"
   },
   "vote": {
     "liked": "Liked it",

@@ -122,7 +122,7 @@ function FuelPricesBlock({ data }: { data: LiveDataResult }) {
             <Text style={styles.priceValue}>
               {(data.prices![key as keyof typeof data.prices] as number).toFixed(3)} €
             </Text>
-            <Text style={styles.priceLabel}>{FUEL_LABELS[key]}</Text>
+            <Text style={styles.priceLabel}>{t(`fuel.${key}`)}</Text>
           </View>
         ))}
       </View>

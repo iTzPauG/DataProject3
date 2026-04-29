@@ -16,19 +16,19 @@ const BASE_URL = getBaseUrl();
 
 // Shared fallback — single source of truth for category definitions
 export const FALLBACK_CATEGORIES: Category[] = [
-  { id: 'food', label: 'Comida y bebida', icon: '🍴', color: '#FF6B35', sort_order: 1, is_active: true },
-  { id: 'nightlife', label: 'Ocio nocturno', icon: '🌙', color: '#3B82F6', sort_order: 2, is_active: true },
-  { id: 'shopping', label: 'Compras', icon: '🛒', color: '#10B981', sort_order: 3, is_active: true },
-  { id: 'health', label: 'Salud y farmacias', icon: '💊', color: '#EF4444', sort_order: 4, is_active: true },
-  { id: 'nature', label: 'Naturaleza y parques', icon: '🌿', color: '#22C55E', sort_order: 5, is_active: true },
-  { id: 'culture', label: 'Cultura y museos', icon: '🎭', color: '#F59E0B', sort_order: 6, is_active: true },
-  { id: 'sport', label: 'Deporte', icon: '⚽', color: '#0EA5E9', sort_order: 7, is_active: true },
-  { id: 'cinema', label: 'Cine', icon: '🎬', color: '#EF4444', sort_order: 8, is_active: true },
-  { id: 'wellness', label: 'Bienestar', icon: '🧘', color: '#8B5CF6', sort_order: 9, is_active: true },
-  { id: 'services', label: 'Servicios', icon: '🛠️', color: '#94A3B8', sort_order: 10, is_active: true },
-  { id: 'education', label: 'Educación', icon: '📚', color: '#8B5CF6', sort_order: 11, is_active: true },
-  { id: 'pets', label: 'Mascotas', icon: '🐾', color: '#6366F1', sort_order: 12, is_active: true },
-  { id: 'automotive', label: 'Automoción', icon: '🚗', color: '#475569', sort_order: 13, is_active: true },
+  { id: 'food', label: 'category.food', icon: '🍴', color: '#FF6B35', sort_order: 1, is_active: true },
+  { id: 'nightlife', label: 'category.nightlife', icon: '🌙', color: '#3B82F6', sort_order: 2, is_active: true },
+  { id: 'shopping', label: 'category.shopping', icon: '🛒', color: '#10B981', sort_order: 3, is_active: true },
+  { id: 'health', label: 'category.health', icon: '💊', color: '#EF4444', sort_order: 4, is_active: true },
+  { id: 'nature', label: 'category.nature', icon: '🌿', color: '#22C55E', sort_order: 5, is_active: true },
+  { id: 'culture', label: 'category.culture', icon: '🎭', color: '#F59E0B', sort_order: 6, is_active: true },
+  { id: 'sport', label: 'category.sport', icon: '⚽', color: '#0EA5E9', sort_order: 7, is_active: true },
+  { id: 'cinema', label: 'category.cinema', icon: '🎬', color: '#EF4444', sort_order: 8, is_active: true },
+  { id: 'wellness', label: 'category.wellness', icon: '🧘', color: '#8B5CF6', sort_order: 9, is_active: true },
+  { id: 'services', label: 'category.services', icon: '🛠️', color: '#94A3B8', sort_order: 10, is_active: true },
+  { id: 'education', label: 'category.education', icon: '📚', color: '#8B5CF6', sort_order: 11, is_active: true },
+  { id: 'pets', label: 'category.pets', icon: '🐾', color: '#6366F1', sort_order: 12, is_active: true },
+  { id: 'automotive', label: 'category.automotive', icon: '🚗', color: '#475569', sort_order: 13, is_active: true },
 ];
 
 export async function fetchCategories(): Promise<Category[]> {
