@@ -22,6 +22,15 @@
     "exit": "Exit",
     "live": "LIVE"
   },
+  "splash": {
+    "slogans": [
+      "Your next adventure starts here",
+      "Discover the best spots",
+      "Your trusted local guide",
+      "Explore, vote and share",
+      "The best of the city at a click"
+    ]
+  },
   "auth": {
     "welcome": "Welcome",
     "signInSubtitle": "Sign in to continue",

@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import Animated, {
   Easing,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -22,19 +23,12 @@ import { useTranslation } from 'react-i18next';
 const { width } = Dimensions.get('window');
 const LOGO_SIZE = Math.min(width * 0.38, 150);
 
-const SLOGANS = [
-  "Tu próxima aventura comienza aquí",
-  "Descubre los mejores rincones",
-  "Tu guía local de confianza",
-  "Explora, vota y comparte",
-  "Lo mejor de la ciudad a un clic",
-];
-
 export default function SplashScreen() {
   const { colors, typography } = useTheme();
   const { t } = useTranslation();
   const { city } = useLocation();
   
+  const slogans = useMemo(() => t('splash.slogans', { returnObjects: true }) as string[] || [], [t]);
   const exploreVerbs = useMemo(() => t('explore.exploreVerbs', { returnObjects: true }) as string[], [t]);
   const randomVerb = useMemo(() => {
     if (Array.isArray(exploreVerbs) && exploreVerbs.length > 0) {
@@ -141,16 +135,20 @@ export default function SplashScreen() {
     dot2.value = pulseDot(200);
     dot3.value = pulseDot(400);
 
-    // Slogan Rotation Logic
-    const sloganInterval = setInterval(() => {
-      sloganOpacity.value = withSequence(
-        withTiming(0, { duration: 400 }),
-        withTiming(1, { duration: 400 })
-      );
-      setTimeout(() => {
-        setCurrentSloganIndex((prev) => (prev + 1) % SLOGANS.length);
-      }, 400);
-    }, 3000);
+    // Slogan Rotation Logic - Clean Reanimated approach
+    let sloganInterval: NodeJS.Timeout;
+    if (slogans.length > 1) {
+      sloganInterval = setInterval(() => {
+        sloganOpacity.value = withSequence(
+          withTiming(0, { duration: 400 }, (finished) => {
+            if (finished) {
+              runOnJS(setCurrentSloganIndex)((prev) => (prev + 1) % slogans.length);
+            }
+          }),
+          withTiming(1, { duration: 400 })
+        );
+      }, 3000);
+    }
 
     // Phase 5: Fade out and navigate
     const navTimer = setTimeout(() => {
@@ -162,9 +160,9 @@ export default function SplashScreen() {
 
     return () => {
       clearTimeout(navTimer);
-      clearInterval(sloganInterval);
+      if (sloganInterval) clearInterval(sloganInterval);
     };
-  }, []);
+  }, [slogans.length]);
 
   const logoStyle = useAnimatedStyle(() => ({
     opacity: logoOpacity.value,
@@ -189,15 +187,15 @@ export default function SplashScreen() {
     opacity: sloganOpacity.value,
   }));
 
-  const makeDotStyle = (sv: Animated.SharedValue<number>) =>
+  const useDotStyle = (sv: Animated.SharedValue<number>) =>
     useAnimatedStyle(() => ({
       opacity: sv.value,
       transform: [{ scale: 0.6 + sv.value * 0.6 }],
     }));
 
-  const dot1Style = makeDotStyle(dot1);
-  const dot2Style = makeDotStyle(dot2);
-  const dot3Style = makeDotStyle(dot3);
+  const dot1Style = useDotStyle(dot1);
+  const dot2Style = useDotStyle(dot2);
+  const dot3Style = useDotStyle(dot3);
 
   const containerStyle = useAnimatedStyle(() => ({
     opacity: containerOpacity.value,
@@ -211,6 +209,7 @@ export default function SplashScreen() {
             source={require('../assets/gado-logo.png')}
             style={styles.logo}
             resizeMode="contain"
+            accessibilityLabel="GADO Logo"
           />
         </Animated.View>
 
@@ -225,7 +224,7 @@ export default function SplashScreen() {
 
         <Animated.View style={[tagStyle, sloganStyle]}>
           <Animated.Text style={dynamicStyles.tagline}>
-            {SLOGANS[currentSloganIndex]}
+            {slogans[currentSloganIndex]}
           </Animated.Text>
         </Animated.View>
 

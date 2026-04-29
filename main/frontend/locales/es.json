@@ -22,6 +22,15 @@
     "exit": "Salir",
     "live": "EN VIVO"
   },
+  "splash": {
+    "slogans": [
+      "Tu próxima aventura comienza aquí",
+      "Descubre los mejores rincones",
+      "Tu guía local de confianza",
+      "Explora, vota y comparte",
+      "Lo mejor de la ciudad a un clic"
+    ]
+  },
   "auth": {
     "welcome": "Bienvenido",
     "signInSubtitle": "Inicia sesión para continuar",
