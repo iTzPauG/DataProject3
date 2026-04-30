@@ -13,7 +13,16 @@ resource "null_resource" "docker_build_push" {
   depends_on = [google_artifact_registry_repository.frontend]
 
   triggers = {
-    src_hash = sha256(join("", [for f in sort(fileset("${path.module}/../../../main/frontend/src", "**")) : filesha256("${path.module}/../../../main/frontend/src/${f}")]))
+    src_hash = sha256(join("", [
+      for f in sort(concat(
+        [for f in fileset("${path.module}/../../../main/frontend/app",        "**") : "app/${f}"],
+        [for f in fileset("${path.module}/../../../main/frontend/components",  "**") : "components/${f}"],
+        [for f in fileset("${path.module}/../../../main/frontend/services",    "**") : "services/${f}"],
+        [for f in fileset("${path.module}/../../../main/frontend/hooks",       "**") : "hooks/${f}"],
+        [for f in fileset("${path.module}/../../../main/frontend/utils",       "**") : "utils/${f}"],
+        [for f in fileset("${path.module}/../../../main/frontend/constants",   "**") : "constants/${f}"],
+      )) : filesha256("${path.module}/../../../main/frontend/${f}")
+    ]))
     backend_url = var.backend_url
   }
 
