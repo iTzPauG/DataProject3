@@ -86,9 +86,9 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="prueba"
+        name="mesa"
         options={{
-          title: 'Prueba',
+          title: 'Mesa',
           tabBarIcon: ({ color, size, focused }) => (
             <View style={focused ? dynamicStyles.activeIconContainer : undefined}>
               <GADOIcon name="restaurant" size={size} color={color} />

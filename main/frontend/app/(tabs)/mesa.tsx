@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
 import { useTheme } from '../../utils/theme';
 
-export default function PruebaTab() {
+export default function MesaTab() {
   const { colors } = useTheme();
 
   return (
