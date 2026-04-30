@@ -53,6 +53,7 @@ module "cloud_run" {
   source               = "./modules/cloud_run"
   region               = var.region
   project_id           = var.project_id
+  workspace            = terraform.workspace
   image                = module.registry.image
   build_id             = module.registry.build_id
   cloud_sql_connection = module.cloud_sql.connection_name
@@ -83,6 +84,7 @@ module "registry_frontend" {
 module "cloud_run_frontend" {
   source                       = "./modules/cloud_run_frontend"
   region                       = var.region
+  workspace                    = terraform.workspace
   image                        = module.registry_frontend.image
   build_id                     = module.registry_frontend.build_id
   project_id                   = var.project_id

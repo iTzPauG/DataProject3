@@ -40,7 +40,7 @@ export default function CategoryMonogram({
   const letter = monogramFor(label);
 
   const isFilled = variant === 'filled';
-  const stroke = Math.max(1, Math.round(size * 0.04));
+  const stroke = 1;
 
   return (
     <View

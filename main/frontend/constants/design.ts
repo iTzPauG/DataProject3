@@ -74,24 +74,24 @@ const lightColors = {
 // monogram ring stroke.  They are pulled toward the same chroma value so a
 // whole screen of categories reads as one family, not a rainbow.
 export const categoryAccents: Record<string, string> = {
-  food: "#C97A5C",         // terracotta
-  restaurant: "#C97A5C",
-  nightlife: "#8A7ED6",    // muted violet
-  shopping: "#B79958",     // olive gold
-  health: "#7FB098",       // sage
-  nature: "#88A878",       // moss
-  culture: "#C28A5E",      // rust
-  sport: "#6E9DB8",        // pool blue
-  cinema: "#9C7BB0",       // lilac
-  event: "#D2A257",        // warm amber
-  market: "#C98E6A",       // clay
-  music: "#8088BC",        // dusk indigo
-  services: "#808494",     // slate
-  pets: "#B38F6D",         // leather
-  automotive: "#7A7F8E",
-  education: "#A09170",
-  wellness: "#B5A2C8",
-  coworking: "#7A8FA6",
+  food: "#A6867A",         // desaturated terracotta
+  restaurant: "#A6867A",
+  nightlife: "#8580A6",    // desaturated violet
+  shopping: "#9C9076",     // desaturated olive gold
+  health: "#7E968B",       // desaturated sage
+  nature: "#82917C",       // desaturated moss
+  culture: "#A18875",      // desaturated rust
+  sport: "#7B8E99",        // desaturated pool blue
+  cinema: "#8E7D96",       // desaturated lilac
+  event: "#A69275",        // desaturated warm amber
+  market: "#A68E80",       // desaturated clay
+  music: "#7B7F96",        // desaturated dusk indigo
+  services: "#7A7C85",     // desaturated slate
+  pets: "#948272",         // desaturated leather
+  automotive: "#757780",
+  education: "#8A8270",
+  wellness: "#9288A1",
+  coworking: "#76818C",
   default: "#6C63E8",
 };
 
