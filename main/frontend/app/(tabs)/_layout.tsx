@@ -97,6 +97,17 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="hola"
+        options={{
+          title: 'Hola',
+          tabBarIcon: ({ color, size, focused }) => (
+            <View style={focused ? dynamicStyles.activeIconContainer : undefined}>
+              <GADOIcon name="explore" size={size} color={color} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="report"
         options={{ href: null }}
       />
