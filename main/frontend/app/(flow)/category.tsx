@@ -12,7 +12,7 @@ import { useTheme } from '../../utils/theme';
 
 export default function CategoryScreen() {
   const { t } = useTranslation();
-  const { colors, typography, space } = useTheme();
+  const { colors, typography, space, radii } = useTheme();
   const { categoryId } = useLocalSearchParams<{ categoryId?: string }>();
   const { reset, setCategory, setParentCategory } = useFlowState();
 
@@ -53,7 +53,7 @@ export default function CategoryScreen() {
     },
     header: {
       paddingHorizontal: space.xl,
-      paddingTop: space.xxxl,
+      paddingTop: space.hero,
       paddingBottom: space.xl,
     },
     step: {
@@ -89,10 +89,41 @@ export default function CategoryScreen() {
     scrollContent: {
       paddingBottom: space.hero,
     },
-    list: {
-      paddingTop: space.md,
+    grid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      paddingHorizontal: space.xl,
+      gap: space.sm,
     },
-  }), [colors, typography, space]);
+    gridItem: {
+      borderWidth: 1,
+      borderColor: colors.stroke,
+      padding: space.lg,
+      borderRadius: radii.md,
+      justifyContent: 'space-between',
+    },
+    gridItemFull: {
+      width: '100%',
+      minHeight: 140,
+      backgroundColor: colors.surface,
+    },
+    gridItemHalf: {
+      flex: 1,
+      minWidth: '45%',
+      minHeight: 120,
+    },
+    gridLabel: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.ink,
+      fontFamily: typography.heading,
+      letterSpacing: -0.2,
+    },
+    gridLabelLarge: {
+      fontSize: 22,
+      letterSpacing: -0.4,
+    },
+  }), [colors, typography, space, radii]);
 
   const [flow, setFlow] = useState<CategoryFlowResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -151,18 +182,33 @@ export default function CategoryScreen() {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            <View style={styles.list}>
-              {options.map((cat, i) => (
-                <ChoiceCard
-                  key={cat.id}
-                  iconName={cat.id}
-                  category={flow?.category.id ?? categoryId ?? 'food'}
-                  label={t(`subcategory.${cat.id}`, cat.label)}
-                  selected={false}
-                  onPress={() => handleSelect(cat.id)}
-                  index={i}
-                />
-              ))}
+            <View style={styles.grid}>
+              {options.map((cat, i) => {
+                const isFull = i % 3 === 0;
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    onPress={() => handleSelect(cat.id)}
+                    activeOpacity={0.8}
+                    style={[
+                      styles.gridItem,
+                      isFull ? styles.gridItemFull : styles.gridItemHalf
+                    ]}
+                  >
+                    <CategoryMonogram
+                      categoryId={flow?.category.id ?? categoryId ?? 'food'}
+                      label={cat.label}
+                      size={isFull ? 56 : 40}
+                    />
+                    <Text 
+                      style={[styles.gridLabel, isFull && styles.gridLabelLarge]}
+                      numberOfLines={2}
+                    >
+                      {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </ScrollView>
         )}

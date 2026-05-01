@@ -4,7 +4,7 @@ resource "google_service_account" "cloud_run" {
 }
 
 resource "google_cloud_run_v2_service" "api" {
-  name     = "restaurant-api"
+  name     = "restaurant-api-${var.workspace}"
   location = var.region
 
   template {

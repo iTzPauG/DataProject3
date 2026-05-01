@@ -2,6 +2,7 @@ variable "region" {}
 variable "image" {}
 variable "build_id" {}
 variable "project_id" {}
+variable "workspace" { default = "default" }
 variable "firebase_api_key" { sensitive = true }
 variable "firebase_auth_domain" {}
 variable "firebase_project_id" {}
