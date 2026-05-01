@@ -407,6 +407,12 @@ function sanitize(raw: Record<string, unknown>): Restaurant {
   const id = String(raw.id ?? raw.place_id ?? '');
   const clamp = (n: number, lo: number, hi: number) =>
     Math.max(lo, Math.min(hi, n));
+  const reviewSourcesRaw =
+    typeof raw.reviewSources === 'object' && raw.reviewSources !== null
+      ? raw.reviewSources as Record<string, unknown>
+      : typeof raw.review_sources === 'object' && raw.review_sources !== null
+        ? raw.review_sources as Record<string, unknown>
+        : null;
   const rawPhotoUrl = String(
     raw.photoUrl ??
     raw.photo_url ??
@@ -442,8 +448,19 @@ function sanitize(raw: Record<string, unknown>): Restaurant {
           rating: Number(review.rating ?? 0),
           text: String(review.text ?? ''),
           relative_time: String(review.relative_time ?? ''),
+          source:
+            review.source === 'google' || review.source === 'yelp' || review.source === 'tripadvisor'
+              ? review.source as 'google' | 'yelp' | 'tripadvisor'
+              : undefined,
         }))
       : [],
+    reviewSources: reviewSourcesRaw
+      ? {
+          google: Math.max(0, Math.round(Number(reviewSourcesRaw.google ?? 0))),
+          yelp: Math.max(0, Math.round(Number(reviewSourcesRaw.yelp ?? 0))),
+          tripadvisor: Math.max(0, Math.round(Number(reviewSourcesRaw.tripadvisor ?? 0))),
+        }
+      : undefined,
     liveData:           typeof raw.liveData === 'object' && raw.liveData !== null ? raw.liveData as Record<string, any> : undefined,
   };
 }

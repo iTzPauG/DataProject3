@@ -272,6 +272,8 @@ async def search_places(
             },
             # Reviews available directly — no extra API call needed
             "google_reviews": reviews,
+            "yelp_reviews": [],
+            "tripadvisor_reviews": [],
             # AI digest of ALL reviews — much richer than just 5 texts
             "review_summary": review_summary,
         })
@@ -311,19 +313,19 @@ def _review_languages_for_place(language: str, max_languages: int = 5) -> list[s
     return ordered[:max_languages]
 
 
-async def get_place_details(place_id: str, language: str = "es") -> dict | None:
+async def get_place_details(place_id: str, language: str = "es", include_yelp: bool = True) -> dict | None:
     """Fetch detailed info for a Google place.
     
     Acts as a 'brain' to get the best review coverage by querying Google Places
     concurrently in up to 5 different languages. The primary result uses the
     app/request language so the visible place data stays aligned with the UI.
-    Yelp is optional enrichment only; if it fails, Google still drives the result.
+    Yelp enrichment is optional and can be disabled by callers that fetch it separately.
     """
     if not GOOGLE_MAPS_API_KEY:
         return None
 
     # Cache for 24 hours — reviews and details are stable enough
-    cache_key = f"gp_details_v3:{place_id}:{language}"
+    cache_key = f"gp_details_v3:{place_id}:{language}:{int(include_yelp)}"
     cached = await cache_get(cache_key)
     if cached:
         return cached
@@ -391,29 +393,30 @@ async def get_place_details(place_id: str, language: str = "es") -> dict | None:
         log.warning("Google Place details error: %s", exc)
         return None
 
-    try:
-        yelp_reviews = await get_yelp_reviews(
-            name=data.get("displayName", {}).get("text", ""),
-            lat=float(data.get("location", {}).get("latitude") or 0.0),
-            lng=float(data.get("location", {}).get("longitude") or 0.0),
-            address=data.get("formattedAddress", ""),
-            language=language,
-        )
-    except Exception as exc:
-        log.info("Yelp enrichment failed for %s: %s", place_id, exc)
-        yelp_reviews = []
+    if include_yelp:
+        try:
+            yelp_reviews = await get_yelp_reviews(
+                name=data.get("displayName", {}).get("text", ""),
+                lat=float(data.get("location", {}).get("latitude") or 0.0),
+                lng=float(data.get("location", {}).get("longitude") or 0.0),
+                address=data.get("formattedAddress", ""),
+                language=language,
+            )
+        except Exception as exc:
+            log.info("Yelp enrichment failed for %s: %s", place_id, exc)
+            yelp_reviews = []
 
-    for r in yelp_reviews:
-        txt = " ".join(str(r.get("text", "")).strip().lower().split())
-        fingerprint = (
-            str(r.get("author", "")).strip().lower(),
-            int(r.get("rating") or 0),
-            str(r.get("source_language", "")).strip().lower(),
-            txt,
-        )
-        if txt and fingerprint not in seen_reviews:
-            seen_reviews.add(fingerprint)
-            all_reviews.append(r)
+        for r in yelp_reviews:
+            txt = " ".join(str(r.get("text", "")).strip().lower().split())
+            fingerprint = (
+                str(r.get("author", "")).strip().lower(),
+                int(r.get("rating") or 0),
+                str(r.get("source_language", "")).strip().lower(),
+                txt,
+            )
+            if txt and fingerprint not in seen_reviews:
+                seen_reviews.add(fingerprint)
+                all_reviews.append(r)
 
     photos = data.get("photos", [])
     photo_url = _photo_proxy_url(photos[0]["name"]) if photos else ""
@@ -430,6 +433,7 @@ async def get_place_details(place_id: str, language: str = "es") -> dict | None:
         "opening_hours": data.get("regularOpeningHours", {}),
         "google_reviews": all_reviews,
         "yelp_reviews": yelp_reviews,
+        "tripadvisor_reviews": [],
         "review_summary": _extract_review_summary(data),
     }
 
@@ -465,3 +469,4 @@ async def get_photo_bytes(photo_name: str, max_width: int = 800) -> bytes | None
     except Exception as exc:
         log.warning("Google photo fetch error: %s", exc)
         return None
+

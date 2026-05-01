@@ -3,6 +3,7 @@ Place search tools — Google Places API (New).
 All functions double as ADK tools (docstring = tool description for the LLM).
 """
 
+import asyncio
 import logging
 import math
 import time
@@ -186,6 +187,7 @@ async def search_places(
                     # Reviews from search — up to 5 per place, no extra API call
                     "google_reviews": r.get("google_reviews", []),
                     "yelp_reviews": r.get("yelp_reviews", []),
+                    "tripadvisor_reviews": r.get("tripadvisor_reviews", []),
                     # AI digest of ALL reviews — primary signal for LLM enrichment
                     "review_summary": r.get("review_summary", ""),
                 }
@@ -223,33 +225,113 @@ async def get_place_details(place_id: str, photo_reference: str = "", language: 
     """Fetch phone number, photo URL, and reviews for a place."""
     try:
         from services.google_places_service import get_place_details as gp_details
-        google_data = await gp_details(place_id, language=language)
+        google_data = await gp_details(place_id, language=language, include_yelp=False)
         if google_data:
             return google_data
     except Exception:
         pass
 
     return {
+        "name": "",
+        "address": "",
         "phone": "",
+        "website": "",
         "photo_url": "",
+        "rating": None,
+        "user_rating_count": None,
         "google_reviews": [],
         "yelp_reviews": [],
+        "tripadvisor_reviews": [],
         "review_summary": "",
     }
 
 
+def _normalize_reviews(raw_reviews: object, source: str) -> list[dict]:
+    if not isinstance(raw_reviews, list):
+        return []
+
+    normalized: list[dict] = []
+    for review in raw_reviews:
+        if not isinstance(review, dict):
+            continue
+        text = str(review.get("text") or "").strip()
+        if not text:
+            continue
+        normalized.append(
+            {
+                "source": source,
+                "author": str(review.get("author") or "Anonymous"),
+                "rating": int(review.get("rating") or 0),
+                "text": text,
+                "relative_time": str(review.get("relative_time") or ""),
+            }
+        )
+    return normalized
+
+
 async def fetch_all_reviews(place_id: str, name: str, lat: float, lng: float, language: str = "es") -> dict:
-    """Fetch reviews for a place. If reviews were already fetched inline, this is a no-op."""
+    """Fetch Google, Yelp, and TripAdvisor reviews in parallel."""
     t0 = time.perf_counter()
-    details = await get_place_details(place_id, language=language)
     safe_name = str(name or "Unknown")
-    log.info("[C] %-30s → Details fetched in %.2fs", safe_name[:25], time.perf_counter() - t0)
+
+    from services.tripadvisor_service import get_tripadvisor_reviews
+    from services.yelp_service import get_yelp_reviews
+
+    details_result, yelp_result, tripadvisor_result = await asyncio.gather(
+        get_place_details(place_id, language=language),
+        get_yelp_reviews(name=safe_name, lat=lat, lng=lng, language=language),
+        get_tripadvisor_reviews(name=safe_name, lat=lat, lng=lng, language=language),
+        return_exceptions=True,
+    )
+
+    details: dict = {}
+    if isinstance(details_result, Exception):
+        log.warning("[C'] Google details failed for %s: %s", safe_name, details_result)
+    elif isinstance(details_result, dict):
+        details = details_result
+
+    if isinstance(yelp_result, Exception):
+        log.info("[C'] Yelp enrichment failed for %s: %s", safe_name, yelp_result)
+        yelp_reviews: list[dict] = []
+    else:
+        yelp_reviews = _normalize_reviews(yelp_result, "yelp")
+
+    if isinstance(tripadvisor_result, Exception):
+        log.info("[C'] TripAdvisor enrichment failed for %s: %s", safe_name, tripadvisor_result)
+        tripadvisor_reviews: list[dict] = []
+    else:
+        tripadvisor_reviews = _normalize_reviews(tripadvisor_result, "tripadvisor")
+
+    google_reviews = _normalize_reviews(details.get("google_reviews", []), "google")
+    if not yelp_reviews:
+        yelp_reviews = _normalize_reviews(details.get("yelp_reviews", []), "yelp")
+    if not tripadvisor_reviews:
+        tripadvisor_reviews = _normalize_reviews(details.get("tripadvisor_reviews", []), "tripadvisor")
+
+    total_ratings = details.get("user_rating_count")
+    if total_ratings is None:
+        total_ratings = details.get("total_ratings")
+    safe_total_ratings = int(total_ratings or 0)
+    safe_rating = float(details.get("rating") or 0.0)
+
+    log.info(
+        "[C'] %-30s -> Google:%d Yelp:%d TripAdvisor:%d in %.2fs",
+        safe_name[:25],
+        len(google_reviews),
+        len(yelp_reviews),
+        len(tripadvisor_reviews),
+        time.perf_counter() - t0,
+    )
 
     return {
         "place_id": place_id,
-        "phone": details.get("phone", ""),
-        "photo_url": details.get("photo_url", ""),
-        "google_reviews": details.get("google_reviews", []),
-        "yelp_reviews": details.get("yelp_reviews", []),
-        "review_summary": details.get("review_summary", ""),
+        "google_reviews": google_reviews,
+        "yelp_reviews": yelp_reviews,
+        "tripadvisor_reviews": tripadvisor_reviews,
+        "review_summary": str(details.get("review_summary") or ""),
+        "photo_url": str(details.get("photo_url") or ""),
+        "phone": str(details.get("phone") or ""),
+        "website": str(details.get("website") or ""),
+        "total_ratings": safe_total_ratings,
+        "rating": safe_rating,
     }

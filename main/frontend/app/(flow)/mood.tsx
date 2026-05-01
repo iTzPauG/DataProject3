@@ -123,7 +123,6 @@ export default function MoodScreen() {
   
   const shouldSkipPrice = useMemo(() => {
     if (!flow?.category.requires_price) return true;
-    const skipMoods = flow.category.skip_price_moods || [];
     const skipSubcats = flow.category.skip_price_subcategories || [];
     if (category && skipSubcats.includes(category)) return true;
     return false;

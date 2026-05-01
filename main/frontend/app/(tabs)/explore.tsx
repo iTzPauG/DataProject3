@@ -1,9 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { router } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,21 +11,23 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
-import CategoryMonogram from '../../components/CategoryMonogram';
 import Icon from '../../components/Icon';
-import { ExploreCategory, getExploreCategories } from '../../services/api';
 import { useTheme } from '../../utils/theme';
 import { useLocation } from '../../hooks/useLocation';
 
+const FLOW_STEPS = [
+  { key: 'food_type', emoji: '🍽️', labelKey: 'flow.categoryTitle', subtitleKey: 'flow.categorySubtitle' },
+  { key: 'mood', emoji: '✨', labelKey: 'flow.moodTitle', subtitleKey: 'flow.moodSubtitle' },
+  { key: 'budget', emoji: '💰', labelKey: 'flow.priceTitle', subtitleKey: 'flow.priceSubtitle' },
+];
+
 /**
- * Explore — editorial index.
+ * Explore — goes directly to the 3-step filter flow (food type → mood → budget).
  */
 export default function ExploreTab() {
   const { t } = useTranslation();
   const { colors, typography } = useTheme();
   const { city } = useLocation();
-  const [categories, setCategories] = useState<ExploreCategory[]>([]);
-  const [loading, setLoading] = useState(true);
 
   const exploreVerbs = useMemo(() => t('explore.exploreVerbs', { returnObjects: true }) as string[], [t]);
   const randomVerb = useMemo(() => {
@@ -48,7 +49,6 @@ export default function ExploreTab() {
         },
         scrollContent: { paddingBottom: 64 },
 
-        // ── masthead ────────────────────────────────────────────
         masthead: {
           paddingHorizontal: 24,
           paddingTop: 32,
@@ -89,70 +89,40 @@ export default function ExploreTab() {
           marginHorizontal: 24,
           height: StyleSheet.hairlineWidth,
           backgroundColor: colors.stroke,
+          marginBottom: 28,
         },
 
-        // ── featured events strip ───────────────────────────────
-        featured: {
+        // ── CTA button ─────────────────────────────────────────
+        ctaButton: {
           marginHorizontal: 24,
-          marginTop: 28,
           marginBottom: 32,
-        },
-        featuredEyebrow: {
-          fontSize: 10,
-          letterSpacing: 2,
-          textTransform: 'uppercase',
-          color: colors.inkFaint,
-          fontFamily: typography.body,
-          fontWeight: '600',
-          marginBottom: 12,
-        },
-        featuredRow: {
-          flexDirection: 'row',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 24,
-        },
-        featuredTextBlock: {
-          flex: 1,
-          gap: 8,
-        },
-        featuredTitle: {
-          fontSize: 22,
-          lineHeight: 28,
-          letterSpacing: -0.4,
-          color: colors.ink,
-          fontFamily: typography.heading,
-          fontWeight: '500',
-        },
-        featuredBody: {
-          fontSize: 14,
-          lineHeight: 21,
-          color: colors.inkMuted,
-          fontFamily: typography.body,
-        },
-        featuredAction: {
-          marginTop: 12,
+          backgroundColor: colors.brand,
+          borderRadius: 16,
+          paddingVertical: 18,
+          paddingHorizontal: 24,
           flexDirection: 'row',
           alignItems: 'center',
-          gap: 8,
+          justifyContent: 'space-between',
         },
-        featuredActionText: {
+        ctaLeft: { flex: 1 },
+        ctaTitle: {
+          fontSize: 18,
+          fontWeight: '700',
+          color: '#FFFFFF',
+          fontFamily: typography.heading,
+          letterSpacing: -0.3,
+        },
+        ctaSubtitle: {
           fontSize: 13,
-          letterSpacing: 0.3,
-          color: colors.brand,
+          color: 'rgba(255,255,255,0.75)',
           fontFamily: typography.body,
-          fontWeight: '600',
+          marginTop: 3,
         },
 
-        // ── index list ─────────────────────────────────────────
-        sectionHeader: {
+        // ── Steps preview ──────────────────────────────────────
+        stepsLabel: {
           paddingHorizontal: 24,
-          marginBottom: 16,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        },
-        sectionTitle: {
+          marginBottom: 12,
           fontSize: 11,
           letterSpacing: 2.2,
           textTransform: 'uppercase',
@@ -160,104 +130,55 @@ export default function ExploreTab() {
           fontFamily: typography.body,
           fontWeight: '600',
         },
-        sectionCount: {
-          fontSize: 11,
-          letterSpacing: 1.5,
-          color: colors.inkWhisper,
-          fontFamily: typography.body,
-          fontWeight: '500',
-        },
-        row: {
+        stepRow: {
           paddingHorizontal: 24,
-          paddingVertical: 18,
+          paddingVertical: 16,
           flexDirection: 'row',
           alignItems: 'center',
-          gap: 18,
+          gap: 16,
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: colors.stroke,
         },
-        rowLast: {
+        stepRowLast: {
           borderBottomWidth: StyleSheet.hairlineWidth,
           borderBottomColor: colors.stroke,
         },
-        rowNumber: {
-          width: 28,
-          fontSize: 12,
-          color: colors.inkWhisper,
-          fontFamily: typography.mono,
-          fontWeight: '500',
-          letterSpacing: 0.5,
+        stepEmoji: {
+          fontSize: 26,
+          width: 40,
+          textAlign: 'center',
         },
-        rowBody: { flex: 1, gap: 4 },
-        rowTitle: {
-          fontSize: 17,
-          lineHeight: 22,
+        stepBody: { flex: 1 },
+        stepTitle: {
+          fontSize: 16,
+          fontWeight: '600',
           color: colors.ink,
           fontFamily: typography.heading,
-          fontWeight: '500',
           letterSpacing: -0.2,
         },
-        rowDescription: {
+        stepSubtitle: {
           fontSize: 13,
-          lineHeight: 18,
           color: colors.inkMuted,
           fontFamily: typography.body,
+          marginTop: 2,
         },
-        rowMeta: {
+        stepNumber: {
           fontSize: 11,
-          letterSpacing: 1.4,
-          textTransform: 'uppercase',
           color: colors.inkWhisper,
-          fontFamily: typography.body,
+          fontFamily: typography.mono,
           fontWeight: '600',
-          marginLeft: 12,
+          letterSpacing: 0.5,
         },
-        rowInactive: { opacity: 0.48 },
       }),
     [colors, typography],
   );
 
-  useEffect(() => {
-    getExploreCategories()
-      .then(setCategories)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  const getCategoryLabel = (category: ExploreCategory) =>
-    t(`category.${category.id}`, category.label.includes('.') ? t(category.label) : category.label);
-
-  function handleCategoryPress(category: ExploreCategory) {
-    if (category.active === false) {
-      Alert.alert(t('common.soon'), t('explore.notAvailable'));
-      return;
-    }
-    if (category.id === 'report') {
-      router.push('/(tabs)/report');
-      return;
-    }
-    const eventCategories = new Set(['event', 'market', 'music']);
-    if (eventCategories.has(category.id)) {
-      router.push({
-        pathname: '/(flow)/explore-list',
-        params: {
-          categoryId: category.id,
-          itemType: 'event',
-          title: getCategoryLabel(category),
-        },
-      });
-      return;
-    }
+  function handleStart() {
     router.push({
       pathname: '/(flow)/category',
-      params: { categoryId: category.id },
+      params: { categoryId: 'food' },
     });
   }
-
-  // exclude report / event from the index (report gets its own block, events are in the featured strip)
-  const indexed = useMemo(() => categories.filter(
-    (c) => c.id !== 'report' && c.id !== 'event',
-  ), [categories]);
 
   return (
     <AnimatedTabScene>
@@ -286,122 +207,39 @@ export default function ExploreTab() {
 
             <View style={styles.ruleBlock} />
 
-            <View style={styles.featured}>
-              <Text style={styles.featuredEyebrow}>{t('explore.featured')}</Text>
-              <View style={styles.featuredRow}>
-                <View style={styles.featuredTextBlock}>
-                  <Text style={styles.featuredTitle}>
-                    {t('explore.featuredTitle')}
-                  </Text>
-                  <Text style={styles.featuredBody}>
-                    {t('explore.featuredBody')}
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.featuredAction}
-                    activeOpacity={0.7}
-                    onPress={() =>
-                      router.push({
-                        pathname: '/(flow)/explore-list',
-                        params: {
-                          categoryId: 'event',
-                          itemType: 'event',
-                          title: t('explore.events'),
-                        },
-                      })
-                    }
-                  >
-                    <Text style={styles.featuredActionText}>{t('explore.viewAgenda')}</Text>
-                    <Icon
-                      name="arrow-right"
-                      size={14}
-                      color={colors.brand}
-                      strokeWidth={1.4}
-                    />
-                  </TouchableOpacity>
+            {/* CTA principal */}
+            <TouchableOpacity
+              style={styles.ctaButton}
+              onPress={handleStart}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={t('flow.startFlow', 'Empezar búsqueda')}
+            >
+              <View style={styles.ctaLeft}>
+                <Text style={styles.ctaTitle}>{t('flow.startFlow', 'Encontrar mi sitio')}</Text>
+                <Text style={styles.ctaSubtitle}>{t('flow.startFlowSub', '3 pasos · menos de 30 segundos')}</Text>
+              </View>
+              <Icon name="chevron-right" size={20} color="#FFFFFF" strokeWidth={2} />
+            </TouchableOpacity>
+
+            {/* Preview de los 3 pasos */}
+            <Text style={styles.stepsLabel}>{t('flow.howItWorks', 'Cómo funciona')}</Text>
+            {FLOW_STEPS.map((step, i) => (
+              <View
+                key={step.key}
+                style={[styles.stepRow, i === FLOW_STEPS.length - 1 && styles.stepRowLast]}
+              >
+                <Text style={styles.stepEmoji}>{step.emoji}</Text>
+                <View style={styles.stepBody}>
+                  <Text style={styles.stepTitle}>{t(step.labelKey, step.labelKey)}</Text>
+                  <Text style={styles.stepSubtitle}>{t(step.subtitleKey, step.subtitleKey)}</Text>
                 </View>
-                <CategoryMonogram
-                  categoryId="event"
-                  label={t('explore.events')}
-                  size={74}
-                  variant="ring"
-                />
+                <Text style={styles.stepNumber}>{String(i + 1).padStart(2, '0')}</Text>
               </View>
-            </View>
-
-            <View style={sectionHeaderStyles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{t('explore.sections')}</Text>
-              <Text style={styles.sectionCount}>
-                {String(indexed.length).padStart(2, '0')} {t('explore.categories') || "categorías"}
-              </Text>
-            </View>
-
-            {loading ? (
-              <ActivityIndicator
-                size="small"
-                color={colors.inkMuted}
-                style={{ marginTop: 24 }}
-              />
-            ) : (
-              <View>
-                {indexed.map((cat, i) => {
-                  const isLast = i === indexed.length - 1;
-                  const number = String(i + 1).padStart(2, '0');
-                  return (
-                    <TouchableOpacity
-                      key={cat.id}
-                      activeOpacity={0.7}
-                      onPress={() => handleCategoryPress(cat)}
-                      accessibilityRole="button"
-                      accessibilityLabel={getCategoryLabel(cat)}
-                      style={[
-                        styles.row,
-                        isLast && styles.rowLast,
-                        cat.active === false && styles.rowInactive,
-                      ]}
-                    >
-                      <Text style={styles.rowNumber}>{number}</Text>
-                      <CategoryMonogram
-                        categoryId={cat.id}
-                        label={getCategoryLabel(cat)}
-                        size={40}
-                        variant="ring"
-                      />
-                      <View style={styles.rowBody}>
-                        <Text style={styles.rowTitle}>{getCategoryLabel(cat)}</Text>
-                        {cat.description ? (
-                          <Text style={styles.rowDescription} numberOfLines={2}>
-                            {cat.description}
-                          </Text>
-                        ) : null}
-                      </View>
-                      {cat.active === false ? (
-                        <Text style={styles.rowMeta}>{t('common.soon')}</Text>
-                      ) : (
-                        <Icon
-                          name="chevron-right"
-                          size={14}
-                          color={colors.inkWhisper}
-                          strokeWidth={1.4}
-                        />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
+            ))}
           </View>
         </ScrollView>
       </SafeAreaView>
     </AnimatedTabScene>
   );
 }
-
-const sectionHeaderStyles = StyleSheet.create({
-  sectionHeader: {
-    paddingHorizontal: 24,
-    marginBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-});

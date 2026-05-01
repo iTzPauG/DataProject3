@@ -40,6 +40,23 @@ export default function RestaurantCard({
   const distance = restaurant.distanceM > 0 ? formatDistance(restaurant.distanceM) : null;
   const pros = restaurant.pros.slice(0, 2);
   const cons = restaurant.cons.slice(0, 1);
+  const sourceCounts = useMemo(() => {
+    if (restaurant.reviewSources) {
+      return {
+        google: Math.max(0, restaurant.reviewSources.google || 0),
+        yelp: Math.max(0, restaurant.reviewSources.yelp || 0),
+        tripadvisor: Math.max(0, restaurant.reviewSources.tripadvisor || 0),
+      };
+    }
+    const counts = { google: 0, yelp: 0, tripadvisor: 0 };
+    for (const review of restaurant.reviews || []) {
+      if (review.source === "google") counts.google += 1;
+      if (review.source === "yelp") counts.yelp += 1;
+      if (review.source === "tripadvisor") counts.tripadvisor += 1;
+    }
+    return counts;
+  }, [restaurant.reviewSources, restaurant.reviews]);
+  const hasSourceCounts = sourceCounts.google + sourceCounts.yelp + sourceCounts.tripadvisor > 0;
 
   const renderBoldText = (text: string, baseStyle: any, numberOfLines?: number) => {
     if (!text) return null;
@@ -154,6 +171,13 @@ export default function RestaurantCard({
       fontSize: 13,
       fontFamily: typography.body,
     },
+    sourceBreakdownText: {
+      color: colors.inkWhisper,
+      fontSize: 11,
+      letterSpacing: 0.2,
+      fontFamily: typography.body,
+      marginTop: -6,
+    },
     signalBox: {
       backgroundColor: colors.chip,
       borderRadius: radii.md,
@@ -240,6 +264,11 @@ export default function RestaurantCard({
           <Text style={styles.scoreText}>{t('placeDetails.rating', { rating: formatRating(restaurant.rating) })}</Text>
           <Text style={styles.reviewText}>{formatReviews(restaurant.reviewsCount)} {t('common.reviews', { defaultValue: 'reviews' })}</Text>
         </View>
+        {hasSourceCounts ? (
+          <Text style={styles.sourceBreakdownText}>
+            G {sourceCounts.google} · Y {sourceCounts.yelp} · T {sourceCounts.tripadvisor}
+          </Text>
+        ) : null}
 <View style={styles.signalBox}>
   {(pros || []).length > 0 ? (
     pros.map((pro, i) => (

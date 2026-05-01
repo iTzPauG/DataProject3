@@ -1,4 +1,4 @@
-import { router, useRootNavigationState } from "expo-router";
+﻿import { router, useRootNavigationState } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -38,10 +38,75 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 const CARD_HEIGHT = 360;
+const MAX_RESULTS = 5;
 
 type Status = "loading" | "streaming" | "success" | "error";
 
 // ── Animated loading dots ───────────────────────────────────────────────────
+
+// -- Animated bouncing emojis (shown while loading) -------------------------
+
+
+
+const CATEGORY_EMOJIS: Record<string, string[]> = {
+  pizza:       ["🍕", "🧀", "🍝", "🧄", "🍽️"],
+  hamburger:   ["🍔", "🍟", "🌭", "🧂", "🥬"],
+  sushi:       ["🍣", "🍤", "🍥", "🍡", "🍢"],
+  paella:      ["🦞", "🐟", "🥦", "🧅", "🍽️"],
+  tacos:       ["🌮", "🌯", "🧆", "🌶️", "🥬"],
+  healthy:     ["🥗", "🥦", "🥑", "🥬", "🍎"],
+  vegan:       ["🌱", "🥦", "🥗", "🥑", "🥬"],
+  italian:     ["🍝", "🍕", "🧀", "🍻", "🍷"],
+  asian:       ["🍜", "🍣", "🍙", "🍛", "🍢"],
+  mexican:     ["🌮", "🌯", "🌶️", "🧆", "🍻"],
+  brunch:      ["🍳", "🥞", "🧇", "🥐", "☕"],
+  bakery:      ["🥐", "🧁", "🎂", "🍞", "☕"],
+  coffee:      ["☕", "🧋", "🍵", "🥐", "🍫"],
+  kebab:       ["🥭", "🧆", "🌭", "🧅", "🥦"],
+  bar:         ["🍺", "🍻", "🥂", "🍹", "🍷"],
+  cocktail:    ["🍹", "🍸", "🍷", "🥂", "🍓"],
+  wine_bar:    ["🍷", "🍇", "🥂", "🍹", "🍾"],
+  rooftop:     ["🍹", "🌟", "🍷", "🍻", "🥂"],
+};
+
+const DEFAULT_EMOJIS = ["🍕", "🍜", "🍣", "🥗", "🍔", "🌮", "🍷", "☕"];
+
+function getEmojisForCategory(cat: string | null): string[] {
+  if (!cat) return DEFAULT_EMOJIS;
+  return CATEGORY_EMOJIS[cat] ?? DEFAULT_EMOJIS;
+}
+
+function BouncingEmoji({ emoji, delay }: { emoji: string; delay: number }) {
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(translateY, { toValue: -14, duration: 350, easing: Easing.out(Easing.quad), useNativeDriver: false }),
+        Animated.timing(translateY, { toValue: 0, duration: 350, easing: Easing.in(Easing.quad), useNativeDriver: false }),
+        Animated.delay(800),
+      ]),
+    ).start();
+  }, [delay, translateY]);
+
+  return (
+    <Animated.Text style={{ fontSize: 26, transform: [{ translateY }] }}>
+      {emoji}
+    </Animated.Text>
+  );
+}
+
+function LoadingEmojis({ category }: { category: string | null }) {
+  const emojis = getEmojisForCategory(category);
+  return (
+    <View style={{ flexDirection: "row", gap: 10, justifyContent: "center", paddingVertical: 8 }}>
+      {emojis.map((emoji, i) => (
+        <BouncingEmoji key={i} emoji={emoji} delay={i * 120} />
+      ))}
+    </View>
+  );
+}
 
 function PulsingDot({ delay, color }: { delay: number; color: string }) {
   const scale = useRef(new Animated.Value(0.4)).current;
@@ -455,9 +520,9 @@ export default function ResultsMapScreen() {
     if (!isHydrated || fetchingRef.current) return;
 
     if (results !== null) {
-      setRestaurants(results);
+      setRestaurants(results.slice(0, MAX_RESULTS));
       setStatus("success");
-      loadVotes(results);
+      loadVotes(results.slice(0, MAX_RESULTS));
       return;
     }
 
@@ -480,11 +545,12 @@ export default function ResultsMapScreen() {
         { parentCategory, subcategory: category, mood, priceLevel, language: lang },
         {
           onMeta: ({ total }) => {
-            setTotalExpected(total);
+            setTotalExpected(Math.min(total, MAX_RESULTS));
           },
           onResult: (restaurant) => {
             LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-            accumulatedRef.current = [...accumulatedRef.current, restaurant];
+            if (accumulatedRef.current.length >= MAX_RESULTS) return;
+            accumulatedRef.current = [...accumulatedRef.current, restaurant].slice(0, MAX_RESULTS);
             // Progressive UI update
             setRestaurants([...accumulatedRef.current]);
             setResults([...accumulatedRef.current]);
@@ -493,13 +559,13 @@ export default function ResultsMapScreen() {
             }
           },
           onDone: (_total) => {
-            setResults(accumulatedRef.current);
+            setResults(accumulatedRef.current.slice(0, MAX_RESULTS));
             setStatus("success");
-            loadVotes(accumulatedRef.current);
+            loadVotes(accumulatedRef.current.slice(0, MAX_RESULTS));
           },
           onError: (err) => {
             if (accumulatedRef.current.length > 0) {
-              setResults(accumulatedRef.current);
+              setResults(accumulatedRef.current.slice(0, MAX_RESULTS));
               setStatus("success");
             } else {
               setErrorMsg(err.message);
@@ -518,10 +584,11 @@ export default function ResultsMapScreen() {
           priceLevel,
           language: lang,
         });
-        setRestaurants(top);
-        setResults(top);
+        const limited = top.slice(0, MAX_RESULTS);
+        setRestaurants(limited);
+        setResults(limited);
         setStatus("success");
-        loadVotes(top);
+        loadVotes(limited);
       } catch (error) {
         setErrorMsg(error instanceof Error ? error.message : t("flow.requestFailed"));
         setStatus("error");
@@ -569,21 +636,37 @@ export default function ResultsMapScreen() {
 
   // ── Sheet header ────────────────────────────────────────────────────────
 
-  const sheetCountText = (() => {
-    if (status === "loading") return t("flow.searchingNearbyDots");
-    const count = (restaurants || []).length;
-    if (isStreaming) {
-      return totalExpected
-        ? t("flow.foundCountOf", { count, total: totalExpected })
-        : t("flow.foundCount", { count });
+  // Aggregate review source counts across all loaded restaurants
+  const reviewSourceCounts = useMemo(() => {
+    const totals = { google: 0, yelp: 0, tripadvisor: 0 };
+    for (const r of restaurants) {
+      if (r.reviewSources) {
+        totals.google += r.reviewSources.google || 0;
+        totals.yelp += r.reviewSources.yelp || 0;
+        totals.tripadvisor += r.reviewSources.tripadvisor || 0;
+      } else {
+        for (const rev of r.reviews || []) {
+          if (rev.source === "google") totals.google += 1;
+          else if (rev.source === "yelp") totals.yelp += 1;
+          else if (rev.source === "tripadvisor") totals.tripadvisor += 1;
+        }
+      }
     }
-    return t("flow.showingPlaces", { count });
-  })();
+    return totals;
+  }, [restaurants]);
+
+  const hasReviewCounts = reviewSourceCounts.google + reviewSourceCounts.yelp + reviewSourceCounts.tripadvisor > 0;
 
   const sheetHeader = (
     <View style={styles.sheetHeader}>
       <Text style={styles.sheetTitle}>{t("explore.resultsForYou")}</Text>
-      <Text style={styles.sheetCount}>{sheetCountText}</Text>
+      {hasReviewCounts ? (
+        <Text style={styles.sheetCount}>
+          {"G " + reviewSourceCounts.google + "  ·  Y " + reviewSourceCounts.yelp + "  ·  T " + reviewSourceCounts.tripadvisor}
+        </Text>
+      ) : status === "loading" ? (
+        <Text style={styles.sheetCount}>{t("flow.searchingNearbyDots")}</Text>
+      ) : null}
       <View style={styles.pills}>
         {categoryLabel ? <View style={styles.pill}><WhimIcon name="bookmark" size={14} color={colors.ink} /><Text style={styles.pillText}>{categoryLabel}</Text></View> : null}
         {moodLabel ? <View style={styles.pill}><WhimIcon name="happy" size={14} color={colors.ink} /><Text style={styles.pillText}>{moodLabel}</Text></View> : null}
@@ -597,10 +680,13 @@ export default function ResultsMapScreen() {
   const sheetContent = (() => {
     if (status === "loading" && (!results || results.length === 0)) {
       return (
-        <LoadingIndicator
-          message={t("flow.searchingBestPlaces")}
-          sub={t("flow.analyzingDescriptionShort")}
-        />
+        <>
+          <LoadingEmojis category={category} />
+          <LoadingIndicator
+            message={t("flow.searchingBestPlaces")}
+            sub={t("flow.analyzingDescriptionShort")}
+          />
+        </>
       );
     }
 
@@ -642,7 +728,7 @@ export default function ResultsMapScreen() {
           </AnimatedCard>
         ))}
         {isStreaming && (
-          <StreamingIndicator found={restaurants.length} total={totalExpected} />
+          <StreamingIndicator found={restaurants.length} total={totalExpected != null ? Math.min(totalExpected, MAX_RESULTS) : undefined} />
         )}
       </>
     );
