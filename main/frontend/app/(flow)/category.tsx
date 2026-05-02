@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Atmosphere from '../../components/Atmosphere';
+import CategoryMonogram from '../../components/CategoryMonogram';
 import ChoiceCard from '../../components/ChoiceCard';
 import { useFlowState } from '../../hooks/useFlowState';
 import { CategoryFlowResponse, getCategoryFlow } from '../../services/api';

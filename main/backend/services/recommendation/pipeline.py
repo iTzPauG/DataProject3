@@ -1,4 +1,4 @@
-﻿"""
+"""
 Recommendation pipeline v2 - velocidad, resiliencia y calidad.
 
 Optimised flow (batch mode ~3-5s, stream first result ~3s):
@@ -47,7 +47,7 @@ MIN_RESULTS = 5
 STREAM_BATCH_SIZE = 3
 LLM_BATCH_SPLIT = 3  # split top 5 into batches of 3+2 for parallel LLM
 
-# �"?�"? Shared Gemini client �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
+# ────────── Shared Gemini client ──────────
 _genai_client: genai.Client | None = None
 _vertex_project_id: str | None = None
 
@@ -90,7 +90,7 @@ _llm_timings: list[dict] = []
 
 async def _llm_gemini(name: str, instruction: str, prompt: str, *, json_mode: bool = True) -> str:
     """Direct google-genai call with optional JSON-forced output."""
-    log.info("[LLM:%s] �?' %d chars de prompt", name, len(prompt))
+    log.info("[LLM:%s] → %d chars de prompt", name, len(prompt))
     t0 = time.perf_counter()
 
     config_kwargs: dict = {
@@ -114,7 +114,7 @@ async def _llm_gemini(name: str, instruction: str, prompt: str, *, json_mode: bo
     total_tok    = getattr(usage, "total_token_count",      "?")
 
     log.info(
-        "[LLM:%s] �?� %.2fs | tokens in=%s out=%s total=%s | respuesta %d chars",
+        "[LLM:%s] — %.2fs | tokens in=%s out=%s total=%s | respuesta %d chars",
         name, elapsed, prompt_tok, response_tok, total_tok, len(final),
     )
     _llm_timings.append({
@@ -125,11 +125,11 @@ async def _llm_gemini(name: str, instruction: str, prompt: str, *, json_mode: bo
 
 
 async def _llm(name: str, instruction: str, prompt: str, *, json_mode: bool = True) -> str:
-    """LLM call with automatic fallback �?" Gemini first, empty string on failure."""
+    """LLM call with automatic fallback → Gemini first, empty string on failure."""
     try:
         return await _llm_gemini(name, instruction, prompt, json_mode=json_mode)
     except Exception as e:
-        log.warning("[LLM:%s] Gemini failed: %s �?" triggering fallback enrichment", name, e)
+        log.warning("[LLM:%s] Gemini failed: %s — triggering fallback enrichment", name, e)
         return ""
 
 
@@ -152,7 +152,7 @@ def _parse_json(text: str):
     return json.loads(text)
 
 
-# �"?�"? Category label helper �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
+# ────────── Category label helper ──────────
 
 def _category_label(parent_category: str) -> str:
     """Human-readable label for the category, used in LLM prompts."""
@@ -186,7 +186,7 @@ def _infer_city(address: str | None) -> str | None:
     return None
 
 
-# �"?�"? Step B �?" pre_filter (Python) �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
+# ────────── Step B → pre_filter (Python) ──────────
 
 def _pre_filter(candidates: list[dict], price_level: int | None, n: int = PREFILTER_CANDIDATES) -> list[dict]:
     """Drop low-rated places, rank by Google's own signal + price match."""
@@ -233,13 +233,13 @@ def _pre_filter(candidates: list[dict], price_level: int | None, n: int = PREFIL
     kept.sort(key=_sort_key, reverse=True)
     result = kept[:n]
     log.info(
-        "[B] pre_filter: %d �?' %d candidates",
+        "[B] pre_filter: %d → %d candidates",
         len(candidates), len(result)
     )
     return result
 
 
-# �"?�"? Step D �?" resolve_mood (DETERMINISTIC �?" no LLM) �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
+# ────────── Step D → resolve_mood (DETERMINISTIC → no LLM) ──────────
 
 _MOOD_MAP: dict[str, dict] = {
     "quick":        {"prefer_quiet": False, "prefer_fast": True,  "prefer_formal": False, "prefer_outdoor": False, "vibe_keywords": ["quick", "casual", "efficient"]},
@@ -327,13 +327,13 @@ _NEUTRAL_MOOD = {"prefer_quiet": False, "prefer_fast": False, "prefer_formal": F
 
 
 def _resolve_mood(mood: str) -> dict:
-    """Instant mood resolution �?" no LLM needed."""
+    """Instant mood resolution → no LLM needed."""
     result = _MOOD_MAP.get(mood, _NEUTRAL_MOOD)
-    log.info("[D] resolve_mood('%s') �?' %s", mood, result)
+    log.info("[D] resolve_mood('%s') → %s", mood, result)
     return result
 
 
-# �"?�"? Step E �?" analyze reviews (SINGLE LLM call) �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
+# ────────── Step E → analyze reviews (SINGLE LLM call) ──────────
 
 def _review_confidence(r: dict) -> float:
     total = r.get("total_ratings", 0) or 0
@@ -567,7 +567,7 @@ def _fallback_review_signals(r: dict) -> tuple[list[str], list[str], str, str, s
 
 
 def _enrich_fallback(r: dict, signals: dict[str, dict] | None = None) -> dict:
-    """Build a result when LLM is unavailable �?" uses reviewSummary as verdict."""
+    """Build a result when LLM is unavailable → uses reviewSummary as verdict."""
     pid = r["place_id"]
     sig = (signals or {}).get(pid, {})
     total = r.get("total_ratings") or 0
@@ -607,7 +607,7 @@ def _enrich_fallback(r: dict, signals: dict[str, dict] | None = None) -> dict:
     }
 
 
-# �"?�"? AI context builder (Step 6 �?" data quality) �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
+# ────────── AI context builder (Step 6 → data quality) ──────────
 
 def _build_ai_context(r: dict) -> dict:
     """Build context for LLM with data quality indicator."""
@@ -625,7 +625,7 @@ def _build_ai_context(r: dict) -> dict:
     }
 
 
-# �"?�"? LLM batch helper �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
+# ────────── LLM batch helper ──────────
 
 _LANG_MAP = {"es": "Spanish", "en": "English", "fr": "French"}
 
@@ -732,7 +732,7 @@ async def _llm_batch(
         return {}
 
 
-# �"?�"? Result builder �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
+# ────────── Result builder ──────────
 
 def _build_result(r: dict, ai_data: dict, live_data: dict) -> dict:
     """Build a final result dict from a candidate + AI data + live data."""
@@ -823,7 +823,7 @@ def _merge_fetched_data(base: dict, fetched: dict) -> dict:
     return merged
 
 
-# �"?�"? Orchestrator �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
+# ────────── Orchestrator ──────────
 
 async def recommend(parent_category: str, subcategory: str | None, mood: str, price_level: int | None, lat: float, lng: float, fast_mode: bool = False, language: str = "es") -> list[dict]:
     t_total = time.perf_counter()
@@ -833,22 +833,22 @@ async def recommend(parent_category: str, subcategory: str | None, mood: str, pr
     log.info("=" * 60)
     log.info("REQUEST category='%s' (%s) mood='%s' lang=%s", parent_category, label, mood, language)
 
-    # �"?�"? PHASE 1: Search �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
+    # ────────── PHASE 1: Search ──────────
     t_step = time.perf_counter()
     raw = await search_places(parent_category, resolved_sub, mood, lat, lng, price_level, language=language)
     candidates = raw.get("restaurants", [])
-    log.info("[PERF] Step A (Search): %.2fs �?" %d results", time.perf_counter() - t_step, len(candidates))
+    log.info("[PERF] Step A (Search): %.2fs → %d results", time.perf_counter() - t_step, len(candidates))
 
     if not candidates:
         return []
 
-    # �"?�"? PHASE 2: Pre-filter �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
+    # ────────── PHASE 2: Pre-filter ──────────
     t_step = time.perf_counter()
     candidates = _pre_filter(candidates, price_level)
     top_winners = candidates[:TOP_RESULTS]
-    log.info("[PERF] Step B (Pre-filter): %.2fs �?" top %d", time.perf_counter() - t_step, len(top_winners))
+    log.info("[PERF] Step B (Pre-filter): %.2fs → top %d", time.perf_counter() - t_step, len(top_winners))
 
-    # �"?�"? PHASE 3: Smart fetch �?" ONLY places missing reviews �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
+    # ────────── PHASE 3: Smart fetch → ONLY places missing reviews ──────────
     t_step = time.perf_counter()
     needs_fetch = list(top_winners)
     already_good: list[dict] = []
@@ -867,11 +867,11 @@ async def recommend(parent_category: str, subcategory: str | None, mood: str, pr
 
     top_winners = already_good + needs_fetch
     log.info(
-        "[PERF] Step C' (Smart Fetch): %.2fs �?" skipped %d, fetched %d",
+        "[PERF] Step C' (Smart Fetch): %.2fs → skipped %d, fetched %d",
         time.perf_counter() - t_step, len(already_good), len(needs_fetch),
     )
 
-    # �"?�"? PHASE 4: PARALLEL �?" 2 LLM batches + live data �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
+    # ────────── PHASE 4: PARALLEL → 2 LLM batches + live data ──────────
     t_step = time.perf_counter()
     batch1 = top_winners[:LLM_BATCH_SPLIT]
     batch2 = top_winners[LLM_BATCH_SPLIT:]
@@ -907,11 +907,11 @@ async def recommend(parent_category: str, subcategory: str | None, mood: str, pr
     live_results = parallel_results[2:]
 
     log.info(
-        "[PERF] Step E+H (Parallel LLM+Live): %.2fs �?" AI enriched %d/%d places",
+        "[PERF] Step E+H (Parallel LLM+Live): %.2fs → AI enriched %d/%d places",
         time.perf_counter() - t_step, len(ai_map), len(top_winners),
     )
 
-    # �"?�"? PHASE 5: Assemble final results �"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?�"?
+    # ────────── PHASE 5: Assemble final results ──────────
     final_results = []
     for i, r in enumerate(top_winners):
         ai_data = ai_map.get(r["place_id"], {})
@@ -926,7 +926,7 @@ async def recommend(parent_category: str, subcategory: str | None, mood: str, pr
 
     total_time = time.perf_counter() - t_total
     log.info("=" * 60)
-    log.info("[PERF] PIPELINE v2 DONE in %.2fs �?" %d results", total_time, len(final_results))
+    log.info("[PERF] PIPELINE v2 DONE in %.2fs → %d results", total_time, len(final_results))
     log.info("=" * 60)
     return final_results
 
@@ -1004,7 +1004,7 @@ async def enrich_place_result(
     return result
 
 
-# �"?�"? Streaming pipeline v2 �?" batched (STREAM_BATCH_SIZE places per LLM call) �"?
+# ────────── Streaming pipeline v2 → batched (STREAM_BATCH_SIZE places per LLM call) ──────────
 
 async def _process_stream_batch(
     batch: list[dict],
@@ -1018,7 +1018,7 @@ async def _process_stream_batch(
 ) -> list[dict]:
     """Process a batch: smart fetch + 1 LLM call + live data, all in parallel."""
 
-    # Smart fetch �?" only for places missing reviews
+    # Smart fetch → only for places missing reviews
     async def _smart_fetch(r: dict) -> dict:
         try:
             data = await fetch_all_reviews(r["place_id"], r["name"], r["lat"], r["lng"], language=language)
@@ -1072,7 +1072,7 @@ async def recommend_stream(
     lng: float,
     language: str = "es",
 ) -> AsyncGenerator[dict, None]:
-    """Yield results in batches via SSE �?" 1 LLM call per batch of STREAM_BATCH_SIZE."""
+    """Yield results in batches via SSE → 1 LLM call per batch of STREAM_BATCH_SIZE."""
     t_total = time.perf_counter()
     resolved_sub = subcategory or parent_category
     log.info("[STREAM v2] START category='%s' mood='%s'", parent_category, mood)
@@ -1089,7 +1089,7 @@ async def recommend_stream(
     candidates = candidates[:TOP_RESULTS]
     yield {"event": "meta", "total": len(candidates)}
 
-    # Phase 3: Process in batches �?" each batch = 1 LLM call
+    # Phase 3: Process in batches → each batch = 1 LLM call
     result_index = 0
     for i in range(0, len(candidates), STREAM_BATCH_SIZE):
         batch = candidates[i:i + STREAM_BATCH_SIZE]
