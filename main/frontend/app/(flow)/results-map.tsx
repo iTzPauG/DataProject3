@@ -245,6 +245,15 @@ function MapStatusHero({
   const { t } = useTranslation();
   const { colors, radii, shadows, typography } = useTheme();
 
+  // Get a random loading description once when this mounts
+  const loadingDesc = useMemo(() => {
+    const variations = t("loading_variations", { returnObjects: true });
+    if (Array.isArray(variations) && variations.length > 0) {
+      return variations[Math.floor(Math.random() * variations.length)];
+    }
+    return t("flow.analyzingDescription");
+  }, [t]);
+
   // Animated glow
   const glowAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -367,7 +376,7 @@ function MapStatusHero({
   const eyebrow = isLoading ? t("flow.searchingNearby") : isError ? t("flow.searchPaused") : t("flow.noMatches");
   const title = isLoading ? t("flow.preparingList") : isError ? t("flow.searchError") : t("flow.noResults");
   const description = isLoading
-    ? t("flow.analyzingDescription")
+    ? loadingDesc
     : isError
       ? errorMsg || t("flow.requestFailed")
       : t("flow.noResultsMsg");
@@ -417,6 +426,7 @@ export default function ResultsMapScreen() {
       left: 0,
       right: 0,
       zIndex: 10,
+      backgroundColor: "rgba(12, 13, 18, 0.4)",
     },
     backButton: {
       margin: 16,

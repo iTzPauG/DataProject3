@@ -153,6 +153,7 @@ export default function RestaurantCard({
       alignItems: "center",
       justifyContent: "center",
       zIndex: 3,
+      elevation: 3,
     },
     ratingBadgeText: {
       color: "#FFFFFF",

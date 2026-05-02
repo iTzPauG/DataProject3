@@ -36,6 +36,14 @@ export default function ProfileTab() {
   const router = useRouter();
   const { user, profile, signOut } = useAuth();
 
+  const profileDesc = useMemo(() => {
+    const variations = t("profile_variations", { returnObjects: true });
+    if (Array.isArray(variations) && variations.length > 0) {
+      return variations[Math.floor(Math.random() * variations.length)];
+    }
+    return t("profile.dossier");
+  }, [t]);
+
   // Mesh gradient animation values
   const blob1X = useSharedValue(width * 0.4);
   const blob1Y = useSharedValue(-height * 0.1);
@@ -381,7 +389,7 @@ export default function ProfileTab() {
         >
           <View style={styles.container}>
             <View style={styles.masthead}>
-              <Text style={styles.eyebrow}>{t('profile.dossier')}</Text>
+              <Text style={styles.eyebrow}>{profileDesc}</Text>
               {user ? (
                 <>
                   <Text style={styles.nameDisplay}>

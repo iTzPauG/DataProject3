@@ -118,7 +118,7 @@ export const UniversalHeader: React.FC<UniversalHeaderProps> = ({
             <View style={styles.logoContainer}>
               <Image
                 source={require('../assets/whim-logo-new.png')}
-                style={styles.logo}
+                style={[styles.logo, { tintColor: '#FFFFFF' }]}
                 resizeMode="contain"
               />
               <Text style={styles.logoText}>WHIM</Text>

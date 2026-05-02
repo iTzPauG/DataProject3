@@ -473,5 +473,39 @@
     "popular": "Popular",
     "quiet": "Tranquilo",
     "busy": "Animado"
-  }
+  },
+  "loading_variations": [
+    "Consultando a los paladares más exigentes...",
+    "Analizando el ambiente y la calidad...",
+    "Buscando las mejores mesas en la ciudad...",
+    "Calculando la distancia hasta tu próximo antojo...",
+    "Revisando qué dicen los locales de verdad...",
+    "Cruzando datos de Google, Yelp y Tripadvisor...",
+    "Descartando trampas para turistas...",
+    "Afilando el algoritmo gastronómico...",
+    "Preparando recomendaciones que no fallan...",
+    "Cocinando a fuego lento tu lista perfecta...",
+    "Buscando lugares que valgan cada céntimo...",
+    "Leyendo entre líneas las reseñas más sinceras...",
+    "Mapeando los rincones más recomendables...",
+    "Ajustando los filtros para tu estado de ánimo...",
+    "Filtrando el ruido para darte lo mejor..."
+  ],
+  "profile_variations": [
+    "Tu pasaporte a los mejores sitios.",
+    "El mapa del tesoro de tu ciudad.",
+    "Guarda, compara y no te equivoques nunca.",
+    "Tu lista personal de descubrimientos.",
+    "El directorio de tus próximas aventuras.",
+    "Lugares que ya no olvidarás.",
+    "Tu archivo de recomendaciones infalibles.",
+    "El rincón de tus favoritos.",
+    "Donde guardas lo que de verdad importa.",
+    "Tu historial de buen gusto.",
+    "Coleccionando momentos y coordenadas.",
+    "Tu agenda gastronómica personal.",
+    "Tus rincones de confianza.",
+    "El club exclusivo de tus sitios guardados.",
+    "Tus descubrimientos, ordenados y listos."
+  ]
 }

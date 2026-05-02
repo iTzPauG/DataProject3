@@ -475,5 +475,39 @@
     "popular": "Popular",
     "quiet": "Quiet",
     "busy": "Busy"
-  }
+  },
+  "loading_variations": [
+    "Consulting the most demanding palates...",
+    "Analyzing vibe and quality...",
+    "Scouting the best tables in town...",
+    "Calculating the distance to your next craving...",
+    "Checking what true locals are saying...",
+    "Cross-referencing Google, Yelp, and Tripadvisor...",
+    "Filtering out the tourist traps...",
+    "Sharpening the gastronomic algorithm...",
+    "Preparing recommendations that won't miss...",
+    "Slow-cooking your perfect list...",
+    "Finding places worth every penny...",
+    "Reading between the lines of honest reviews...",
+    "Mapping out the most highly recommended spots...",
+    "Adjusting filters for your current mood...",
+    "Cutting through the noise to give you the best..."
+  ],
+  "profile_variations": [
+    "Your passport to the best spots.",
+    "The treasure map to your city.",
+    "Save, compare, and never guess wrong.",
+    "Your personal list of discoveries.",
+    "The directory of your next adventures.",
+    "Places you won't forget anymore.",
+    "Your archive of infallible recommendations.",
+    "The corner for your favorites.",
+    "Where you save what truly matters.",
+    "Your history of good taste.",
+    "Collecting moments and coordinates.",
+    "Your personal gastronomic agenda.",
+    "Your trusted corners.",
+    "The exclusive club of your saved places.",
+    "Your discoveries, sorted and ready."
+  ]
 }

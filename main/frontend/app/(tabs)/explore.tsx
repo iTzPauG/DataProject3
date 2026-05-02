@@ -243,16 +243,17 @@ export default function ExploreTab() {
           <View style={styles.container}>
             <View style={styles.masthead}>
               <Text style={styles.issueLine}>{t('explore.issueLine') || "Nº 01 · Índice de la ciudad"}</Text>
-              <Text style={styles.masterHead}>
-                {randomVerb}{' '}
-                {city ? (
-                  city
-                ) : (
+              {city ? (
+                <Text style={styles.masterHead}>
+                  {randomVerb} {city}
+                  {'\n'}
+                  <Text style={styles.masterHeadAccent}>{t('explore.masterHeadPart2') || "como un local."}</Text> 
+                </Text>
+              ) : (
+                <View style={{ height: 80, justifyContent: 'center', alignItems: 'flex-start' }}>
                   <ActivityIndicator size="small" color={colors.ink} />
-                )}
-                {'\n'}
-                <Text style={styles.masterHeadAccent}>{t('explore.masterHeadPart2') || "como un local."}</Text>
-              </Text>
+                </View>
+              )}
               <Text style={styles.deck}>
                 {t('explore.deck')}
               </Text>

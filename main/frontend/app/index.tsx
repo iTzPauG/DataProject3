@@ -236,12 +236,11 @@ export default function SplashScreen() {
         <Animated.View style={[styles.logoWrap, logoStyle]}>
           <Image
             source={require('../assets/whim-logo-new.png')}
-            style={styles.logo}
+            style={[styles.logo, { tintColor: '#FFFFFF' }]}
             resizeMode="contain"
             accessibilityLabel="WHIM Logo"
           />
         </Animated.View>
-
         <Animated.View style={dynamicStyles.headlineContainer}>
           <Animated.Text style={[dynamicStyles.verb, verbStyle]}>
             {randomVerb}
