@@ -31,10 +31,6 @@ resource "null_resource" "docker_build_push" {
   }
 
   provisioner "local-exec" {
-    command = <<EOT
-      gcloud auth configure-docker ${var.region}-docker.pkg.dev --quiet
-      docker build --platform linux/amd64 --provenance=false -t ${local.image} ${path.module}/../../../main/backend
-      docker push ${local.image}
-    EOT
+    command = "gcloud auth configure-docker ${var.region}-docker.pkg.dev --quiet && docker build --platform linux/amd64 --provenance=false -t ${local.image} ${path.module}/../../../main/backend && docker push ${local.image}"
   }
 }
