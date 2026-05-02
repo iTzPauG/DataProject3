@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Alert,
+  Dimensions,
   Image,
   ScrollView,
   StyleSheet,
@@ -11,11 +12,15 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
 import Icon, { IconName } from '../../components/Icon';
 import { monogramFor } from '../../constants/design';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../utils/theme';
+
+const { width, height } = Dimensions.get('window');
 
 interface MenuEntry {
   id: string;
@@ -30,6 +35,27 @@ export default function ProfileTab() {
   const { t } = useTranslation();
   const router = useRouter();
   const { user, profile, signOut } = useAuth();
+
+  // Mesh gradient animation values
+  const blob1X = useSharedValue(width * 0.4);
+  const blob1Y = useSharedValue(-height * 0.1);
+  const blob2X = useSharedValue(-width * 0.2);
+  const blob2Y = useSharedValue(height * 0.5);
+
+  useEffect(() => {
+    blob1X.value = withRepeat(withTiming(width * 0.1, { duration: 20000, easing: Easing.inOut(Easing.ease) }), -1, true);
+    blob1Y.value = withRepeat(withTiming(height * 0.2, { duration: 18000, easing: Easing.inOut(Easing.ease) }), -1, true);
+    blob2X.value = withRepeat(withTiming(width * 0.3, { duration: 22000, easing: Easing.inOut(Easing.ease) }), -1, true);
+    blob2Y.value = withRepeat(withTiming(height * 0.2, { duration: 25000, easing: Easing.inOut(Easing.ease) }), -1, true);
+  }, []);
+
+  const blob1Style = useAnimatedStyle(() => ({
+    transform: [{ translateX: blob1X.value }, { translateY: blob1Y.value }],
+  }));
+
+  const blob2Style = useAnimatedStyle(() => ({
+    transform: [{ translateX: blob2X.value }, { translateY: blob2Y.value }],
+  }));
 
   const MENU: MenuEntry[] = useMemo(
     () => [
@@ -53,13 +79,21 @@ export default function ProfileTab() {
   const styles = useMemo(
     () =>
       StyleSheet.create({
-        safe: { flex: 1, backgroundColor: colors.shell },
+        safe: { flex: 1, backgroundColor: colors.bg },
         scrollContent: { paddingBottom: 64 },
         container: {
           flex: 1,
           maxWidth: 620,
           width: '100%',
           alignSelf: 'center',
+        },
+
+        blob: {
+          position: 'absolute',
+          width: width * 0.8,
+          height: width * 0.8,
+          borderRadius: width * 0.4,
+          opacity: 0.15,
         },
 
         // ── masthead ────────────────────────────────────────────
@@ -70,7 +104,7 @@ export default function ProfileTab() {
         },
         eyebrow: {
           fontSize: 11,
-          letterSpacing: 2.2,
+          letterSpacing: 2.4,
           textTransform: 'uppercase',
           color: colors.inkFaint,
           fontFamily: typography.body,
@@ -194,12 +228,16 @@ export default function ProfileTab() {
           marginHorizontal: 24,
           marginTop: 8,
           marginBottom: 16,
+          borderRadius: 20,
+          overflow: 'hidden',
+        },
+        guestBlur: {
           paddingVertical: 26,
           paddingHorizontal: 24,
-          backgroundColor: colors.bg,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: colors.strokeStrong,
-          borderRadius: 18,
+          backgroundColor: 'rgba(24, 26, 35, 0.4)',
+          borderWidth: 1,
+          borderColor: 'rgba(255, 255, 255, 0.05)',
+          borderRadius: 20,
           gap: 14,
         },
         guestEyebrow: {
@@ -331,6 +369,11 @@ export default function ProfileTab() {
 
   return (
     <AnimatedTabScene>
+      <View style={StyleSheet.absoluteFillObject}>
+        <Animated.View style={[styles.blob, { backgroundColor: colors.brandDeep }, blob1Style]} />
+        <Animated.View style={[styles.blob, { backgroundColor: colors.accent, width: width * 1.1, height: width * 1.1 }, blob2Style]} />
+        <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFillObject} />
+      </View>
       <SafeAreaView style={styles.safe} edges={['top']}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -395,28 +438,30 @@ export default function ProfileTab() {
               </>
             ) : (
               <View style={styles.guest}>
-                <Text style={styles.guestEyebrow}>{t('profile.access')}</Text>
-                <Text style={styles.guestTitle}>
-                  {t('profile.guestSubtitle')}
-                </Text>
-                <Text style={styles.guestBody}>
-                  {t('profile.guestBody')}
-                </Text>
-                <TouchableOpacity
-                  style={styles.guestButton}
-                  activeOpacity={0.8}
-                  onPress={handleSignIn}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('auth.signIn')}
-                >
-                  <Text style={styles.guestButtonText}>{t('auth.signIn')}</Text>
-                  <Icon
-                    name="arrow-right"
-                    size={13}
-                    color={colors.shell}
-                    strokeWidth={1.4}
-                  />
-                </TouchableOpacity>
+                <BlurView intensity={40} tint="dark" style={styles.guestBlur}>
+                  <Text style={styles.guestEyebrow}>{t('profile.access')}</Text>
+                  <Text style={styles.guestTitle}>
+                    {t('profile.guestSubtitle')}
+                  </Text>
+                  <Text style={styles.guestBody}>
+                    {t('profile.guestBody')}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.guestButton}
+                    activeOpacity={0.8}
+                    onPress={handleSignIn}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('auth.signIn')}
+                  >
+                    <Text style={styles.guestButtonText}>{t('auth.signIn')}</Text>
+                    <Icon
+                      name="arrow-right"
+                      size={13}
+                      color={colors.shell}
+                      strokeWidth={1.4}
+                    />
+                  </TouchableOpacity>
+                </BlurView>
               </View>
             )}
 

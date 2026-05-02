@@ -7,6 +7,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import * as Haptics from 'expo-haptics';
 import { useTheme } from "../utils/theme";
 import CategoryMonogram from "./CategoryMonogram";
 
@@ -30,6 +31,11 @@ export default function ChoiceCard({
   const { colors, typography, space } = useTheme();
   const opacity = useSharedValue(0);
   const translateX = useSharedValue(-10);
+
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  };
 
   const styles = useMemo(() => StyleSheet.create({
     wrapper: {
@@ -83,7 +89,7 @@ export default function ChoiceCard({
   }));
 
   return (
-    <Pressable onPress={onPress} style={styles.wrapper}>
+    <Pressable onPress={handlePress} style={styles.wrapper}>
       {({ pressed }) => (
         <Animated.View
           style={[

@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Image,
@@ -7,9 +7,12 @@ import {
   StyleSheet,
   Text,
   View,
+  TouchableOpacity,
 } from "react-native";
+import * as Haptics from 'expo-haptics';
 import { Ionicons } from "../components/SafeIonicons";
-import { VoteData } from "../services/api";
+import { VoteData, toggleBookmark, checkBookmark } from "../services/api";
+import { auth } from "../services/supabase";
 import { Restaurant } from "../types/restaurant";
 import { formatDistance, formatRating, formatReviews } from "../utils/format";
 import { useTheme } from "../utils/theme";
@@ -37,6 +40,30 @@ export default function RestaurantCard({
 }: Props) {
   const { t } = useTranslation();
   const { colors, radii, shadows, typography } = useTheme();
+  const [isBookmarked, setIsBookmarked] = useState(false);
+
+  useEffect(() => {
+    if (auth.currentUser) {
+      checkBookmark(restaurant.id).then(setIsBookmarked).catch(() => {});
+    }
+  }, [restaurant.id]);
+
+  const handleToggleBookmark = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!auth.currentUser) return;
+    try {
+      await toggleBookmark(restaurant.id, 'place', isBookmarked);
+      setIsBookmarked(!isBookmarked);
+    } catch (e) {
+      console.warn('[WHIM] Error toggling bookmark:', e);
+    }
+  };
+
+  const handleCardPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  };
+
   const distance = restaurant.distanceM > 0 ? formatDistance(restaurant.distanceM) : null;
   const pros = restaurant.pros.slice(0, 2);
   const cons = restaurant.cons.slice(0, 1);
@@ -114,6 +141,18 @@ export default function RestaurantCard({
       paddingHorizontal: 10,
       paddingVertical: 6,
       zIndex: 2,
+    },
+    bookmarkBtn: {
+      position: "absolute",
+      left: 12,
+      top: 12,
+      backgroundColor: colors.overlay,
+      borderRadius: radii.pill,
+      width: 36,
+      height: 36,
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 3,
     },
     ratingBadgeText: {
       color: "#FFFFFF",
@@ -224,7 +263,7 @@ export default function RestaurantCard({
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handleCardPress}
       accessibilityLabel={`${t('common.cardOf', { defaultValue: 'Card of' })} ${restaurant.name}. ${t('placeDetails.rating', { rating: formatRating(restaurant.rating) })}. ${restaurant.tagline || ""}`}
       accessibilityRole="button"
       style={({ pressed }) => [
@@ -241,6 +280,17 @@ export default function RestaurantCard({
             <WhimIcon name="restaurant" category="food" size={34} color={colors.brand} accessibilityLabel={t('common.restaurantPlaceholder', { defaultValue: 'Restaurant placeholder' })} />
           </View>
         )}
+        <TouchableOpacity 
+          style={styles.bookmarkBtn} 
+          onPress={handleToggleBookmark}
+          activeOpacity={0.7}
+        >
+          <Ionicons 
+            name={isBookmarked ? "star" : "star-outline"} 
+            size={20} 
+            color={isBookmarked ? "#FFD700" : "#FFFFFF"} 
+          />
+        </TouchableOpacity>
         <View style={styles.ratingBadge} accessibilityLabel={t('placeDetails.rating', { rating: formatRating(restaurant.rating) })}>
           <Text style={styles.ratingBadgeText}>{formatRating(restaurant.rating)} ★</Text>
         </View>

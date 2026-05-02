@@ -42,9 +42,9 @@ for _noisy in ("httpcore", "httpx", "urllib3", "google.auth"):
 
 MAX_DISTANCE_KM = 8.0
 PREFILTER_CANDIDATES = 20
-TOP_RESULTS = 5
+TOP_RESULTS = 10
 MIN_RESULTS = 5
-STREAM_BATCH_SIZE = 3
+STREAM_BATCH_SIZE = 1
 LLM_BATCH_SPLIT = 3  # split top 5 into batches of 3+2 for parallel LLM
 
 # ────────── Shared Gemini client ──────────
@@ -186,25 +186,32 @@ def _infer_city(address: str | None) -> str | None:
     return None
 
 
-# ────────── Step B → pre_filter (Python) ──────────
+# ────────── Step B → semantic_filter (Python + Vector) ──────────
 
-def _pre_filter(candidates: list[dict], price_level: int | None, n: int = PREFILTER_CANDIDATES) -> list[dict]:
-    """Drop low-rated places, rank by Google's own signal + price match."""
+from services.vector_service import generate_embeddings, cosine_similarity, COMPLEX_QUERY_MIN_LEN
+
+async def _semantic_filter(candidates: list[dict], mood: str, price_level: int | None, n: int = PREFILTER_CANDIDATES) -> list[dict]:
+    """Drop low-rated places, rank by Google's own signal + price match, and optionally Semantic Search (Embeddings)."""
     if not candidates:
         return []
 
     dropped = []
     kept = []
     far_candidates = []
+    
+    # 1. Standard filtering
     for r in candidates:
-        rating = r.get("rating", 0) or 0
+        rating = float(r.get("rating", 0) or 0)
         price_diff = 0
-        if price_level is not None and r.get("price_level") is not None:
-            price_diff = abs(r.get("price_level", price_level) - price_level)
+        pl = r.get("metadata", {}).get("price_level") or r.get("price_level")
+        if price_level is not None and pl is not None:
+            price_diff = abs(int(pl) - price_level)
+            
+        r["_price_diff"] = price_diff
         distance_km = r.get("distance_m", 0) / 1000.0
 
-        if rating > 0 and rating < 3.0:
-            dropped.append(f"{r.get('name', 'Unknown')} (rating {rating} < 3.0)")
+        if rating > 0 and rating < 3.5:
+            dropped.append(f"{r.get('name', 'Unknown')} (rating {rating} < 3.5)")
         elif distance_km > MAX_DISTANCE_KM:
             far_candidates.append(r)
         else:
@@ -216,16 +223,55 @@ def _pre_filter(candidates: list[dict], price_level: int | None, n: int = PREFIL
     elif not kept and dropped:
         kept = candidates
 
-    def _sort_key(r: dict):
-        p_diff = 0
-        if price_level is not None and r.get("price_level") is not None:
-            p_diff = abs(r.get("price_level", price_level) - price_level)
+    # 2. Vector Semantic Similarity (if mood is a natural language query)
+    is_complex_query = bool(mood and len(mood) > COMPLEX_QUERY_MIN_LEN)
+    
+    if is_complex_query and kept:
+        log.info(f"[B] Complex query detected: '{mood}'. Running semantic embedding search...")
+        
+        # Prepare context strings for each place
+        texts_to_embed = [mood]
+        for r in kept:
+            # Create a rich text representation of the place
+            name = r.get("name", "")
+            tags = " ".join(r.get("metadata", {}).get("types", []))
+            summary = r.get("review_summary", "") or r.get("metadata", {}).get("review_summary", "")
+            context = f"Lugar: {name}. Etiquetas: {tags}. Resumen: {summary}"
+            texts_to_embed.append(context)
             
-        return (
-            -p_diff, # Prioritize exact price matches
-            (r.get("rating") or 0.0) * math.log10((r.get("total_ratings") or 0) + 1),
-            -(r.get("distance_m") or 0),
-        )
+        # Generate embeddings in one batch
+        embeddings = await generate_embeddings(texts_to_embed)
+        
+        if embeddings and embeddings[0]:
+            query_emb = embeddings[0]
+            for i, r in enumerate(kept):
+                place_emb = embeddings[i + 1] if (i + 1) < len(embeddings) else []
+                sim = cosine_similarity(query_emb, place_emb)
+                r["_semantic_score"] = sim
+                log.debug(f"[B] Semantic score for {r.get('name')}: {sim:.3f}")
+        else:
+            log.warning("[B] Embeddings failed, falling back to standard ranking.")
+            is_complex_query = False
+
+    # 3. Final Sorting
+    def _sort_key(r: dict):
+        rate = float(r.get("rating") or 0.0)
+        count = int(r.get("total_ratings") or 0)
+        dist = int(r.get("distance_m", 0) or 0)
+        pdiff = r.get("_price_diff", 0)
+        
+        base_score = rate * math.log10(max(10, count))
+        dist_penalty = (dist / 1000.0) * 0.5
+        price_penalty = pdiff * 5.0
+        
+        semantic_boost = 0.0
+        if is_complex_query:
+            # If semantic score exists, it's between -1 and 1 (usually 0 to 1).
+            # We scale it heavily so it overrides the base score for strong matches.
+            sim = r.get("_semantic_score", 0.0)
+            semantic_boost = sim * 20.0 
+            
+        return base_score - dist_penalty - price_penalty + semantic_boost
 
     if dropped:
         log.debug("[B] dropped %d candidates: %s", len(dropped), " | ".join(dropped))
@@ -233,7 +279,7 @@ def _pre_filter(candidates: list[dict], price_level: int | None, n: int = PREFIL
     kept.sort(key=_sort_key, reverse=True)
     result = kept[:n]
     log.info(
-        "[B] pre_filter: %d → %d candidates",
+        "[B] semantic_filter: %d → %d candidates",
         len(candidates), len(result)
     )
     return result
@@ -1093,8 +1139,8 @@ async def recommend_stream(
         if not candidates:
             return
 
-        # Phase 2: Pre-filter
-        candidates = _pre_filter(candidates, price_level)
+        # Phase 2: Semantic Pre-filter
+        candidates = await _semantic_filter(candidates, mood, price_level)
         candidates = candidates[:TOP_RESULTS]
         yield {"event": "meta", "total": len(candidates)}
 

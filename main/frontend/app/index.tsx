@@ -4,6 +4,7 @@ import {
   Dimensions,
   Image,
   StyleSheet,
+  View,
 } from 'react-native';
 import Animated, {
   Easing,
@@ -16,11 +17,12 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
 import { useTheme } from '../utils/theme';
 import { useLocation } from '../hooks/useLocation';
 import { useTranslation } from 'react-i18next';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 const LOGO_SIZE = Math.min(width * 0.38, 150);
 
 const useDotStyle = (sv: Animated.SharedValue<number>) =>
@@ -60,6 +62,12 @@ export default function SplashScreen() {
   const dot2 = useSharedValue(0.2);
   const dot3 = useSharedValue(0.2);
   const containerOpacity = useSharedValue(1);
+
+  // Mesh gradient animation values
+  const blob1X = useSharedValue(-width * 0.2);
+  const blob1Y = useSharedValue(-height * 0.1);
+  const blob2X = useSharedValue(width * 0.6);
+  const blob2Y = useSharedValue(height * 0.6);
 
   const navigated = useRef(false);
 
@@ -106,6 +114,12 @@ export default function SplashScreen() {
   }), [colors, typography]);
 
   useEffect(() => {
+    // Mesh gradient slow movement
+    blob1X.value = withRepeat(withTiming(width * 0.4, { duration: 15000, easing: Easing.inOut(Easing.ease) }), -1, true);
+    blob1Y.value = withRepeat(withTiming(height * 0.3, { duration: 18000, easing: Easing.inOut(Easing.ease) }), -1, true);
+    blob2X.value = withRepeat(withTiming(width * 0.1, { duration: 20000, easing: Easing.inOut(Easing.ease) }), -1, true);
+    blob2Y.value = withRepeat(withTiming(height * 0.2, { duration: 16000, easing: Easing.inOut(Easing.ease) }), -1, true);
+
     // Phase 1: Logo Reveal - Premium Spring
     logoOpacity.value = withTiming(1, { duration: 800 });
     logoScale.value = withSpring(1, { 
@@ -201,8 +215,23 @@ export default function SplashScreen() {
     opacity: containerOpacity.value,
   }));
 
+  const blob1Style = useAnimatedStyle(() => ({
+    transform: [{ translateX: blob1X.value }, { translateY: blob1Y.value }],
+  }));
+
+  const blob2Style = useAnimatedStyle(() => ({
+    transform: [{ translateX: blob2X.value }, { translateY: blob2Y.value }],
+  }));
+
   return (
     <Animated.View style={[dynamicStyles.container, containerStyle]}>
+      {/* Mesh Gradient Background */}
+      <View style={StyleSheet.absoluteFillObject}>
+        <Animated.View style={[styles.blob, { backgroundColor: colors.brandDeep }, blob1Style]} />
+        <Animated.View style={[styles.blob, { backgroundColor: colors.accent, width: width * 1.2, height: width * 1.2 }, blob2Style]} />
+        <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFillObject} />
+      </View>
+
       <Animated.View style={styles.content}>
         <Animated.View style={[styles.logoWrap, logoStyle]}>
           <Image
@@ -247,6 +276,13 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  blob: {
+    position: 'absolute',
+    width: width * 0.8,
+    height: width * 0.8,
+    borderRadius: width * 0.4,
+    opacity: 0.4,
   },
   logoWrap: {
     width: LOGO_SIZE,

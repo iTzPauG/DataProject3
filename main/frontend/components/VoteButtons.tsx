@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import * as Haptics from 'expo-haptics';
 import { castVote, VoteData } from "../services/api";
 import { useTheme } from "../utils/theme";
 import WhimIcon from "./WhimIcon";
@@ -95,6 +96,7 @@ export default function VoteButtons({
 
   async function handleVote(vote: 1 | -1) {
     if (loading) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setLoading(true);
 
     const prevLikes = likes;

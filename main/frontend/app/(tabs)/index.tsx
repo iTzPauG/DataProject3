@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
 import Icon from '../../components/Icon';
 import Map from '../../components/map/Map';
@@ -68,12 +69,14 @@ export default function MapTab() {
         container: { flex: 1, backgroundColor: colors.shell },
 
         panel: {
-          backgroundColor: colors.surface,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: colors.stroke,
           borderRadius: 20,
           overflow: 'hidden',
           ...shadows.lift,
+        },
+        panelBlur: {
+          backgroundColor: 'rgba(24, 26, 35, 0.65)', // surface with opacity
+          borderWidth: 1,
+          borderColor: 'rgba(255, 255, 255, 0.05)',
         },
         eyebrowRow: {
           flexDirection: 'row',
@@ -154,17 +157,19 @@ export default function MapTab() {
           marginTop: 8,
           borderRadius: 20,
           overflow: 'hidden',
-          backgroundColor: colors.surface,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: colors.stroke,
           ...shadows.lift,
           zIndex: 20,
+        },
+        dropdownBlur: {
+          backgroundColor: 'rgba(24, 26, 35, 0.85)',
+          borderWidth: 1,
+          borderColor: 'rgba(255, 255, 255, 0.05)',
         },
         dropdownItem: {
           paddingHorizontal: 20,
           paddingVertical: 14,
           borderBottomWidth: StyleSheet.hairlineWidth,
-          borderBottomColor: colors.stroke,
+          borderBottomColor: 'rgba(255, 255, 255, 0.05)',
         },
         dropdownName: {
           fontSize: 15,
@@ -419,93 +424,97 @@ export default function MapTab() {
           }}
         >
           <View style={styles.panel}>
-            <View style={styles.eyebrowRow}>
-              <Text style={styles.eyebrow}>{t("home.locationNow")}</Text>
-              <TouchableOpacity
-                onPress={handleCenterOnUser}
-                activeOpacity={0.7}
-                accessibilityLabel={t("home.recenter")}
-                accessibilityRole="button"
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-              >
-                <Icon
-                  name="crosshair"
-                  size={13}
-                  color={colors.inkMuted}
-                  strokeWidth={1.2}
-                />
-                <Text style={styles.eyebrowAction}>{t("home.recenter")}</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.searchRow}>
-              <View style={styles.iconBtn}>
-                <Icon
-                  name="search"
-                  size={20}
-                  color={colors.inkMuted}
-                  strokeWidth={1.8}
-                />
-              </View>
-              <TextInput
-                style={styles.searchInput}
-                placeholder={t("home.searchPlaceholder")}
-                placeholderTextColor={colors.inkFaint}
-                value={searchQuery}
-                onChangeText={handleSearchChange}
-                clearButtonMode="while-editing"
-                accessibilityLabel={t("common.search")}
-              />
-              {searchQuery.length > 0 ? (
+            <BlurView intensity={60} tint="dark" style={styles.panelBlur}>
+              <View style={styles.eyebrowRow}>
+                <Text style={styles.eyebrow}>{t("home.locationNow")}</Text>
                 <TouchableOpacity
-                  style={styles.iconBtn}
-                  activeOpacity={0.6}
-                  onPress={() => {
-                    setSearchQuery('');
-                    setAcResults([]);
-                    setSelectedSearchItem(null);
-                  }}
-                  accessibilityLabel={t("common.close")}
+                  onPress={handleCenterOnUser}
+                  activeOpacity={0.7}
+                  accessibilityLabel={t("home.recenter")}
                   accessibilityRole="button"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
                 >
                   <Icon
-                    name="close"
-                    size={16}
+                    name="crosshair"
+                    size={13}
                     color={colors.inkMuted}
-                    strokeWidth={1.6}
+                    strokeWidth={1.2}
                   />
+                  <Text style={styles.eyebrowAction}>{t("home.recenter")}</Text>
                 </TouchableOpacity>
-              ) : null}
-            </View>
+              </View>
+
+              <View style={styles.searchRow}>
+                <View style={styles.iconBtn}>
+                  <Icon
+                    name="search"
+                    size={20}
+                    color={colors.inkMuted}
+                    strokeWidth={1.8}
+                  />
+                </View>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder={t("home.searchPlaceholder")}
+                  placeholderTextColor={colors.inkFaint}
+                  value={searchQuery}
+                  onChangeText={handleSearchChange}
+                  clearButtonMode="while-editing"
+                  accessibilityLabel={t("common.search")}
+                />
+                {searchQuery.length > 0 ? (
+                  <TouchableOpacity
+                    style={styles.iconBtn}
+                    activeOpacity={0.6}
+                    onPress={() => {
+                      setSearchQuery('');
+                      setAcResults([]);
+                      setSelectedSearchItem(null);
+                    }}
+                    accessibilityLabel={t("common.close")}
+                    accessibilityRole="button"
+                  >
+                    <Icon
+                      name="close"
+                      size={16}
+                      color={colors.inkMuted}
+                      strokeWidth={1.6}
+                    />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </BlurView>
           </View>
 
           {acResults.length > 0 && (
             <View style={styles.dropdown}>
-              <FlatList
-                data={acResults}
-                keyExtractor={(_, i) => String(i)}
-                keyboardShouldPersistTaps="handled"
-                renderItem={({ item, index }) => (
-                  <TouchableOpacity
-                    style={[
-                      styles.dropdownItem,
-                      index === acResults.length - 1 && { borderBottomWidth: 0 },
-                    ]}
-                    onPress={() => handleSelectResult(item)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.dropdownName} numberOfLines={1}>
-                      {item.display}
-                    </Text>
-                    {item.address ? (
-                      <Text style={styles.dropdownAddress} numberOfLines={1}>
-                        {item.address}
+              <BlurView intensity={60} tint="dark" style={styles.dropdownBlur}>
+                <FlatList
+                  data={acResults}
+                  keyExtractor={(_, i) => String(i)}
+                  keyboardShouldPersistTaps="handled"
+                  renderItem={({ item, index }) => (
+                    <TouchableOpacity
+                      style={[
+                        styles.dropdownItem,
+                        index === acResults.length - 1 && { borderBottomWidth: 0 },
+                      ]}
+                      onPress={() => handleSelectResult(item)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.dropdownName} numberOfLines={1}>
+                        {item.display}
                       </Text>
-                    ) : null}
-                  </TouchableOpacity>
-                )}
-              />
+                      {item.address ? (
+                        <Text style={styles.dropdownAddress} numberOfLines={1}>
+                          {item.address}
+                        </Text>
+                      ) : null}
+                    </TouchableOpacity>
+                  )}
+                />
+              </BlurView>
             </View>
           )}
         </View>

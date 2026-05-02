@@ -7,6 +7,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import * as Haptics from 'expo-haptics';
 import { useTheme } from "../utils/theme";
 import CategoryMonogram from "./CategoryMonogram";
 
@@ -32,6 +33,11 @@ export default function ChoiceChip({
   const { colors, typography, space } = useTheme();
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(10);
+
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  };
 
   const styles = React.useMemo(() => StyleSheet.create({
     wrapper: {
@@ -80,7 +86,7 @@ export default function ChoiceChip({
 
   return (
     <Animated.View style={[styles.wrapper, animStyle]}>
-      <Pressable onPress={onPress}>
+      <Pressable onPress={handlePress}>
         {({ pressed }) => (
           <View
             style={[

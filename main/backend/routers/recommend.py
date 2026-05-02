@@ -11,7 +11,7 @@ from models.schemas import RecommendRequest, RecommendResponse
 from services.recommendation.pipeline import recommend, recommend_stream
 
 router = APIRouter(tags=["recommend"])
-MAX_TOP_RESULTS = 5
+MAX_TOP_RESULTS = 10
 
 # ── In-memory job store for progressive polling ──────────────────────────────
 # Each job: { "results": [...], "total": int|None, "done": bool, "created": float }

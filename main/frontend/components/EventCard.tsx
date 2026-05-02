@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { formatTimeAgo } from '../utils/format';
 import { useTheme } from '../utils/theme';
 
@@ -19,6 +20,11 @@ interface EventCardProps {
 export const EventCard: React.FC<EventCardProps> = ({ event, onPress }) => {
   const { colors, radii, shadows, typography } = useTheme();
   const formattedDate = formatTimeAgo(event.date);
+
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  };
 
   const styles = useMemo(() => StyleSheet.create({
     container: {
@@ -76,7 +82,7 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onPress }) => {
   }), [colors, radii, shadows, typography]);
 
   return (
-    <TouchableOpacity style={styles.container} onPress={onPress}>
+    <TouchableOpacity style={styles.container} onPress={handlePress}>
       <View style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>{event.title}</Text>

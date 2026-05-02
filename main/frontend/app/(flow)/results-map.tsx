@@ -43,7 +43,7 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 const CARD_HEIGHT = 360;
-const MAX_RESULTS = 5;
+const MAX_RESULTS = 10;
 
 type Status = "loading" | "streaming" | "success" | "error";
 

@@ -149,10 +149,10 @@ export const DS = {
     xs: { fontSize: 11, lineHeight: 16, letterSpacing: 0.2 },
     sm: { fontSize: 13, lineHeight: 19, letterSpacing: 0.1 },
     md: { fontSize: 15, lineHeight: 23, letterSpacing: 0 },
-    lg: { fontSize: 18, lineHeight: 26, letterSpacing: -0.1 },
-    xl: { fontSize: 22, lineHeight: 30, letterSpacing: -0.2 },
-    xxl: { fontSize: 28, lineHeight: 34, letterSpacing: -0.4 },
-    display: { fontSize: 40, lineHeight: 44, letterSpacing: -0.8 },
+    lg: { fontSize: 18, lineHeight: 26, letterSpacing: -0.2 },
+    xl: { fontSize: 22, lineHeight: 30, letterSpacing: -0.4 },
+    xxl: { fontSize: 28, lineHeight: 34, letterSpacing: -0.6 },
+    display: { fontSize: 42, lineHeight: 46, letterSpacing: -1.2 },
   },
 
   weight: {
@@ -165,7 +165,7 @@ export const DS = {
   // Eyebrow / label treatment — small caps, generous tracking.
   eyebrow: {
     fontSize: 11,
-    letterSpacing: 1.6,
+    letterSpacing: 2.4,
     textTransform: "uppercase" as const,
     fontWeight: "600" as const,
   },

@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
 import {
   ActivityIndicator,
+  Dimensions,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,11 +11,15 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
 import Icon from '../../components/Icon';
 import CategoryMonogram from '../../components/CategoryMonogram';
 import { useTheme } from '../../utils/theme';
 import { useLocation } from '../../hooks/useLocation';
+
+const { width, height } = Dimensions.get('window');
 
 const FLOW_STEPS = [
   { key: 'food_type', iconName: 'food', labelKey: 'flow.categoryTitle', subtitleKey: 'flow.categorySubtitle' },
@@ -38,10 +43,31 @@ export default function ExploreTab() {
     return "Explore";
   }, [exploreVerbs]);
 
+  // Mesh gradient animation values
+  const blob1X = useSharedValue(-width * 0.1);
+  const blob1Y = useSharedValue(-height * 0.1);
+  const blob2X = useSharedValue(width * 0.5);
+  const blob2Y = useSharedValue(height * 0.4);
+
+  useEffect(() => {
+    blob1X.value = withRepeat(withTiming(width * 0.3, { duration: 18000, easing: Easing.inOut(Easing.ease) }), -1, true);
+    blob1Y.value = withRepeat(withTiming(height * 0.2, { duration: 22000, easing: Easing.inOut(Easing.ease) }), -1, true);
+    blob2X.value = withRepeat(withTiming(width * 0.1, { duration: 25000, easing: Easing.inOut(Easing.ease) }), -1, true);
+    blob2Y.value = withRepeat(withTiming(height * 0.1, { duration: 19000, easing: Easing.inOut(Easing.ease) }), -1, true);
+  }, []);
+
+  const blob1Style = useAnimatedStyle(() => ({
+    transform: [{ translateX: blob1X.value }, { translateY: blob1Y.value }],
+  }));
+
+  const blob2Style = useAnimatedStyle(() => ({
+    transform: [{ translateX: blob2X.value }, { translateY: blob2Y.value }],
+  }));
+
   const styles = useMemo(
     () =>
       StyleSheet.create({
-        safe: { flex: 1, backgroundColor: colors.shell },
+        safe: { flex: 1, backgroundColor: colors.bg },
         container: {
           flex: 1,
           maxWidth: 620,
@@ -50,6 +76,14 @@ export default function ExploreTab() {
         },
         scrollContent: { paddingBottom: 64 },
 
+        blob: {
+          position: 'absolute',
+          width: width * 0.9,
+          height: width * 0.9,
+          borderRadius: width * 0.45,
+          opacity: 0.15,
+        },
+
         masthead: {
           paddingHorizontal: 24,
           paddingTop: 32,
@@ -57,7 +91,7 @@ export default function ExploreTab() {
         },
         issueLine: {
           fontSize: 11,
-          letterSpacing: 2.2,
+          letterSpacing: 2.4,
           textTransform: 'uppercase',
           color: colors.inkFaint,
           fontFamily: typography.body,
@@ -94,30 +128,44 @@ export default function ExploreTab() {
         },
 
         // ── CTA button ─────────────────────────────────────────
-        ctaButton: {
+        ctaContainer: {
           marginHorizontal: 24,
           marginBottom: 32,
-          backgroundColor: colors.brand,
-          borderRadius: 16,
-          paddingVertical: 18,
+          borderRadius: 20,
+          overflow: 'hidden',
+        },
+        ctaBlur: {
+          paddingVertical: 20,
           paddingHorizontal: 24,
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
+          backgroundColor: 'rgba(108, 99, 232, 0.15)', // brand with opacity
+          borderWidth: 1,
+          borderColor: 'rgba(108, 99, 232, 0.3)',
+          borderRadius: 20,
         },
         ctaLeft: { flex: 1 },
         ctaTitle: {
           fontSize: 18,
           fontWeight: '700',
-          color: '#FFFFFF',
+          color: colors.ink,
           fontFamily: typography.heading,
           letterSpacing: -0.3,
         },
         ctaSubtitle: {
           fontSize: 13,
-          color: 'rgba(255,255,255,0.75)',
+          color: colors.inkMuted,
           fontFamily: typography.body,
           marginTop: 3,
+        },
+        ctaIconBox: {
+          width: 40,
+          height: 40,
+          borderRadius: 20,
+          backgroundColor: colors.brand,
+          alignItems: 'center',
+          justifyContent: 'center',
         },
 
         // ── Steps preview ──────────────────────────────────────
@@ -125,7 +173,7 @@ export default function ExploreTab() {
           paddingHorizontal: 24,
           marginBottom: 12,
           fontSize: 11,
-          letterSpacing: 2.2,
+          letterSpacing: 2.4,
           textTransform: 'uppercase',
           color: colors.inkFaint,
           fontFamily: typography.body,
@@ -182,6 +230,11 @@ export default function ExploreTab() {
 
   return (
     <AnimatedTabScene>
+      <View style={StyleSheet.absoluteFillObject}>
+        <Animated.View style={[styles.blob, { backgroundColor: colors.brandDeep }, blob1Style]} />
+        <Animated.View style={[styles.blob, { backgroundColor: colors.accent, width: width * 1.1, height: width * 1.1 }, blob2Style]} />
+        <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFillObject} />
+      </View>
       <SafeAreaView style={styles.safe} edges={['top']}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -209,17 +262,21 @@ export default function ExploreTab() {
 
             {/* CTA principal */}
             <TouchableOpacity
-              style={styles.ctaButton}
+              style={styles.ctaContainer}
               onPress={handleStart}
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel={t('flow.startFlow', 'Empezar búsqueda')}
             >
-              <View style={styles.ctaLeft}>
-                <Text style={styles.ctaTitle}>{t('flow.startFlow', 'Encontrar mi sitio')}</Text>
-                <Text style={styles.ctaSubtitle}>{t('flow.startFlowSub', '3 pasos · menos de 30 segundos')}</Text>
-              </View>
-              <Icon name="chevron-right" size={20} color="#FFFFFF" strokeWidth={2} />
+              <BlurView intensity={40} tint="dark" style={styles.ctaBlur}>
+                <View style={styles.ctaLeft}>
+                  <Text style={styles.ctaTitle}>{t('flow.startFlow', 'Encontrar mi sitio')}</Text>
+                  <Text style={styles.ctaSubtitle}>{t('flow.startFlowSub', '3 pasos · menos de 30 segundos')}</Text>
+                </View>
+                <View style={styles.ctaIconBox}>
+                  <Icon name="chevron-right" size={20} color="#FFFFFF" strokeWidth={2.5} />
+                </View>
+              </BlurView>
             </TouchableOpacity>
 
             {/* Preview de los 3 pasos */}

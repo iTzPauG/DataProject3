@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from "react-i18next";
+import { BlurView } from 'expo-blur';
 import { useDeviceType } from '../hooks/useDeviceType';
 import { MapItem } from '../types/map';
 import { formatDistance } from '../utils/format';
@@ -54,9 +55,9 @@ function NearbyItem({
       paddingVertical: space.md,
       paddingHorizontal: space.md,
       marginBottom: 1,
-      backgroundColor: selected ? colors.surface : 'transparent',
+      backgroundColor: selected ? 'rgba(255, 255, 255, 0.05)' : 'transparent',
       borderBottomWidth: 1,
-      borderBottomColor: colors.stroke,
+      borderBottomColor: 'rgba(255, 255, 255, 0.05)',
     },
     itemIconBox: {
       width: 48,
@@ -165,12 +166,15 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
       bottom: 0,
       left: 0,
       right: 0,
-      backgroundColor: colors.surface,
       borderTopLeftRadius: 32,
       borderTopRightRadius: 32,
       overflow: 'hidden',
-      borderWidth: 1,
-      borderColor: colors.stroke,
+    },
+    blurView: {
+      flex: 1,
+      backgroundColor: 'rgba(24, 26, 35, 0.85)',
+      borderTopWidth: 1,
+      borderTopColor: 'rgba(255, 255, 255, 0.05)',
     },
     header: {
       alignItems: 'center',
@@ -265,31 +269,33 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
         },
       ]}
     >
-      <View {...panResponder.panHandlers}>
-        <TouchableOpacity 
-          style={styles.header} 
-          onPress={toggle} 
-          activeOpacity={0.9}
-        >
-          <View style={styles.handle} />
-          <Text style={styles.headerText}>
-            {loading
-              ? t('common.loading')
-              : (items && items.length > 0)
-                ? t('explore.showingPlaces', { count: items.length })
-                : (hasSearched ? t('flow.noResults') : '')}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <BlurView intensity={80} tint="dark" style={styles.blurView}>
+        <View {...panResponder.panHandlers}>
+          <TouchableOpacity 
+            style={styles.header} 
+            onPress={toggle} 
+            activeOpacity={0.9}
+          >
+            <View style={styles.handle} />
+            <Text style={styles.headerText}>
+              {loading
+                ? t('common.loading')
+                : (items && items.length > 0)
+                  ? t('explore.showingPlaces', { count: items.length })
+                  : (hasSearched ? t('flow.noResults') : '')}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-      <FlatList
-        data={items}
-        keyExtractor={(item) => item.item_id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        scrollEnabled={expanded}
-      />
+        <FlatList
+          data={items}
+          keyExtractor={(item) => item.item_id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          scrollEnabled={expanded}
+        />
+      </BlurView>
     </Animated.View>
   );
 }

@@ -10,6 +10,7 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { Category } from '../types';
 import { useTheme } from '../utils/theme';
 
@@ -22,6 +23,11 @@ interface Props {
 export default function CategoryFilter({ categories, selected, onSelect }: Props) {
   const { t } = useTranslation();
   const { colors, typography } = useTheme();
+
+  const handleSelect = (categoryId: string | null) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onSelect(categoryId);
+  };
 
   const styles = useMemo(
     () =>
@@ -86,10 +92,10 @@ export default function CategoryFilter({ categories, selected, onSelect }: Props
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
       >
-        {chip('__all__', t('common.all'), selected === null, () => onSelect(null))}
+        {chip('__all__', t('common.all'), selected === null, () => handleSelect(null))}
         {categories.map((cat) =>
           chip(cat.id, cat.label, selected === cat.id, () =>
-            onSelect(selected === cat.id ? null : cat.id),
+            handleSelect(selected === cat.id ? null : cat.id),
           ),
         )}
       </ScrollView>
