@@ -1,13 +1,17 @@
 """Plan Recommendation API — FastAPI application entry point."""
 
 import logging
+import time
+import json
+import traceback
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from config import ALLOWED_ORIGINS
-from contextlib import asynccontextmanager
 from database import init_db, using_postgres
 from routers import health, recommend, votes, places, events, reports, categories, bookmarks, search, brain, photos, preferences, compare, deals, reservations, interactions, internal, auth
 
@@ -31,10 +35,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Plan Recommendation API", lifespan=lifespan)
 
-
-import time
-import json
-import traceback
 
 class CatchAllMiddleware:
     """SIMPLE ASGI MIDDLEWARE: Catch exceptions without buffering the response."""
