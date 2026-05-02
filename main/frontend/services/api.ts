@@ -167,230 +167,6 @@ const FLOW_FALLBACKS: Record<string, CategoryFlowResponse> = {
       { id: 'comfort_food', label: 'Antojo', emoji: '🍲' },
     ],
   },
-  nightlife: {
-    category: { id: 'nightlife', label: 'Ocio nocturno', icon: '🌙', color: '#3B82F6', sort_order: 2, is_active: true, requires_price: true, search_mode: 'guided_ranked', mood_title: '¿Qué rollo buscas?', mood_subtitle: 'Elige el ambiente de la noche' },
-    subcategories: [
-      { id: 'bar', label: 'Bar de copas', emoji: '🍻' },
-      { id: 'club', label: 'Discoteca', emoji: '🕺' },
-      { id: 'cocktail', label: 'Coctelería', emoji: '🍸' },
-      { id: 'lounge', label: 'Lounge / Chill', emoji: '🛋️' },
-      { id: 'rooftop', label: 'Terraza / Rooftop', emoji: '🌃' },
-      { id: 'wine_bar', label: 'Vinoteca', emoji: '🍷' },
-      { id: 'karaoke', label: 'Karaoke', emoji: '🎤' },
-      { id: 'live_music', label: 'Música en vivo', emoji: '🎸' },
-      { id: 'pub', label: 'Irish Pub', emoji: '🍺' },
-    ],
-    moods: [
-      { id: 'chill', label: 'Tranquilo', emoji: '🍷' },
-      { id: 'party', label: 'Fiesta total', emoji: '💃' },
-      { id: 'intimate', label: 'Íntimo / Cita', emoji: '🥂' },
-      { id: 'friends', label: 'Con amigos', emoji: '🍻' },
-      { id: 'live_show', label: 'Espectáculo', emoji: '💃' },
-      { id: 'afterwork', label: 'After work', emoji: '👔' },
-    ],
-  },
-  shopping: {
-    category: { id: 'shopping', label: 'Compras', icon: '🛒', color: '#10B981', sort_order: 3, is_active: true, requires_price: true, search_mode: 'guided_ranked', mood_title: '¿Cómo quieres comprar?', mood_subtitle: 'Elige tu estilo de compras' },
-    subcategories: [
-      { id: 'clothes', label: 'Moda y ropa', emoji: '👗' },
-      { id: 'electronics', label: 'Electrónica', emoji: '💻' },
-      { id: 'supermarket', label: 'Supermercado', emoji: '🛒' },
-      { id: 'mall', label: 'Centro Comercial', emoji: '🏬' },
-      { id: 'vintage', label: 'Vintage / Segunda mano', emoji: '🕰️' },
-      { id: 'bookstore', label: 'Librería', emoji: '📚' },
-      { id: 'deco', label: 'Decoración / Hogar', emoji: '🏠' },
-      { id: 'sports_gear', label: 'Deportes', emoji: '⚽' },
-      { id: 'gifts', label: 'Regalos / Souvenirs', emoji: '🎁' },
-    ],
-    moods: [
-      { id: 'quick', label: 'Compra rápida', emoji: '⏱️' },
-      { id: 'window', label: 'Solo mirar', emoji: '👀' },
-      { id: 'treat_myself', label: 'Darse un capricho', emoji: '🎁' },
-      { id: 'sale', label: 'Ofertas / Outlet', emoji: '🏷️' },
-      { id: 'luxury', label: 'Lujo / Premium', emoji: '💎' },
-      { id: 'local_brands', label: 'Marcas locales', emoji: '🏪' },
-    ],
-  },
-  health: {
-    category: { id: 'health', label: 'Salud y farmacia', icon: '💊', color: '#EF4444', sort_order: 4, is_active: true, requires_price: false, search_mode: 'guided_ranked', mood_title: '¿Cuál es la urgencia?', mood_subtitle: 'Elige tu situación actual' },
-    subcategories: [
-      { id: 'pharmacy', label: 'Farmacia', emoji: '💊' },
-      { id: 'hospital', label: 'Hospital / Urgencias', emoji: '🏥' },
-      { id: 'clinic', label: 'Clínica / Médico', emoji: '⚕️' },
-      { id: 'dentist', label: 'Dentista', emoji: '🦷' },
-      { id: 'optician', label: 'Óptica', emoji: '👓' },
-      { id: 'physiotherapy', label: 'Fisioterapia', emoji: '💆' },
-      { id: 'mental_health', label: 'Salud mental', emoji: '🧠' },
-      { id: 'vet', label: 'Veterinario', emoji: '🩺' },
-    ],
-    moods: [
-      { id: 'urgent', label: 'Urgencia', emoji: '🚨' },
-      { id: 'checkup', label: 'Cita rutinaria', emoji: '📅' },
-      { id: 'specialist', label: 'Especialista', emoji: '👨‍⚕️' },
-      { id: 'night_service', label: 'Guardia 24h', emoji: '🌙' },
-    ],
-  },
-  nature: {
-    category: { id: 'nature', label: 'Naturaleza', icon: '🌿', color: '#22C55E', sort_order: 5, is_active: true, requires_price: false, search_mode: 'guided_ranked', mood_title: '¿Qué plan tienes?', mood_subtitle: 'Elige qué quieres hacer' },
-    subcategories: [
-      { id: 'park', label: 'Parque urbano', emoji: '🌲' },
-      { id: 'beach', label: 'Playa', emoji: '🏖️' },
-      { id: 'hiking', label: 'Senderismo / Ruta', emoji: '🥾' },
-      { id: 'garden', label: 'Jardín botánico', emoji: '🌺' },
-      { id: 'viewpoint', label: 'Mirador', emoji: '🏔️' },
-      { id: 'lake', label: 'Lago / Río', emoji: '🏞️' },
-      { id: 'picnic', label: 'Zona de picnic', emoji: '🧺' },
-    ],
-    moods: [
-      { id: 'relax', label: 'Paz y relax', emoji: '🧘' },
-      { id: 'active', label: 'Aventura / Deporte', emoji: '🏃' },
-      { id: 'family', label: 'Plan con niños', emoji: '👶' },
-      { id: 'photo_spot', label: 'Buenas vistas', emoji: '📸' },
-      { id: 'dog_friendly', label: 'Con mi perro', emoji: '🐕' },
-      { id: 'sunset', label: 'Ver el atardecer', emoji: '🌅' },
-    ],
-  },
-  culture: {
-    category: { id: 'culture', label: 'Cultura y ocio', icon: '🎭', color: '#F59E0B', sort_order: 6, is_active: true, requires_price: true, search_mode: 'guided_ranked', mood_title: '¿Cuál es tu objetivo?', mood_subtitle: 'Elige qué buscas de esta visita' },
-    subcategories: [
-      { id: 'museum', label: 'Museo', emoji: '🏛️' },
-      { id: 'gallery', label: 'Galería de arte', emoji: '🖼️' },
-      { id: 'theater', label: 'Teatro / Musicales', emoji: '🎭' },
-      { id: 'library', label: 'Biblioteca', emoji: '📚' },
-      { id: 'historic_site', label: 'Sitio histórico', emoji: '🏰' },
-      { id: 'cultural_center', label: 'Centro cultural', emoji: '🎪' },
-    ],
-    moods: [
-      { id: 'learn', label: 'Para aprender', emoji: '🧠' },
-      { id: 'interactive', label: 'Plan interactivo', emoji: '🎨' },
-      { id: 'classic', label: 'Visita clásica', emoji: '🏛️' },
-      { id: 'entertainment', label: 'Solo diversión', emoji: '🍿' },
-      { id: 'free', label: 'Gratis', emoji: '🆓' },
-      { id: 'guided_tour', label: 'Con guía', emoji: '🎙️' },
-    ],
-  },
-  sport: {
-    category: { id: 'sport', label: 'Deporte', icon: '⚽', color: '#0EA5E9', sort_order: 9, is_active: true, requires_price: false, search_mode: 'guided_ranked', mood_title: '¿Cómo quieres entrenar?', mood_subtitle: 'Elige la intensidad o compañía' },
-    subcategories: [
-      { id: 'gym', label: 'Gimnasio', emoji: '🏋️' },
-      { id: 'padel', label: 'Pádel / Tenis', emoji: '🏓' },
-      { id: 'football', label: 'Fútbol / Basket', emoji: '⚽' },
-      { id: 'pool', label: 'Piscina', emoji: '🏊' },
-      { id: 'yoga', label: 'Yoga / Pilates', emoji: '🧘' },
-      { id: 'climbing', label: 'Rocodromo', emoji: '🧗' },
-      { id: 'running', label: 'Rutas running', emoji: '🏃' },
-    ],
-    moods: [
-      { id: 'classes', label: 'Clases dirigidas', emoji: '🏋️' },
-      { id: 'casual', label: 'Pasar el rato', emoji: '😆' },
-      { id: 'competition', label: 'Competición', emoji: '🏆' },
-      { id: 'outdoor', label: 'Al aire libre', emoji: '🌳' },
-      { id: 'beginner', label: 'Principiante', emoji: '🌱' },
-    ],
-  },
-  education: {
-    category: { id: 'education', label: 'Educación', icon: '📚', color: '#8B5CF6', sort_order: 10, is_active: true, requires_price: false, search_mode: 'guided_ranked', mood_title: '¿Qué centro buscas?', mood_subtitle: 'Primero elige el tipo y luego afina etapa, apoyo o idioma' },
-    subcategories: [
-      { id: 'public_school', label: 'Público', emoji: '🏛️' },
-      { id: 'private_school', label: 'Privado', emoji: '🏫' },
-      { id: 'concerted_school', label: 'Concertado', emoji: '🤝' },
-      { id: 'special_education', label: 'Especial', emoji: '⭐' },
-    ],
-    moods: [
-      { id: 'infant_primary', label: 'Infantil / Primaria', emoji: '🧒' },
-      { id: 'secondary_baccalaureate', label: 'ESO / Bachillerato', emoji: '📘' },
-      { id: 'vocational_path', label: 'FP media / superior', emoji: '🛠️' },
-      { id: 'university_path', label: 'Grado / Máster', emoji: '🎓' },
-      { id: 'special_support', label: 'Apoyo específico', emoji: '🫶' },
-      { id: 'bilingual_languages', label: 'Bilingüe / Idiomas', emoji: '🗣️' },
-    ],
-  },
-  cinema: {
-    category: { id: 'cinema', label: 'Cine', icon: '🎬', color: '#EF4444', sort_order: 11, is_active: true, requires_price: true, search_mode: 'guided_ranked', mood_title: '¿Cuál es la ocasión?', mood_subtitle: 'Elige con quién vas' },
-    subcategories: [
-      { id: 'blockbuster', label: 'Estrenos / Multiplex', emoji: '🍿' },
-      { id: 'indie', label: 'Cine de autor / Indie', emoji: '📽️' },
-      { id: 'imax', label: 'Experiencia IMAX / 3D', emoji: '🎬' },
-      { id: 'vos', label: 'Versión original (VOSE)', emoji: '🇬🇧' },
-      { id: 'summer_cinema', label: 'Cine de verano', emoji: '🌙' },
-    ],
-    moods: [
-      { id: 'action', label: 'Acción / Sci-Fi', emoji: '💥' },
-      { id: 'comedy', label: 'Comedia / Familiar', emoji: '😂' },
-      { id: 'drama', label: 'Drama / Thriller', emoji: '🎭' },
-      { id: 'kids', label: 'Plan infantil', emoji: '👦' },
-      { id: 'date_night', label: 'Cita romántica', emoji: '❤️' },
-      { id: 'horror', label: 'Miedo / Terror', emoji: '👻' },
-    ],
-  },
-  wellness: {
-    category: { id: 'wellness', label: 'Bienestar', icon: '💆', color: '#F472B6', sort_order: 12, is_active: true, requires_price: true, search_mode: 'guided_ranked', mood_title: '¿Qué tipo de bienestar?', mood_subtitle: 'Elige tu experiencia de relax' },
-    subcategories: [
-      { id: 'spa', label: 'Spa / Circuito', emoji: '🧖' },
-      { id: 'massage', label: 'Masajes', emoji: '💆' },
-      { id: 'meditation', label: 'Retiro / Meditación', emoji: '🧘' },
-      { id: 'hot_springs', label: 'Termas naturales', emoji: '♨️' },
-      { id: 'beauty', label: 'Estética / Belleza', emoji: '💅' },
-    ],
-    moods: [
-      { id: 'disconnect', label: 'Desconexión total', emoji: '🧘' },
-      { id: 'couples', label: 'Relax en pareja', emoji: '💑' },
-      { id: 'detox', label: 'Cuerpo sano', emoji: '🍃' },
-      { id: 'luxury', label: 'Lujo asiático', emoji: '💎' },
-    ],
-  },
-  coworking: {
-    category: { id: 'coworking', label: 'Coworking', icon: '💻', color: '#3B82F6', sort_order: 13, is_active: true, requires_price: true, search_mode: 'guided_ranked', mood_title: '¿Qué tipo de espacio?', mood_subtitle: 'Elige donde trabajar', skip_price_subcategories: ['library', 'cafe_workspace'] },
-    subcategories: [
-      { id: 'open_space', label: 'Hot desk / Open space', emoji: '🏢' },
-      { id: 'private_office', label: 'Oficina privada', emoji: '🚪' },
-      { id: 'meeting_room', label: 'Sala de reuniones', emoji: '📊' },
-      { id: 'cafe_workspace', label: 'Cafetería con WiFi', emoji: '☕' },
-      { id: 'library', label: 'Biblioteca pública', emoji: '📚' },
-    ],
-    moods: [
-      { id: 'focus', label: 'Concentración', emoji: '🤫' },
-      { id: 'networking', label: 'Hacer contactos', emoji: '🤝' },
-      { id: 'cheap', label: 'Económico', emoji: '💰' },
-      { id: 'premium', label: 'Ambiente premium', emoji: '⭐' },
-      { id: 'twentyfour_h', label: 'Horario 24h', emoji: '🕑' },
-    ],
-  },
-  pets: {
-    category: { id: 'pets', label: 'Mascotas', icon: '🐾', color: '#10B981', sort_order: 14, is_active: true, requires_price: false, search_mode: 'guided_ranked', mood_title: '¿Qué necesita tu mascota?', mood_subtitle: 'Elige el servicio' },
-    subcategories: [
-      { id: 'vet', label: 'Veterinario / Urgencias', emoji: '🩺' },
-      { id: 'pet_shop', label: 'Tienda de mascotas', emoji: '🐾' },
-      { id: 'dog_park', label: 'Parque de perros', emoji: '🐕' },
-      { id: 'grooming', label: 'Peluquería canina', emoji: '✂️' },
-      { id: 'pet_hotel', label: 'Residencia / Hotel', emoji: '🏨' },
-    ],
-    moods: [
-      { id: 'urgent', label: 'Es una urgencia', emoji: '🚨' },
-      { id: 'routine_care', label: 'Cuidado regular', emoji: '📅' },
-      { id: 'training', label: 'Educación / Adiestramiento', emoji: '🐕‍🦺' },
-      { id: 'fun', label: 'Juego y socializar', emoji: '🎾' },
-    ],
-  },
-  automotive: {
-    category: { id: 'automotive', label: 'Vehículo', icon: '🚗', color: '#6366F1', sort_order: 15, is_active: true, requires_price: false, search_mode: 'guided_ranked', mood_title: '¿Qué necesita tu vehículo?', mood_subtitle: 'Elige el servicio' },
-    subcategories: [
-      { id: 'gas_station', label: 'Gasolinera', emoji: '⛽' },
-      { id: 'ev_charging', label: 'Carga eléctrica', emoji: '🔌' },
-      { id: 'mechanic', label: 'Taller mecánico', emoji: '🔧' },
-      { id: 'car_wash', label: 'Lavado / Detailing', emoji: '🚿' },
-      { id: 'parking', label: 'Parking', emoji: '🅿️' },
-      { id: 'tires', label: 'Neumáticos / Ruedas', emoji: '🛞' },
-      { id: 'itv', label: 'Centro ITV', emoji: '📋' },
-      { id: 'car_rental', label: 'Alquiler coches', emoji: '🚗' },
-    ],
-    moods: [
-      { id: 'breakdown', label: 'Avería / Emergencia', emoji: '🚨' },
-      { id: 'maintenance', label: 'Mantenimiento', emoji: '📅' },
-      { id: 'quick_stop', label: 'Parada rápida', emoji: '💰' },
-      { id: 'roadtrip', label: 'Antes de viajar', emoji: '📍' },
-    ],
-  },
 };
 
 const ANON_FP_KEY = 'anon_fingerprint';
@@ -526,7 +302,13 @@ export async function getVotesBatch(
         body: JSON.stringify({ ids }),
       });
       if (!res.ok) return {};
-      const data = await res.json();
+      const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          throw new Error(`Invalid JSON from poll: ${text.slice(0, 100)}`);
+        }
       return data.votes ?? {};
   } catch {
       return {};
@@ -737,7 +519,14 @@ export async function recommendRestaurantsStream(
     throw new Error(`Start error ${startRes.status}: ${detail}`);
   }
 
-  const { job_id } = await startRes.json();
+  const startText = await startRes.text();
+  let job_id;
+  try {
+    const parsed = JSON.parse(startText);
+    job_id = parsed.job_id;
+  } catch (e) {
+    throw new Error(`Invalid JSON on start: ${startText.slice(0, 100)}`);
+  }
 
   // Step 2: Poll for results every POLL_INTERVAL_MS
   let cursor = 0;

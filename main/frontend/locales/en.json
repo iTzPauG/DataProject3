@@ -214,7 +214,9 @@
     "busy": "Busy",
     "price_1": "Budget",
     "price_2": "Medium",
-    "price_3": "Premium"
+    "price_3": "Premium",
+    "moodTitle": "What's the plan?",
+    "moodSubtitle": "Choose the perfect mood"
   },
   "category": {
     "food": "Food",

@@ -510,22 +510,6 @@ export default function MapTab() {
           )}
         </View>
 
-        <TouchableOpacity
-          style={styles.reportFab}
-          activeOpacity={0.85}
-          onPress={() => router.push('/(tabs)/report')}
-          accessibilityRole="button"
-          accessibilityLabel={t("report.title")}
-        >
-          <Icon
-            name="plus"
-            size={16}
-            color={colors.brand}
-            strokeWidth={1.8}
-          />
-          <Text style={styles.reportFabText}>{t("home.liveReport")}</Text>
-        </TouchableOpacity>
-
         <NearbySheet
           items={nearbyItems}
           selectedId={selectedId}

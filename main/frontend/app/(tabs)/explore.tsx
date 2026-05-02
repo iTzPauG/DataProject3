@@ -12,13 +12,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
 import Icon from '../../components/Icon';
+import CategoryMonogram from '../../components/CategoryMonogram';
 import { useTheme } from '../../utils/theme';
 import { useLocation } from '../../hooks/useLocation';
 
 const FLOW_STEPS = [
-  { key: 'food_type', emoji: '🍽️', labelKey: 'flow.categoryTitle', subtitleKey: 'flow.categorySubtitle' },
-  { key: 'mood', emoji: '✨', labelKey: 'flow.moodTitle', subtitleKey: 'flow.moodSubtitle' },
-  { key: 'budget', emoji: '💰', labelKey: 'flow.priceTitle', subtitleKey: 'flow.priceSubtitle' },
+  { key: 'food_type', iconName: 'food', labelKey: 'flow.categoryTitle', subtitleKey: 'flow.categorySubtitle' },
+  { key: 'mood', iconName: 'nightlife', labelKey: 'flow.moodTitle', subtitleKey: 'flow.moodSubtitle' },
+  { key: 'budget', iconName: 'shopping', labelKey: 'flow.priceTitle', subtitleKey: 'flow.priceSubtitle' },
 ];
 
 /**
@@ -143,10 +144,9 @@ export default function ExploreTab() {
           borderBottomWidth: StyleSheet.hairlineWidth,
           borderBottomColor: colors.stroke,
         },
-        stepEmoji: {
-          fontSize: 26,
+        stepIconBox: {
           width: 40,
-          textAlign: 'center',
+          alignItems: 'center',
         },
         stepBody: { flex: 1 },
         stepTitle: {
@@ -229,7 +229,13 @@ export default function ExploreTab() {
                 key={step.key}
                 style={[styles.stepRow, i === FLOW_STEPS.length - 1 && styles.stepRowLast]}
               >
-                <Text style={styles.stepEmoji}>{step.emoji}</Text>
+                <View style={styles.stepIconBox}>
+                  <CategoryMonogram
+                    categoryId={step.iconName}
+                    label={String(i + 1)}
+                    size={36}
+                  />
+                </View>
                 <View style={styles.stepBody}>
                   <Text style={styles.stepTitle}>{t(step.labelKey, step.labelKey)}</Text>
                   <Text style={styles.stepSubtitle}>{t(step.subtitleKey, step.subtitleKey)}</Text>

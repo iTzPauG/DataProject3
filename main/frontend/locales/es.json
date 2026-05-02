@@ -213,7 +213,9 @@
     "busy": "Animado",
     "price_1": "Económico",
     "price_2": "Medio",
-    "price_3": "Premium"
+    "price_3": "Premium",
+    "moodTitle": "¿Cuál es el plan?",
+    "moodSubtitle": "Elige el ambiente perfecto"
   },
   "category": {
     "food": "Comida",
