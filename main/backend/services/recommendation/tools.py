@@ -293,14 +293,18 @@ async def fetch_all_reviews(place_id: str, name: str, lat: float, lng: float, la
     if isinstance(yelp_result, Exception):
         log.info("[C'] Yelp enrichment failed for %s: %s", safe_name, yelp_result)
         yelp_reviews: list[dict] = []
+        yelp_count = 0
     else:
-        yelp_reviews = _normalize_reviews(yelp_result, "yelp")
+        yelp_reviews = _normalize_reviews(yelp_result.get("reviews", []), "yelp")
+        yelp_count = yelp_result.get("total_count", 0)
 
     if isinstance(tripadvisor_result, Exception):
         log.info("[C'] TripAdvisor enrichment failed for %s: %s", safe_name, tripadvisor_result)
         tripadvisor_reviews: list[dict] = []
+        tripadvisor_count = 0
     else:
-        tripadvisor_reviews = _normalize_reviews(tripadvisor_result, "tripadvisor")
+        tripadvisor_reviews = _normalize_reviews(tripadvisor_result.get("reviews", []), "tripadvisor")
+        tripadvisor_count = tripadvisor_result.get("total_count", 0)
 
     google_reviews = _normalize_reviews(details.get("google_reviews", []), "google")
     if not yelp_reviews:
@@ -328,6 +332,8 @@ async def fetch_all_reviews(place_id: str, name: str, lat: float, lng: float, la
         "google_reviews": google_reviews,
         "yelp_reviews": yelp_reviews,
         "tripadvisor_reviews": tripadvisor_reviews,
+        "yelp_review_count": yelp_count,
+        "tripadvisor_review_count": tripadvisor_count,
         "review_summary": str(details.get("review_summary") or ""),
         "photo_url": str(details.get("photo_url") or ""),
         "phone": str(details.get("phone") or ""),

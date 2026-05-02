@@ -13,6 +13,8 @@ import {
   TouchableOpacity,
   UIManager,
   View,
+  Modal,
+  ScrollView,
 } from "react-native";
 import Map from "../../components/map/Map";
 import PrimaryButton from "../../components/PrimaryButton";
@@ -27,8 +29,11 @@ import {
   recommendRestaurants,
   recommendRestaurantsStream,
   VoteData,
+  getBookmarks,
+  askBrain,
 } from "../../services/api";
 import { Restaurant } from "../../types/restaurant";
+import { MapItem } from "../../types";
 import { formatPriceLevel } from "../../utils/format";
 import { useTheme } from "../../utils/theme";
 
@@ -493,6 +498,57 @@ export default function ResultsMapScreen() {
       width: "100%",
       maxWidth: 260,
     },
+    compareBtn: {
+      marginTop: 12,
+      backgroundColor: colors.brand,
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderRadius: radii.pill,
+      alignSelf: 'flex-start',
+    },
+    compareBtnText: {
+      color: '#fff',
+      fontWeight: '700',
+      fontSize: 14,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    modalContent: {
+      backgroundColor: colors.surface,
+      borderRadius: radii.xl,
+      padding: 24,
+      width: '100%',
+      maxHeight: '80%',
+      ...shadows.medium,
+    },
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: colors.ink,
+      marginBottom: 16,
+      fontFamily: typography.heading,
+    },
+    modalText: {
+      fontSize: 15,
+      color: colors.ink,
+      lineHeight: 22,
+      fontFamily: typography.body,
+    },
+    modalCloseBtn: {
+      marginTop: 20,
+      alignSelf: 'flex-end',
+      padding: 10,
+    },
+    modalCloseText: {
+      color: colors.brand,
+      fontWeight: '700',
+      fontSize: 16,
+    },
   }), [colors, radii, shadows, typography]);
 
   const { mapPreferences } = useAppState();
@@ -505,6 +561,9 @@ export default function ResultsMapScreen() {
   const [errorMsg, setErrorMsg] = useState("");
   const [votesMap, setVotesMap] = useState<Record<string, VoteData>>({});
   const [totalExpected, setTotalExpected] = useState<number | undefined>(undefined);
+  const [savedItems, setSavedItems] = useState<MapItem[]>([]);
+  const [compareResult, setCompareResult] = useState<string | null>(null);
+  const [isComparing, setIsComparing] = useState(false);
 
   const sheetRef = useRef<BottomSheetRef>(null);
   const fetchingRef = useRef(false);
@@ -518,6 +577,23 @@ export default function ResultsMapScreen() {
 
   const load = useCallback(async () => {
     if (!isHydrated || fetchingRef.current) return;
+
+    // Fetch bookmarks
+    getBookmarks().then((bookmarks) => {
+      const mapItems: MapItem[] = bookmarks.map(b => ({
+        item_type: b.item_type,
+        item_id: b.item_id,
+        category_id: b.category_id,
+        title: b.title,
+        lat: b.lat,
+        lng: b.lng,
+        distance_m: 0,
+        color: '#FFD700', // Gold color for saved items
+        icon: '⭐',
+        metadata: b.metadata
+      }));
+      setSavedItems(mapItems);
+    }).catch(() => {});
 
     if (results !== null) {
       setRestaurants(results.slice(0, MAX_RESULTS));
@@ -616,6 +692,27 @@ export default function ResultsMapScreen() {
     router.push({ pathname: "/(flow)/details", params: { id } });
   }, []);
 
+  const handleCompare = async () => {
+    if (!selectedId) return;
+    const currentPlace = restaurants.find(r => r.id === selectedId);
+    if (!currentPlace) return;
+
+    setIsComparing(true);
+    setCompareResult(null);
+    try {
+      const context = {
+        current_place: currentPlace,
+        saved_places: savedItems
+      };
+      const res = await askBrain(`Compara el lugar actual (${currentPlace.name}) con mis lugares guardados. ¿Cuál me recomiendas más y por qué?`, context);
+      setCompareResult(res.response);
+    } catch (e) {
+      setCompareResult("Error al comparar.");
+    } finally {
+      setIsComparing(false);
+    }
+  };
+
   const fmt = (s: string) =>
     s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   const categoryLabel = category ? fmt(category) : "";
@@ -652,19 +749,15 @@ export default function ResultsMapScreen() {
         }
       }
     }
+    // Add log here
+    console.log('[WHIM:REVIEWS] Total sources:', totals);
     return totals;
   }, [restaurants]);
-
-  const hasReviewCounts = reviewSourceCounts.google + reviewSourceCounts.yelp + reviewSourceCounts.tripadvisor > 0;
 
   const sheetHeader = (
     <View style={styles.sheetHeader}>
       <Text style={styles.sheetTitle}>{t("explore.resultsForYou")}</Text>
-      {hasReviewCounts ? (
-        <Text style={styles.sheetCount}>
-          {"G " + reviewSourceCounts.google + "  ·  Y " + reviewSourceCounts.yelp + "  ·  T " + reviewSourceCounts.tripadvisor}
-        </Text>
-      ) : status === "loading" ? (
+      {status === "loading" ? (
         <Text style={styles.sheetCount}>{t("flow.searchingNearbyDots")}</Text>
       ) : null}
       <View style={styles.pills}>
@@ -672,6 +765,13 @@ export default function ResultsMapScreen() {
         {moodLabel ? <View style={styles.pill}><WhimIcon name="happy" size={14} color={colors.ink} /><Text style={styles.pillText}>{moodLabel}</Text></View> : null}
         {priceLabel ? <View style={styles.pill}><WhimIcon name="cash" size={14} color={colors.ink} /><Text style={styles.pillText}>{priceLabel}</Text></View> : null}
       </View>
+      {selectedId && savedItems.length > 0 && (
+        <TouchableOpacity style={styles.compareBtn} onPress={handleCompare} disabled={isComparing}>
+          <Text style={styles.compareBtnText}>
+            {isComparing ? "Comparando..." : "Comparar con guardados"}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -739,6 +839,7 @@ export default function ResultsMapScreen() {
       {showMap ? (
         <Map
           restaurants={restaurants}
+          items={savedItems}
           selectedId={selectedId}
           onSelectRestaurant={handlePinSelect}
           votesMap={votesMap}
@@ -775,6 +876,20 @@ export default function ResultsMapScreen() {
       >
         {sheetContent}
       </BottomSheet>
+
+      <Modal visible={!!compareResult} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Comparativa</Text>
+            <ScrollView style={{ maxHeight: 400 }}>
+              <Text style={styles.modalText}>{compareResult}</Text>
+            </ScrollView>
+            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setCompareResult(null)}>
+              <Text style={styles.modalCloseText}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

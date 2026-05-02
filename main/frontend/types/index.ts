@@ -119,10 +119,15 @@ export type CommunityReport = {
 
 export type SavedItem = {
   id: string;
-  user_id: string;
+  user_id?: string;
   item_type: 'place' | 'event' | 'report';
   item_id: string;
+  title: string;
+  lat: number;
+  lng: number;
+  category_id: string;
   created_at: string;
+  metadata: Record<string, unknown>;
 };
 
 export type UserPreference = {

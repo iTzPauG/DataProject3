@@ -170,14 +170,14 @@ async def _find_business_id(
     lng: float,
     address: str = "",
     language: str = "es",
-) -> str | None:
+) -> tuple[str | None, int]:
     if not YELP_API_KEY or not name:
-        return None
+        return None, 0
 
-    cache_key = f"yelp_match:{name}:{lat:.4f}:{lng:.4f}:{address}:{language}"
+    cache_key = f"yelp_match_v2:{name}:{lat:.4f}:{lng:.4f}:{address}:{language}"
     cached = await cache_get(cache_key)
     if cached is not None:
-        return cached or None
+        return cached.get("id"), cached.get("count", 0)
 
     headers = {"Authorization": f"Bearer {YELP_API_KEY}"}
     params = {
@@ -196,16 +196,16 @@ async def _find_business_id(
         resp = await client.get(f"{_BASE}/businesses/search", params=params, headers=headers)
         if resp.status_code != 200:
             log.info("Yelp business search failed for %r: %s", name, resp.status_code)
-            await cache_set(cache_key, "", ttl=1800)
-            return None
+            await cache_set(cache_key, {"id": None, "count": 0}, ttl=1800)
+            return None, 0
         businesses = resp.json().get("businesses", [])
     except Exception as exc:
         log.info("Yelp business search exception for %r: %s", name, exc)
-        return None
+        return None, 0
 
     if not businesses:
-        await cache_set(cache_key, "", ttl=1800)
-        return None
+        await cache_set(cache_key, {"id": None, "count": 0}, ttl=1800)
+        return None, 0
 
     scored = sorted(
         businesses,
@@ -213,6 +213,7 @@ async def _find_business_id(
         reverse=True,
     )
     best_id: str | None = None
+    review_count = 0
     for business in scored:
         if not _is_business_match(business, name=name, lat=lat, lng=lng):
             continue
@@ -220,10 +221,11 @@ async def _find_business_id(
             continue
         best_id = str(business.get("id") or "") or None
         if best_id:
+            review_count = int(business.get("review_count") or 0)
             break
 
-    await cache_set(cache_key, best_id or "", ttl=1800)
-    return best_id
+    await cache_set(cache_key, {"id": best_id or "", "count": review_count}, ttl=1800)
+    return best_id, review_count
 
 
 async def get_yelp_reviews(
@@ -233,19 +235,19 @@ async def get_yelp_reviews(
     lng: float,
     address: str = "",
     language: str = "es",
-) -> list[dict]:
-    """Return Yelp reviews for a nearby business match, if any."""
+) -> dict:
+    """Return Yelp reviews and total count for a nearby business match, if any."""
     if not YELP_API_KEY:
-        return []
+        return {"reviews": [], "total_count": 0}
 
-    business_id = await _find_business_id(name=name, lat=lat, lng=lng, address=address, language=language)
+    business_id, review_count = await _find_business_id(name=name, lat=lat, lng=lng, address=address, language=language)
     if not business_id:
-        return []
+        return {"reviews": [], "total_count": 0}
 
-    cache_key = f"yelp_reviews:{business_id}:{language}"
+    cache_key = f"yelp_reviews_v2:{business_id}:{language}"
     cached = await cache_get(cache_key)
     if cached:
-        return cached
+        return {"reviews": cached, "total_count": review_count}
 
     headers = {"Authorization": f"Bearer {YELP_API_KEY}"}
     params = {"locale": _review_locale(language)}
@@ -255,11 +257,11 @@ async def get_yelp_reviews(
         resp = await client.get(f"{_BASE}/businesses/{business_id}/reviews", params=params, headers=headers)
         if resp.status_code != 200:
             log.info("Yelp reviews failed for %s: %s", business_id, resp.status_code)
-            return []
+            return {"reviews": [], "total_count": review_count}
         payload = resp.json()
     except Exception as exc:
         log.info("Yelp reviews exception for %s: %s", business_id, exc)
-        return []
+        return {"reviews": [], "total_count": review_count}
 
     reviews = []
     for review in payload.get("reviews", [])[:3]:
@@ -280,4 +282,4 @@ async def get_yelp_reviews(
         )
 
     await cache_set(cache_key, reviews, ttl=3600 * 6)
-    return reviews
+    return {"reviews": reviews, "total_count": review_count}

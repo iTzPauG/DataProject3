@@ -25,9 +25,44 @@ async def list_bookmarks(request: Request):
         if not profile:
              return {"bookmarks": []}
         
-        cursor = await db.execute("SELECT * FROM saved_items WHERE user_id=?", (profile["id"],))
+        query = """
+            SELECT 
+                s.id as saved_id, s.item_type, s.item_id, s.created_at,
+                COALESCE(p.name, e.title, r.title) as title,
+                COALESCE(p.lat, e.lat, r.lat) as lat,
+                COALESCE(p.lng, e.lng, r.lng) as lng,
+                COALESCE(p.category_id, e.category_id, 'report') as category_id,
+                p.photo_url as place_photo, e.photo_url as event_photo,
+                p.rating, p.price_level
+            FROM saved_items s
+            LEFT JOIN places p ON s.item_type = 'place' AND s.item_id = p.id
+            LEFT JOIN events e ON s.item_type = 'event' AND s.item_id = e.id
+            LEFT JOIN community_reports r ON s.item_type = 'report' AND s.item_id = r.id
+            WHERE s.user_id = ?
+        """
+        cursor = await db.execute(query, (profile["id"],))
         rows = await cursor.fetchall()
-    return {"bookmarks": [dict(r) for r in rows]}
+        
+        bookmarks = []
+        for r in rows:
+            d = dict(r)
+            bookmarks.append({
+                "id": d["saved_id"],
+                "item_type": d["item_type"],
+                "item_id": d["item_id"],
+                "title": d["title"] or "Unknown",
+                "lat": d["lat"] or 0.0,
+                "lng": d["lng"] or 0.0,
+                "category_id": d["category_id"] or "unknown",
+                "created_at": d["created_at"],
+                "metadata": {
+                    "photo_url": d["place_photo"] or d["event_photo"],
+                    "rating": d["rating"],
+                    "price_level": d["price_level"]
+                }
+            })
+            
+    return {"bookmarks": bookmarks}
 
 @router.post("")
 async def add_bookmark(req: BookmarkRequest, request: Request):

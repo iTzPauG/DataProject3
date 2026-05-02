@@ -376,14 +376,22 @@ def _all_reviews(r: dict) -> list[dict]:
 
 def _review_source_counts(r: dict) -> dict[str, int]:
     counts: dict[str, int] = {"google": 0, "yelp": 0, "tripadvisor": 0}
-    for key, source in (
-        ("google_reviews", "google"),
-        ("yelp_reviews", "yelp"),
-        ("tripadvisor_reviews", "tripadvisor"),
-    ):
-        source_reviews = r.get(key) or []
-        if isinstance(source_reviews, list):
-            counts[source] = len(source_reviews)
+    
+    # Google count is usually total_ratings
+    counts["google"] = int(r.get("total_ratings") or len(r.get("google_reviews") or []))
+    
+    # Yelp count
+    if "yelp_review_count" in r and r["yelp_review_count"] > 0:
+        counts["yelp"] = r["yelp_review_count"]
+    else:
+        counts["yelp"] = len(r.get("yelp_reviews") or [])
+        
+    # TripAdvisor count
+    if "tripadvisor_review_count" in r and r["tripadvisor_review_count"] > 0:
+        counts["tripadvisor"] = r["tripadvisor_review_count"]
+    else:
+        counts["tripadvisor"] = len(r.get("tripadvisor_reviews") or [])
+        
     return counts
 
 
@@ -807,7 +815,7 @@ def _merge_fetched_data(base: dict, fetched: dict) -> dict:
         if isinstance(value, list) and value:
             merged[key] = value
 
-    for key in ("review_summary", "photo_url", "phone", "website"):
+    for key in ("review_summary", "photo_url", "phone", "website", "yelp_review_count", "tripadvisor_review_count"):
         value = fetched.get(key)
         if value:
             merged[key] = value
@@ -1076,41 +1084,42 @@ async def recommend_stream(
     t_total = time.perf_counter()
     resolved_sub = subcategory or parent_category
     log.info("[STREAM v2] START category='%s' mood='%s'", parent_category, mood)
-
-    # Phase 1: Search
-    raw = await search_places(parent_category, resolved_sub, mood, lat, lng, price_level, language=language)
-    candidates = raw.get("restaurants", [])
-    if not candidates:
-        yield {"event": "done", "total": 0}
-        return
-
-    # Phase 2: Pre-filter
-    candidates = _pre_filter(candidates, price_level)
-    candidates = candidates[:TOP_RESULTS]
-    yield {"event": "meta", "total": len(candidates)}
-
-    # Phase 3: Process in batches → each batch = 1 LLM call
     result_index = 0
-    for i in range(0, len(candidates), STREAM_BATCH_SIZE):
-        batch = candidates[i:i + STREAM_BATCH_SIZE]
-        try:
-            results = await _process_stream_batch(
-                batch, mood, language, parent_category, subcategory, price_level, lat, lng,
-            )
-            for result in results:
-                result_index += 1
-                yield {"event": "result", "index": result_index, "data": result}
-        except Exception as e:
-            log.error("[STREAM v2] Batch %d failed: %s", i // STREAM_BATCH_SIZE, e)
-            # Yield fallbacks for this batch so the stream doesn't break
-            for r in batch:
-                result_index += 1
-                fb = _enrich_fallback(r)
-                fb["liveData"] = {"type": "none"}
-                yield {"event": "result", "index": result_index, "data": fb}
 
-    total_time = time.perf_counter() - t_total
-    log.info("[STREAM v2] DONE in %.2fs, yielded %d results", total_time, result_index)
-    yield {"event": "done", "total": result_index}
+    try:
+        # Phase 1: Search
+        raw = await search_places(parent_category, resolved_sub, mood, lat, lng, price_level, language=language)
+        candidates = raw.get("restaurants", [])
+        if not candidates:
+            return
+
+        # Phase 2: Pre-filter
+        candidates = _pre_filter(candidates, price_level)
+        candidates = candidates[:TOP_RESULTS]
+        yield {"event": "meta", "total": len(candidates)}
+
+        # Phase 3: Process in batches → each batch = 1 LLM call
+        for i in range(0, len(candidates), STREAM_BATCH_SIZE):
+            batch = candidates[i:i + STREAM_BATCH_SIZE]
+            try:
+                results = await _process_stream_batch(
+                    batch, mood, language, parent_category, subcategory, price_level, lat, lng,
+                )
+                for result in results:
+                    result_index += 1
+                    yield {"event": "result", "index": result_index, "data": result}
+            except Exception as e:
+                log.error("[STREAM v2] Batch %d failed: %s", i // STREAM_BATCH_SIZE, e)
+                # Yield fallbacks for this batch so the stream doesn't break
+                for r in batch:
+                    result_index += 1
+                    fb = _enrich_fallback(r)
+                    fb["liveData"] = {"type": "none"}
+                    yield {"event": "result", "index": result_index, "data": fb}
+
+        total_time = time.perf_counter() - t_total
+        log.info("[STREAM v2] DONE in %.2fs, yielded %d results", total_time, result_index)
+    finally:
+        yield {"event": "done", "total": result_index}
 
 

@@ -16,6 +16,34 @@ class VoteRequest(BaseModel):
     vote: int  # 1 for upvote, -1 for downvote
 
 
+class BatchVoteRequest(BaseModel):
+    ids: list[str]
+
+@router.post("/batch")
+async def get_votes_batch(req: BatchVoteRequest, request: Request):
+    """Get the vote summary for multiple items."""
+    voter_id = get_voter_id(request)
+    if not req.ids:
+        return {"votes": {}}
+        
+    async with get_db() as db:
+        placeholders = ",".join("?" for _ in req.ids)
+        cursor = await db.execute(
+            f"SELECT item_id, vote, voter_id FROM item_votes WHERE item_id IN ({placeholders})",
+            req.ids
+        )
+        rows = await cursor.fetchall()
+
+    results = {}
+    for item_id in req.ids:
+        item_rows = [r for r in rows if r["item_id"] == item_id]
+        ups = sum(1 for r in item_rows if r["vote"] == 1)
+        downs = sum(1 for r in item_rows if r["vote"] == -1)
+        user_vote = next((r["vote"] for r in item_rows if r["voter_id"] == voter_id), 0)
+        results[item_id] = {"likes": ups, "dislikes": downs, "userVote": user_vote}
+
+    return {"votes": results}
+
 @router.get("/{item_id}")
 async def get_votes(item_id: str, request: Request):
     """Get the vote summary for an item."""
@@ -28,7 +56,7 @@ async def get_votes(item_id: str, request: Request):
     downs = sum(1 for r in rows if r["vote"] == -1)
     user_vote = next((r["vote"] for r in rows if r["voter_id"] == voter_id), 0)
 
-    return {"upvotes": ups, "downvotes": downs, "user_vote": user_vote}
+    return {"likes": ups, "dislikes": downs, "userVote": user_vote}
 
 
 @router.post("")
@@ -58,4 +86,4 @@ async def cast_vote(req: VoteRequest, request: Request):
 
     ups = sum(1 for r in rows if r["vote"] == 1)
     downs = sum(1 for r in rows if r["vote"] == -1)
-    return {"status": "ok", "upvotes": ups, "downvotes": downs, "user_vote": req.vote}
+    return {"status": "ok", "likes": ups, "dislikes": downs, "userVote": req.vote}

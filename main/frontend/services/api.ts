@@ -266,7 +266,7 @@ export async function castVote(
   vote: 1 | -1,
 ): Promise<VoteResponse> {
   const token = await auth.currentUser?.getIdToken() ?? null;
-  const res = await fetch(`${BASE_URL}/vote`, {
+  const res = await fetch(`${BASE_URL}/votes`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -923,6 +923,25 @@ export async function getPlaceTake(params: {
     return sanitize(await res.json());
   } catch {
     return null;
+  }
+}
+
+export async function askBrain(message: string, context?: Record<string, unknown>): Promise<{ response: string }> {
+  try {
+    const token = await auth.currentUser?.getIdToken() ?? null;
+    const res = await fetch(`${BASE_URL}/brain`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept-Language': i18n.language || 'es',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ message, context }),
+    });
+    if (!res.ok) throw new Error('Failed to ask brain');
+    return await res.json();
+  } catch {
+    return { response: 'Error al consultar el cerebro.' };
   }
 }
 

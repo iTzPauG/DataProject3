@@ -188,14 +188,14 @@ async def _find_location_id(
     lng: float,
     address: str = "",
     language: str = "es",
-) -> str | None:
+) -> tuple[str | None, int]:
     if not TRIPADVISOR_API_KEY or not name:
-        return None
+        return None, 0
 
-    cache_key = f"tripadvisor_match:{name}:{lat:.4f}:{lng:.4f}:{address}:{language}"
+    cache_key = f"tripadvisor_match_v2:{name}:{lat:.4f}:{lng:.4f}:{address}:{language}"
     cached = await cache_get(cache_key)
     if cached is not None:
-        return cached or None
+        return cached.get("id"), cached.get("count", 0)
 
     params: dict[str, object] = {
         "key": TRIPADVISOR_API_KEY,
@@ -214,17 +214,17 @@ async def _find_location_id(
         response = await client.get(f"{_BASE}/location/search", params=params)
         if response.status_code != 200:
             log.info("TripAdvisor search failed for %r: %s", name, response.status_code)
-            await cache_set(cache_key, "", ttl=1800)
-            return None
+            await cache_set(cache_key, {"id": None, "count": 0}, ttl=1800)
+            return None, 0
         payload = response.json()
     except Exception as exc:
         log.info("TripAdvisor search exception for %r: %s", name, exc)
-        return None
+        return None, 0
 
     locations = _search_results(payload)
     if not locations:
-        await cache_set(cache_key, "", ttl=1800)
-        return None
+        await cache_set(cache_key, {"id": None, "count": 0}, ttl=1800)
+        return None, 0
 
     scored = sorted(
         locations,
@@ -233,6 +233,7 @@ async def _find_location_id(
     )
 
     location_id: str | None = None
+    review_count = 0
     for location in scored:
         if not _is_location_match(location, name=name, lat=lat, lng=lng):
             continue
@@ -243,10 +244,14 @@ async def _find_location_id(
             continue
         location_id = str(raw_id).strip() or None
         if location_id:
+            # TripAdvisor search API doesn't always return review count directly, 
+            # but we can try to extract it if available, or fetch it later.
+            # For now, we'll try to get it from the search response if it exists.
+            review_count = int(_to_float(location.get("num_reviews")) or 0)
             break
 
-    await cache_set(cache_key, location_id or "", ttl=1800)
-    return location_id
+    await cache_set(cache_key, {"id": location_id or "", "count": review_count}, ttl=1800)
+    return location_id, review_count
 
 
 def _extract_tripadvisor_reviews(payload: dict, *, language: str) -> list[dict]:
@@ -292,19 +297,19 @@ async def get_tripadvisor_reviews(
     lng: float,
     address: str = "",
     language: str = "es",
-) -> list[dict]:
-    """Return TripAdvisor reviews for a nearby restaurant match, if any."""
+) -> dict:
+    """Return TripAdvisor reviews and total count for a nearby restaurant match, if any."""
     if not TRIPADVISOR_API_KEY:
-        return []
+        return {"reviews": [], "total_count": 0}
 
-    location_id = await _find_location_id(name=name, lat=lat, lng=lng, address=address, language=language)
+    location_id, review_count = await _find_location_id(name=name, lat=lat, lng=lng, address=address, language=language)
     if not location_id:
-        return []
+        return {"reviews": [], "total_count": 0}
 
-    cache_key = f"tripadvisor_reviews:{location_id}:{language}"
+    cache_key = f"tripadvisor_reviews_v2:{location_id}:{language}"
     cached = await cache_get(cache_key)
     if cached:
-        return cached
+        return {"reviews": cached, "total_count": review_count}
 
     params = {
         "key": TRIPADVISOR_API_KEY,
@@ -317,12 +322,12 @@ async def get_tripadvisor_reviews(
         response = await client.get(f"{_BASE}/location/{location_id}/reviews", params=params)
         if response.status_code != 200:
             log.info("TripAdvisor reviews failed for %s: %s", location_id, response.status_code)
-            return []
+            return {"reviews": [], "total_count": review_count}
         payload = response.json()
     except Exception as exc:
         log.info("TripAdvisor reviews exception for %s: %s", location_id, exc)
-        return []
+        return {"reviews": [], "total_count": review_count}
 
     reviews = _extract_tripadvisor_reviews(payload, language=language)
     await cache_set(cache_key, reviews, ttl=3600 * 6)
-    return reviews
+    return {"reviews": reviews, "total_count": review_count}
