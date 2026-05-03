@@ -24,7 +24,7 @@ ENV EXPO_PUBLIC_BACKEND_URL=$EXPO_PUBLIC_BACKEND_URL \
     EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=$EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID \
     EXPO_PUBLIC_FIREBASE_APP_ID=$EXPO_PUBLIC_FIREBASE_APP_ID
 
-COPY package.json ./
+COPY package.json package-lock.json* ./
 
 # Install with flags to reduce noise and handle peer deps
 # Using a cache mount to speed up subsequent installs if your Docker version supports it
