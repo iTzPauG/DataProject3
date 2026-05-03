@@ -826,9 +826,6 @@ For each place return exactly this JSON structure:
 [
   {{
     "id": "place_id",
-    "translated_reviews": [
-      {{"author": "Name", "text": "review translated to {target_lang}", "rating": 5, "relative_time": "1 month ago"}}
-    ],
     "tagline": "5-8 word summary",
     "why": "Short rationale grounded in review evidence",
     "pros": ["Short summary of a repeated positive pattern", "Optional second positive pattern"],
@@ -885,9 +882,8 @@ async def _llm_batch(
 def _build_result(r: dict, ai_data: dict, live_data: dict) -> dict:
     """Build a final result dict from a candidate + AI data + live data."""
     fallback_pros, fallback_cons, fallback_verdict, fallback_why, fallback_quote = _fallback_review_signals(r)
-    translated = ai_data.get("translated_reviews")
-    if not isinstance(translated, list):
-        translated = _all_reviews(r)
+    
+    translated = _all_reviews(r)
     if not isinstance(translated, list):
         translated = []
 

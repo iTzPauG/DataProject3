@@ -21,6 +21,9 @@ import PrimaryButton from "../../components/PrimaryButton";
 import RestaurantCard from "../../components/RestaurantCard";
 import BottomSheet from "../../components/sheet/BottomSheet";
 import WhimIcon from "../../components/WhimIcon";
+import { WhimLoadingScreen } from "../../components/whim/WhimLoadingScreen";
+import { WhimEmptyState } from "../../components/whim/WhimEmptyState";
+import { WhimResultsPreviewCard } from "../../components/whim/WhimResultsPreviewCard";
 import { BottomSheetRef } from "../../components/sheet/types";
 import { useAppState } from "../../hooks/useAppState";
 import { useFlowState } from "../../hooks/useFlowState";
@@ -766,25 +769,14 @@ export default function ResultsMapScreen() {
     return totals;
   }, [restaurants]);
 
+  const activeFilters = [categoryLabel, moodLabel, priceLabel].filter(Boolean);
+
   const sheetHeader = (
-    <View style={styles.sheetHeader}>
-      <Text style={styles.sheetTitle}>{t("explore.resultsForYou")}</Text>
-      {status === "loading" ? (
-        <Text style={styles.sheetCount}>{t("flow.searchingNearbyDots")}</Text>
-      ) : null}
-      <View style={styles.pills}>
-        {categoryLabel ? <View style={styles.pill}><WhimIcon name="bookmark" size={14} color={colors.ink} /><Text style={styles.pillText}>{categoryLabel}</Text></View> : null}
-        {moodLabel ? <View style={styles.pill}><WhimIcon name="happy" size={14} color={colors.ink} /><Text style={styles.pillText}>{moodLabel}</Text></View> : null}
-        {priceLabel ? <View style={styles.pill}><WhimIcon name="cash" size={14} color={colors.ink} /><Text style={styles.pillText}>{priceLabel}</Text></View> : null}
-      </View>
-      {selectedId && savedItems.length > 0 && (
-        <TouchableOpacity style={styles.compareBtn} onPress={handleCompare} disabled={isComparing}>
-          <Text style={styles.compareBtnText}>
-            {isComparing ? "Comparando..." : "Comparar con guardados"}
-          </Text>
-        </TouchableOpacity>
-      )}
-    </View>
+    <WhimResultsPreviewCard 
+      count={restaurants.length} 
+      filters={activeFilters.map(f => ({ label: f, type: f === categoryLabel ? 'food' : f === priceLabel ? 'budget' : 'mood' }))}
+      onMapPress={() => sheetRef.current?.snapToIndex(0)}
+    />
   );
 
   // ── Sheet content ───────────────────────────────────────────────────────
@@ -792,13 +784,7 @@ export default function ResultsMapScreen() {
   const sheetContent = (() => {
     if (status === "loading" && (!results || results.length === 0)) {
       return (
-        <>
-          <LoadingEmojis category={category} />
-          <LoadingIndicator
-            message={t("flow.searchingBestPlaces")}
-            sub={t("flow.analyzingDescriptionShort")}
-          />
-        </>
+        <WhimLoadingScreen activeFilters={activeFilters} loadingPhase={status} />
       );
     }
 
@@ -816,13 +802,11 @@ export default function ResultsMapScreen() {
 
     if (status === "success" && restaurants.length === 0) {
       return (
-        <View style={styles.centered}>
-          <Text style={styles.errorTitle}>{t("flow.noResults")}</Text>
-          <Text style={styles.errorMsg}>{t("flow.noResultsMsg")}</Text>
-          <View style={styles.retryBtn}>
-            <PrimaryButton label={t("flow.changeFilters")} onPress={() => router.back()} />
-          </View>
-        </View>
+        <WhimEmptyState 
+          conflictingFilter={moodLabel || categoryLabel || 'Filtros'} 
+          onRemoveFilter={() => router.back()} 
+          onReset={() => router.replace('/(tabs)')} 
+        />
       );
     }
 
@@ -845,6 +829,14 @@ export default function ResultsMapScreen() {
       </>
     );
   })();
+
+  if (status === "loading" && !hasResults) {
+    return <WhimLoadingScreen activeFilters={activeFilters} loadingPhase={status} />;
+  }
+
+  if (status === "success" && restaurants.length === 0) {
+    return <WhimEmptyState conflictingFilter={moodLabel || categoryLabel || 'Filtros'} onRemoveFilter={() => router.back()} onReset={() => router.replace('/(tabs)')} />;
+  }
 
   return (
     <View style={StyleSheet.absoluteFill}>
