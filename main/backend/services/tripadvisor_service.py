@@ -15,8 +15,8 @@ log = logging.getLogger(__name__)
 
 _BASE = "https://api.content.tripadvisor.com/api/v1"
 _http_client: httpx.AsyncClient | None = None
-_MAX_MATCH_DISTANCE_M = 2000.0
-_MIN_NAME_SIMILARITY = 0.62
+_MAX_MATCH_DISTANCE_M = 3500.0
+_MIN_NAME_SIMILARITY = 0.52
 
 _FOOD_CATEGORY_TERMS = (
     "restaurant",
@@ -192,7 +192,7 @@ async def _find_location_id(
     if not TRIPADVISOR_API_KEY or not name:
         return None, 0
 
-    cache_key = f"tripadvisor_match_v2:{name}:{lat:.4f}:{lng:.4f}:{address}:{language}"
+    cache_key = f"tripadvisor_match_v3:{name}:{lat:.4f}:{lng:.4f}:{address}:{language}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return cached.get("id"), cached.get("count", 0)
@@ -202,7 +202,7 @@ async def _find_location_id(
         "searchQuery": name,
         "category": "restaurants",
         "latLong": f"{lat},{lng}",
-        "radius": 2,
+        "radius": 4,
         "radiusUnit": "km",
         "language": _language_code(language),
     }
@@ -234,12 +234,20 @@ async def _find_location_id(
 
     location_id: str | None = None
     review_count = 0
+    fallback_best_id: str | None = None
+    fallback_best_score = 0.0
     for location in scored:
+        score = _score_location(location, name=name, lat=lat, lng=lng, address=address)
+        raw_id = location.get("location_id") or location.get("locationId")
+        candidate_id = str(raw_id).strip() if raw_id is not None else ""
+        if candidate_id and score > fallback_best_score:
+            fallback_best_score = score
+            fallback_best_id = candidate_id
+
         if not _is_location_match(location, name=name, lat=lat, lng=lng):
             continue
-        if _score_location(location, name=name, lat=lat, lng=lng, address=address) < 0.55:
+        if score < 0.50:
             continue
-        raw_id = location.get("location_id") or location.get("locationId")
         if raw_id is None:
             continue
         location_id = str(raw_id).strip() or None
@@ -249,6 +257,9 @@ async def _find_location_id(
             # For now, we'll try to get it from the search response if it exists.
             review_count = int(_to_float(location.get("num_reviews")) or 0)
             break
+
+    if not location_id and fallback_best_id and fallback_best_score >= 0.42:
+        location_id = fallback_best_id
 
     await cache_set(cache_key, {"id": location_id or "", "count": review_count}, ttl=1800)
     return location_id, review_count
@@ -306,28 +317,35 @@ async def get_tripadvisor_reviews(
     if not location_id:
         return {"reviews": [], "total_count": 0}
 
-    cache_key = f"tripadvisor_reviews_v2:{location_id}:{language}"
+    cache_key = f"tripadvisor_reviews_v3:{location_id}:{language}"
     cached = await cache_get(cache_key)
     if cached:
         return {"reviews": cached, "total_count": review_count}
 
-    params = {
-        "key": TRIPADVISOR_API_KEY,
-        "language": _language_code(language),
-        "limit": 5,
-    }
+    async def _fetch_reviews_for(lang: str) -> list[dict]:
+        params = {
+            "key": TRIPADVISOR_API_KEY,
+            "language": _language_code(lang),
+            "limit": 5,
+        }
+        try:
+            client = _get_http_client()
+            response = await client.get(f"{_BASE}/location/{location_id}/reviews", params=params)
+            if response.status_code != 200:
+                log.info("TripAdvisor reviews failed for %s lang=%s: %s", location_id, lang, response.status_code)
+                return []
+            payload = response.json()
+        except Exception as exc:
+            log.info("TripAdvisor reviews exception for %s lang=%s: %s", location_id, lang, exc)
+            return []
+        return _extract_tripadvisor_reviews(payload, language=lang)
 
-    try:
-        client = _get_http_client()
-        response = await client.get(f"{_BASE}/location/{location_id}/reviews", params=params)
-        if response.status_code != 200:
-            log.info("TripAdvisor reviews failed for %s: %s", location_id, response.status_code)
-            return {"reviews": [], "total_count": review_count}
-        payload = response.json()
-    except Exception as exc:
-        log.info("TripAdvisor reviews exception for %s: %s", location_id, exc)
-        return {"reviews": [], "total_count": review_count}
+    reviews = await _fetch_reviews_for(language)
+    if not reviews and _language_code(language) != "en":
+        reviews = await _fetch_reviews_for("en")
 
-    reviews = _extract_tripadvisor_reviews(payload, language=language)
+    if review_count <= 0 and reviews:
+        review_count = len(reviews)
+
     await cache_set(cache_key, reviews, ttl=3600 * 6)
     return {"reviews": reviews, "total_count": review_count}

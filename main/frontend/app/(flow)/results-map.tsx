@@ -43,7 +43,7 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 const CARD_HEIGHT = 360;
-const MAX_RESULTS = 10;
+const MAX_RESULTS = 5;
 
 type Status = "loading" | "streaming" | "success" | "error";
 
@@ -55,7 +55,9 @@ type Status = "loading" | "streaming" | "success" | "error";
 
 const CATEGORY_EMOJIS: Record<string, string[]> = {
   pizza:       ["🍕", "🧀", "🍝", "🧄", "🍽️"],
-  hamburger:   ["🍔", "🍟", "🌭", "🧂", "🥬"],
+  burgers:     ["🍔", "🍟", "🌭", "🧂", "🥬"],
+  hamburger:   ["🍔", "🍟", "🌭", "🧂", "🥬"], // legacy alias
+  tapas:       ["🥘", "🍤", "🫒", "🧀", "🍷"],
   sushi:       ["🍣", "🍤", "🍥", "🍡", "🍢"],
   paella:      ["🦞", "🐟", "🥦", "🧅", "🍽️"],
   tacos:       ["🌮", "🌯", "🧆", "🌶️", "🥬"],
@@ -78,7 +80,8 @@ const DEFAULT_EMOJIS = ["🍕", "🍜", "🍣", "🥗", "🍔", "🌮", "🍷", 
 
 function getEmojisForCategory(cat: string | null): string[] {
   if (!cat) return DEFAULT_EMOJIS;
-  return CATEGORY_EMOJIS[cat] ?? DEFAULT_EMOJIS;
+  const key = cat.trim().toLowerCase();
+  return CATEGORY_EMOJIS[key] ?? DEFAULT_EMOJIS;
 }
 
 function BouncingEmoji({ emoji, delay }: { emoji: string; delay: number }) {

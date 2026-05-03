@@ -14,6 +14,7 @@ import CategoryMonogram from "./CategoryMonogram";
 interface Props {
   label: string;
   iconName?: string;
+  emoji?: string;
   selected: boolean;
   onPress: () => void;
   category?: string;
@@ -24,6 +25,7 @@ interface Props {
 export default function ChoiceChip({
   label,
   iconName,
+  emoji,
   selected,
   onPress,
   category,
@@ -71,6 +73,19 @@ export default function ChoiceChip({
     labelSelected: {
       color: colors.brand,
     },
+    emojiBadge: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.chip,
+      borderWidth: 1,
+      borderColor: colors.stroke,
+    },
+    emojiText: {
+      fontSize: 18,
+    },
   }), [colors, typography, space, selected, halfWidth]);
 
   useEffect(() => {
@@ -94,12 +109,18 @@ export default function ChoiceChip({
               pressed && styles.containerPressed,
             ]}
           >
-            <CategoryMonogram 
-              categoryId={iconName} 
-              label={label} 
-              size={36} 
-              variant={selected ? 'filled' : 'ring'}
-            />
+            {emoji ? (
+              <View style={styles.emojiBadge}>
+                <Text style={styles.emojiText}>{emoji}</Text>
+              </View>
+            ) : (
+              <CategoryMonogram 
+                categoryId={iconName} 
+                label={label} 
+                size={36} 
+                variant={selected ? 'filled' : 'ring'}
+              />
+            )}
             <View style={styles.content}>
               <Text style={[styles.label, selected && styles.labelSelected]} numberOfLines={1}>
                 {label}

@@ -6,7 +6,11 @@ from dotenv import load_dotenv
 
 
 def _load_env_files() -> None:
-    """Load backend/root env files deterministically instead of relying on cwd."""
+    """Load .env files only when explicitly enabled for local development."""
+    enabled = (os.getenv("ENABLE_DOTENV", "0") or "").strip().lower() in ("1", "true", "yes", "on")
+    if not enabled:
+        return
+
     backend_dir = Path(__file__).resolve().parent
     repo_root = backend_dir.parent.parent
 

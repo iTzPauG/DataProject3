@@ -433,6 +433,57 @@ DEFAULT_FLOW = {
 }
 
 
+def _dedupe_options(options: list[dict]) -> list[dict]:
+    seen: set[str] = set()
+    deduped: list[dict] = []
+    for option in options:
+        key = str(option.get("id") or "").strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(option)
+    return deduped
+
+
+def _normalize_food_options(subcategories: list[dict], moods: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Ensure food flow keeps Tapas in subcategories, never as a mood."""
+    normalized_subcategories = deepcopy(subcategories)
+    normalized_moods = deepcopy(moods)
+
+    def _norm(value: object) -> str:
+        return str(value or "").strip().lower()
+
+    has_tapas_subcategory = any(
+        _norm(item.get("id")) == "tapas" or "tapas" in _norm(item.get("label"))
+        for item in normalized_subcategories
+    )
+    if not has_tapas_subcategory:
+        normalized_subcategories.append({"id": "tapas", "label": "Tapas", "emoji": "🥘"})
+
+    has_gourmet = any(_norm(item.get("id")) == "gourmet" for item in normalized_moods)
+    cleaned_moods: list[dict] = []
+    for mood in normalized_moods:
+        mood_id = _norm(mood.get("id"))
+        mood_label = _norm(mood.get("label"))
+        is_tapas_mood = mood_id == "tapas" or "tapas" in mood_label
+
+        if not is_tapas_mood:
+            cleaned_moods.append(mood)
+            continue
+
+        if has_gourmet:
+            continue
+
+        replacement = dict(mood)
+        replacement["id"] = "gourmet"
+        replacement["label"] = "Gourmet"
+        replacement["emoji"] = replacement.get("emoji") or "🍷"
+        cleaned_moods.append(replacement)
+        has_gourmet = True
+
+    return _dedupe_options(normalized_subcategories), _dedupe_options(cleaned_moods)
+
+
 def get_flow_definition(category_id: str | None) -> dict:
     if not category_id:
         return deepcopy(DEFAULT_FLOW)
@@ -458,6 +509,12 @@ def merge_category_row(row: dict | None, category_id: str) -> dict:
 def build_flow_payload(category_row: dict | None, *, subcategories: list[dict] | None = None, moods: list[dict] | None = None) -> dict:
     category_id = (category_row or {}).get("id") or "food"
     merged = merge_category_row(category_row, category_id)
+    resolved_subcategories = deepcopy(subcategories if subcategories is not None else merged["subcategories"])
+    resolved_moods = deepcopy(moods if moods is not None else merged["moods"])
+
+    if category_id == "food":
+        resolved_subcategories, resolved_moods = _normalize_food_options(resolved_subcategories, resolved_moods)
+
     return {
         "category": {
             key: merged[key]
@@ -469,8 +526,8 @@ def build_flow_payload(category_row: dict | None, *, subcategories: list[dict] |
             )
             if key in merged
         },
-        "subcategories": deepcopy(subcategories if subcategories is not None else merged["subcategories"]),
-        "moods": deepcopy(moods if moods is not None else merged["moods"]),
+        "subcategories": resolved_subcategories,
+        "moods": resolved_moods,
     }
 
 

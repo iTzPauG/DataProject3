@@ -6,9 +6,8 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Atmosphere from '../../components/Atmosphere';
 import CategoryMonogram from '../../components/CategoryMonogram';
-import ChoiceCard from '../../components/ChoiceCard';
 import { useFlowState } from '../../hooks/useFlowState';
-import { CategoryFlowResponse, getCategoryFlow } from '../../services/api';
+import { CategoryFlowOption, CategoryFlowResponse, getCategoryFlow } from '../../services/api';
 import { useTheme } from '../../utils/theme';
 
 export default function CategoryScreen() {
@@ -17,11 +16,11 @@ export default function CategoryScreen() {
   const { categoryId } = useLocalSearchParams<{ categoryId?: string }>();
   const { reset, setCategory, setParentCategory } = useFlowState();
 
-  const DEFAULT_OPTIONS = useMemo(() => [
-    { id: 'popular', label: t('flow.popular') },
-    { id: 'new', label: t('common.soon') },
-    { id: 'nearby', label: t('home.locationNow') },
-    { id: 'top_rated', label: t('placeDetails.theBest') },
+  const DEFAULT_OPTIONS = useMemo<CategoryFlowOption[]>(() => [
+    { id: 'popular', label: t('flow.popular'), emoji: '🔥' },
+    { id: 'new', label: t('common.soon'), emoji: '✨' },
+    { id: 'nearby', label: t('home.locationNow'), emoji: '📍' },
+    { id: 'top_rated', label: t('placeDetails.theBest'), emoji: '⭐' },
   ], [t]);
 
   const styles = useMemo(() => StyleSheet.create({
@@ -113,6 +112,27 @@ export default function CategoryScreen() {
       minWidth: '45%',
       minHeight: 120,
     },
+    gridTopRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    emojiBadge: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.chip,
+      borderWidth: 1,
+      borderColor: colors.stroke,
+    },
+    emojiText: {
+      fontSize: 22,
+    },
+    emojiTextLarge: {
+      fontSize: 28,
+    },
     gridLabel: {
       fontSize: 15,
       fontWeight: '600',
@@ -196,11 +216,18 @@ export default function CategoryScreen() {
                       isFull ? styles.gridItemFull : styles.gridItemHalf
                     ]}
                   >
-                    <CategoryMonogram
-                      categoryId={flow?.category.id ?? categoryId ?? 'food'}
-                      label={cat.label}
-                      size={isFull ? 56 : 40}
-                    />
+                    <View style={styles.gridTopRow}>
+                      <View style={styles.emojiBadge}>
+                        <Text style={[styles.emojiText, isFull && styles.emojiTextLarge]}>
+                          {cat.emoji ?? '🍽️'}
+                        </Text>
+                      </View>
+                      <CategoryMonogram
+                        categoryId={flow?.category.id ?? categoryId ?? 'food'}
+                        label={cat.label}
+                        size={isFull ? 50 : 38}
+                      />
+                    </View>
                     <Text 
                       style={[styles.gridLabel, isFull && styles.gridLabelLarge]}
                       numberOfLines={2}

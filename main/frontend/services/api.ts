@@ -201,7 +201,8 @@ const FLOW_FALLBACKS: Record<string, CategoryFlowResponse> = {
     category: { id: 'food', label: 'Comida y bebida', icon: '🍴', color: '#FF6B35', sort_order: 1, is_active: true, requires_price: true, search_mode: 'guided_ranked', mood_title: '¿Cuál es el plan?', mood_subtitle: 'Elige el ambiente perfecto' },
     subcategories: [
       { id: 'pizza', label: 'Pizza', emoji: '🍕' },
-      { id: 'hamburger', label: 'Hamburguesas', emoji: '🍔' },
+      { id: 'burgers', label: 'Hamburguesas', emoji: '🍔' },
+      { id: 'tapas', label: 'Tapas', emoji: '🥘' },
       { id: 'sushi', label: 'Sushi', emoji: '🍣' },
       { id: 'paella', label: 'Paella', emoji: '🥘' },
       { id: 'tacos', label: 'Tacos', emoji: '🌮' },

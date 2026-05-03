@@ -42,7 +42,7 @@ for _noisy in ("httpcore", "httpx", "urllib3", "google.auth"):
 
 MAX_DISTANCE_KM = 8.0
 PREFILTER_CANDIDATES = 20
-TOP_RESULTS = 10
+TOP_RESULTS = 5
 MIN_RESULTS = 5
 STREAM_INITIAL_BATCH_SIZE = 1
 STREAM_BATCH_SIZE = 2
