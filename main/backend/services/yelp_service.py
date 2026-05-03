@@ -16,7 +16,10 @@ log = logging.getLogger(__name__)
 _BASE = "https://api.yelp.com/v3"
 _http_client: httpx.AsyncClient | None = None
 _MAX_MATCH_DISTANCE_M = 1500.0
+_MAX_FALLBACK_DISTANCE_M = 3200.0
 _MIN_NAME_SIMILARITY = 0.62
+_FALLBACK_MIN_SCORE = 0.42
+_missing_api_key_logged = False
 
 _FOOD_CATEGORY_TERMS = (
     "restaurant",
@@ -62,6 +65,16 @@ def _get_http_client() -> httpx.AsyncClient:
     if _http_client is None or _http_client.is_closed:
         _http_client = httpx.AsyncClient(timeout=10)
     return _http_client
+
+
+def _is_api_key_configured() -> bool:
+    global _missing_api_key_logged
+    if YELP_API_KEY:
+        return True
+    if not _missing_api_key_logged:
+        log.warning("YELP_API_KEY is not configured. Yelp review enrichment is disabled.")
+        _missing_api_key_logged = True
+    return False
 
 
 def _review_locale(language: str) -> str:
@@ -171,10 +184,10 @@ async def _find_business_id(
     address: str = "",
     language: str = "es",
 ) -> tuple[str | None, int]:
-    if not YELP_API_KEY or not name:
+    if not _is_api_key_configured() or not name:
         return None, 0
 
-    cache_key = f"yelp_match_v2:{name}:{lat:.4f}:{lng:.4f}:{address}:{language}"
+    cache_key = f"yelp_match_v3:{name}:{lat:.4f}:{lng:.4f}:{address}:{language}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return cached.get("id"), cached.get("count", 0)
@@ -214,15 +227,35 @@ async def _find_business_id(
     )
     best_id: str | None = None
     review_count = 0
+    fallback_id: str | None = None
+    fallback_score = 0.0
+    fallback_review_count = 0
     for business in scored:
+        score = _score_business(business, name=name, lat=lat, lng=lng, address=address)
+        candidate_id = str(business.get("id") or "").strip() or None
+
+        if (
+            candidate_id
+            and _is_food_compatible(business)
+            and _business_distance_m(business, lat=lat, lng=lng) <= _MAX_FALLBACK_DISTANCE_M
+            and score > fallback_score
+        ):
+            fallback_id = candidate_id
+            fallback_score = score
+            fallback_review_count = int(business.get("review_count") or 0)
+
         if not _is_business_match(business, name=name, lat=lat, lng=lng):
             continue
-        if _score_business(business, name=name, lat=lat, lng=lng, address=address) < 0.55:
+        if score < 0.55:
             continue
-        best_id = str(business.get("id") or "") or None
+        best_id = candidate_id
         if best_id:
             review_count = int(business.get("review_count") or 0)
             break
+
+    if not best_id and fallback_id and fallback_score >= _FALLBACK_MIN_SCORE:
+        best_id = fallback_id
+        review_count = fallback_review_count
 
     await cache_set(cache_key, {"id": best_id or "", "count": review_count}, ttl=1800)
     return best_id, review_count
@@ -237,49 +270,59 @@ async def get_yelp_reviews(
     language: str = "es",
 ) -> dict:
     """Return Yelp reviews and total count for a nearby business match, if any."""
-    if not YELP_API_KEY:
+    if not _is_api_key_configured():
         return {"reviews": [], "total_count": 0}
 
     business_id, review_count = await _find_business_id(name=name, lat=lat, lng=lng, address=address, language=language)
     if not business_id:
         return {"reviews": [], "total_count": 0}
 
-    cache_key = f"yelp_reviews_v2:{business_id}:{language}"
+    cache_key = f"yelp_reviews_v3:{business_id}:{language}"
     cached = await cache_get(cache_key)
     if cached:
         return {"reviews": cached, "total_count": review_count}
 
     headers = {"Authorization": f"Bearer {YELP_API_KEY}"}
-    params = {"locale": _review_locale(language)}
 
-    try:
-        client = _get_http_client()
-        resp = await client.get(f"{_BASE}/businesses/{business_id}/reviews", params=params, headers=headers)
-        if resp.status_code != 200:
-            log.info("Yelp reviews failed for %s: %s", business_id, resp.status_code)
-            return {"reviews": [], "total_count": review_count}
-        payload = resp.json()
-    except Exception as exc:
-        log.info("Yelp reviews exception for %s: %s", business_id, exc)
-        return {"reviews": [], "total_count": review_count}
+    async def _fetch_reviews_for(locale: str) -> list[dict]:
+        params = {"locale": locale}
+        try:
+            client = _get_http_client()
+            resp = await client.get(f"{_BASE}/businesses/{business_id}/reviews", params=params, headers=headers)
+            if resp.status_code != 200:
+                log.info("Yelp reviews failed for %s locale=%s: %s", business_id, locale, resp.status_code)
+                return []
+            payload = resp.json()
+        except Exception as exc:
+            log.info("Yelp reviews exception for %s locale=%s: %s", business_id, locale, exc)
+            return []
 
-    reviews = []
-    for review in payload.get("reviews", [])[:3]:
-        text = str(review.get("text") or "").strip()
-        if not text:
-            continue
-        user = review.get("user") or {}
-        reviews.append(
-            {
-                "author": user.get("name", "Yelp user"),
-                "rating": int(review.get("rating") or 0),
-                "text": text,
-                "relative_time": str(review.get("time_created") or ""),
-                "source_language": language,
-                "source": "yelp",
-                "url": review.get("url", ""),
-            }
-        )
+        reviews: list[dict] = []
+        for review in payload.get("reviews", [])[:3]:
+            text = str(review.get("text") or "").strip()
+            if not text:
+                continue
+            user = review.get("user") or {}
+            reviews.append(
+                {
+                    "author": user.get("name", "Yelp user"),
+                    "rating": int(review.get("rating") or 0),
+                    "text": text,
+                    "relative_time": str(review.get("time_created") or ""),
+                    "source_language": language,
+                    "source": "yelp",
+                    "url": review.get("url", ""),
+                }
+            )
+        return reviews
+
+    locale = _review_locale(language)
+    reviews = await _fetch_reviews_for(locale)
+    if not reviews and locale != "en_US":
+        reviews = await _fetch_reviews_for("en_US")
+
+    if review_count <= 0 and reviews:
+        review_count = len(reviews)
 
     await cache_set(cache_key, reviews, ttl=3600 * 6)
     return {"reviews": reviews, "total_count": review_count}

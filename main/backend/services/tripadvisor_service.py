@@ -17,6 +17,9 @@ _BASE = "https://api.content.tripadvisor.com/api/v1"
 _http_client: httpx.AsyncClient | None = None
 _MAX_MATCH_DISTANCE_M = 3500.0
 _MIN_NAME_SIMILARITY = 0.52
+_FALLBACK_MIN_SCORE = 0.42
+_MIN_ACCEPTABLE_SCORE = 0.38
+_missing_api_key_logged = False
 
 _FOOD_CATEGORY_TERMS = (
     "restaurant",
@@ -54,6 +57,16 @@ def _get_http_client() -> httpx.AsyncClient:
     if _http_client is None or _http_client.is_closed:
         _http_client = httpx.AsyncClient(timeout=10)
     return _http_client
+
+
+def _is_api_key_configured() -> bool:
+    global _missing_api_key_logged
+    if TRIPADVISOR_API_KEY:
+        return True
+    if not _missing_api_key_logged:
+        log.warning("TRIPADVISOR_API_KEY is not configured. TripAdvisor review enrichment is disabled.")
+        _missing_api_key_logged = True
+    return False
 
 
 def _language_code(language: str) -> str:
@@ -181,6 +194,70 @@ def _search_results(payload: dict) -> list[dict]:
     return []
 
 
+def _extract_location_id(location: dict) -> str | None:
+    raw_id = location.get("location_id") or location.get("locationId")
+    if raw_id is None:
+        return None
+    value = str(raw_id).strip()
+    return value or None
+
+
+def _location_review_count(location: dict) -> int:
+    return int(_to_float(location.get("num_reviews")) or _to_float(location.get("review_count")) or 0)
+
+
+def _location_query_variants(name: str, address: str) -> list[str]:
+    base = str(name or "").strip()
+    if not base:
+        return []
+    variants = [base]
+    if address:
+        short_addr = str(address).split(",")[0].strip()
+        if short_addr:
+            variants.append(f"{base} {short_addr}")
+    words = base.split()
+    if len(words) > 3:
+        variants.append(" ".join(words[:3]))
+    # Deduplicate preserving order.
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for v in variants:
+        key = v.lower().strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(v)
+    return deduped
+
+
+async def _fetch_location_details(location_id: str, language: str) -> dict | None:
+    cache_key = f"tripadvisor_details_v1:{location_id}:{language}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return cached or None
+
+    params = {
+        "key": TRIPADVISOR_API_KEY,
+        "language": _language_code(language),
+    }
+    try:
+        client = _get_http_client()
+        response = await client.get(f"{_BASE}/location/{location_id}/details", params=params)
+        if response.status_code != 200:
+            log.info("TripAdvisor details failed for %s: %s", location_id, response.status_code)
+            await cache_set(cache_key, {}, ttl=1800)
+            return None
+        payload = response.json()
+        if not isinstance(payload, dict):
+            await cache_set(cache_key, {}, ttl=1800)
+            return None
+        await cache_set(cache_key, payload, ttl=3600 * 6)
+        return payload
+    except Exception as exc:
+        log.info("TripAdvisor details exception for %s: %s", location_id, exc)
+        return None
+
+
 async def _find_location_id(
     *,
     name: str,
@@ -189,17 +266,16 @@ async def _find_location_id(
     address: str = "",
     language: str = "es",
 ) -> tuple[str | None, int]:
-    if not TRIPADVISOR_API_KEY or not name:
+    if not _is_api_key_configured() or not name:
         return None, 0
 
-    cache_key = f"tripadvisor_match_v3:{name}:{lat:.4f}:{lng:.4f}:{address}:{language}"
+    cache_key = f"tripadvisor_match_v5:{name}:{lat:.4f}:{lng:.4f}:{address}:{language}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return cached.get("id"), cached.get("count", 0)
 
-    params: dict[str, object] = {
+    base_params: dict[str, object] = {
         "key": TRIPADVISOR_API_KEY,
-        "searchQuery": name,
         "category": "restaurants",
         "latLong": f"{lat},{lng}",
         "radius": 4,
@@ -207,21 +283,53 @@ async def _find_location_id(
         "language": _language_code(language),
     }
     if address:
-        params["address"] = address
+        base_params["address"] = address
 
-    try:
-        client = _get_http_client()
-        response = await client.get(f"{_BASE}/location/search", params=params)
-        if response.status_code != 200:
-            log.info("TripAdvisor search failed for %r: %s", name, response.status_code)
-            await cache_set(cache_key, {"id": None, "count": 0}, ttl=1800)
-            return None, 0
-        payload = response.json()
-    except Exception as exc:
-        log.info("TripAdvisor search exception for %r: %s", name, exc)
-        return None, 0
+    async def _search_locations(search_query: str) -> list[dict]:
+        params = {**base_params, "searchQuery": search_query}
+        try:
+            client = _get_http_client()
+            response = await client.get(f"{_BASE}/location/search", params=params)
+            if response.status_code != 200:
+                log.info("TripAdvisor search failed for %r: %s", name, response.status_code)
+                return []
+            payload = response.json()
+        except Exception as exc:
+            log.info("TripAdvisor search exception for %r: %s", name, exc)
+            return []
+        return _search_results(payload)
 
-    locations = _search_results(payload)
+    async def _nearby_locations() -> list[dict]:
+        nearby_params: dict[str, object] = {
+            "key": TRIPADVISOR_API_KEY,
+            "category": "restaurants",
+            "latLong": f"{lat},{lng}",
+            "radius": 4,
+            "radiusUnit": "km",
+            "language": _language_code(language),
+        }
+        if address:
+            nearby_params["address"] = address
+        try:
+            client = _get_http_client()
+            response = await client.get(f"{_BASE}/location/nearby_search", params=nearby_params)
+            if response.status_code != 200:
+                log.info("TripAdvisor nearby_search failed for %r: %s", name, response.status_code)
+                return []
+            payload = response.json()
+        except Exception as exc:
+            log.info("TripAdvisor nearby_search exception for %r: %s", name, exc)
+            return []
+        return _search_results(payload)
+
+    locations: list[dict] = []
+    for query in _location_query_variants(name, address):
+        locations.extend(await _search_locations(query))
+        if locations:
+            break
+    if not locations:
+        locations = await _nearby_locations()
+
     if not locations:
         await cache_set(cache_key, {"id": None, "count": 0}, ttl=1800)
         return None, 0
@@ -236,30 +344,41 @@ async def _find_location_id(
     review_count = 0
     fallback_best_id: str | None = None
     fallback_best_score = 0.0
-    for location in scored:
+    fallback_review_count = 0
+    tested_ids: set[str] = set()
+
+    for location in scored[:8]:
         score = _score_location(location, name=name, lat=lat, lng=lng, address=address)
-        raw_id = location.get("location_id") or location.get("locationId")
-        candidate_id = str(raw_id).strip() if raw_id is not None else ""
-        if candidate_id and score > fallback_best_score:
+        candidate_id = _extract_location_id(location)
+        if not candidate_id or candidate_id in tested_ids:
+            continue
+        tested_ids.add(candidate_id)
+
+        if score > fallback_best_score:
             fallback_best_score = score
             fallback_best_id = candidate_id
+            fallback_review_count = _location_review_count(location)
 
-        if not _is_location_match(location, name=name, lat=lat, lng=lng):
+        # Hard guard against very weak name/distance matches.
+        if score < _MIN_ACCEPTABLE_SCORE:
             continue
-        if score < 0.50:
+        if not _is_location_match(location, name=name, lat=lat, lng=lng) and score < 0.50:
             continue
-        if raw_id is None:
-            continue
-        location_id = str(raw_id).strip() or None
-        if location_id:
-            # TripAdvisor search API doesn't always return review count directly, 
-            # but we can try to extract it if available, or fetch it later.
-            # For now, we'll try to get it from the search response if it exists.
-            review_count = int(_to_float(location.get("num_reviews")) or 0)
-            break
 
-    if not location_id and fallback_best_id and fallback_best_score >= 0.42:
-        location_id = fallback_best_id
+        details = await _fetch_location_details(candidate_id, language)
+        if details is None:
+            continue
+
+        details_reviews = _location_review_count(details)
+        location_id = candidate_id
+        review_count = max(_location_review_count(location), details_reviews)
+        break
+
+    if not location_id and fallback_best_id and fallback_best_score >= _FALLBACK_MIN_SCORE:
+        details = await _fetch_location_details(fallback_best_id, language)
+        if details is not None:
+            location_id = fallback_best_id
+            review_count = max(fallback_review_count, _location_review_count(details))
 
     await cache_set(cache_key, {"id": location_id or "", "count": review_count}, ttl=1800)
     return location_id, review_count
@@ -274,7 +393,12 @@ def _extract_tripadvisor_reviews(payload: dict, *, language: str) -> list[dict]:
     for review in raw_reviews[:5]:
         if not isinstance(review, dict):
             continue
-        text = str(review.get("text") or "").strip()
+        text = str(
+            review.get("text")
+            or review.get("review_text")
+            or review.get("title")
+            or ""
+        ).strip()
         if not text:
             continue
 
@@ -310,14 +434,14 @@ async def get_tripadvisor_reviews(
     language: str = "es",
 ) -> dict:
     """Return TripAdvisor reviews and total count for a nearby restaurant match, if any."""
-    if not TRIPADVISOR_API_KEY:
+    if not _is_api_key_configured():
         return {"reviews": [], "total_count": 0}
 
     location_id, review_count = await _find_location_id(name=name, lat=lat, lng=lng, address=address, language=language)
     if not location_id:
         return {"reviews": [], "total_count": 0}
 
-    cache_key = f"tripadvisor_reviews_v3:{location_id}:{language}"
+    cache_key = f"tripadvisor_reviews_v5:{location_id}:{language}"
     cached = await cache_get(cache_key)
     if cached:
         return {"reviews": cached, "total_count": review_count}

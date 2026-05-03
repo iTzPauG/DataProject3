@@ -1,74 +1,158 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useMemo, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  withSequence,
+  Easing,
   interpolateColor,
-  Easing
-} from 'react-native-reanimated';
-import { whimTheme } from '../../constants/whimTheme';
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
+
+import { whimTheme } from "../../constants/whimTheme";
 
 const LOADING_PHRASES = [
-  "Revisando qué dicen los locales de verdad...",
-  "Consultando a los mejores rincones de Valencia...",
-  "Casi listo, encontrando tu plan perfecto..."
+  "Leyendo reseñas reales para filtrar mejor...",
+  "Buscando sitios que encajen contigo de verdad...",
+  "Casi listo, preparando tu selección final...",
 ];
 
-export const WhimLoadingScreen = ({ activeFilters = [], loadingPhase = 'searching' }: { activeFilters?: string[], loadingPhase?: string }) => {
+const CATEGORY_EMOJIS: Record<string, string[]> = {
+  pizza: ["\u{1F355}", "\u{1F9C0}", "\u{1F35D}", "\u{1F37D}"],
+  italian: ["\u{1F355}", "\u{1F35D}", "\u{1F9C0}", "\u{1F37D}"],
+  burgers: ["\u{1F354}", "\u{1F35F}", "\u{1F96C}", "\u{1F37D}"],
+  hamburger: ["\u{1F354}", "\u{1F35F}", "\u{1F96C}", "\u{1F37D}"],
+  tapas: ["\u{1F958}", "\u{1F364}", "\u{1F377}", "\u{1F37D}"],
+  sushi: ["\u{1F363}", "\u{1F365}", "\u{1F35A}", "\u{1F37D}"],
+  tacos: ["\u{1F32E}", "\u{1F32F}", "\u{1F336}", "\u{1F37D}"],
+  mexican: ["\u{1F32E}", "\u{1F32F}", "\u{1F37B}", "\u{1F37D}"],
+  brunch: ["\u{1F373}", "\u{1F95E}", "\u{1F95E}", "\u{2615}"],
+  bakery: ["\u{1F950}", "\u{1F35E}", "\u{1F370}", "\u{2615}"],
+  coffee: ["\u{2615}", "\u{1F9CB}", "\u{1F36A}", "\u{1F9C1}"],
+  vegan: ["\u{1F331}", "\u{1F966}", "\u{1F957}", "\u{1F34F}"],
+  healthy: ["\u{1F957}", "\u{1F95D}", "\u{1F966}", "\u{1F34E}"],
+  bar: ["\u{1F37A}", "\u{1F378}", "\u{1F942}", "\u{1F37D}"],
+  cocktail: ["\u{1F378}", "\u{1F379}", "\u{1F942}", "\u{1F37D}"],
+};
+
+const DEFAULT_EMOJIS = ["\u{1F37D}", "\u{1F374}", "\u{1F355}", "\u{1F37A}"];
+
+function emojisForCategory(selectedCategory?: string | null): string[] {
+  if (!selectedCategory) return DEFAULT_EMOJIS;
+  return CATEGORY_EMOJIS[selectedCategory.trim().toLowerCase()] ?? DEFAULT_EMOJIS;
+}
+
+function BouncingEmoji({ emoji, delayMs }: { emoji: string; delayMs: number }) {
+  const y = useSharedValue(0);
+
+  useEffect(() => {
+    y.value = withDelay(
+      delayMs,
+      withRepeat(
+        withSequence(
+          withTiming(-14, { duration: 240, easing: Easing.out(Easing.quad) }),
+          withTiming(0, { duration: 240, easing: Easing.in(Easing.quad) }),
+          withTiming(0, { duration: 420 })
+        ),
+        -1,
+        false
+      )
+    );
+  }, [delayMs, y]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateY: y.value }],
+  }));
+
+  return <Animated.Text style={[styles.emoji, style]}>{emoji}</Animated.Text>;
+}
+
+export const WhimLoadingScreen = ({
+  activeFilters = [],
+  selectedCategory = null,
+}: {
+  activeFilters?: string[];
+  loadingPhase?: string;
+  selectedCategory?: string | null;
+}) => {
   const [phraseIndex, setPhraseIndex] = useState(0);
   const progress = useSharedValue(0);
   const glow = useSharedValue(0);
+  const emojis = useMemo(() => emojisForCategory(selectedCategory), [selectedCategory]);
 
   useEffect(() => {
-    progress.value = withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.ease) });
-    glow.value = withRepeat(withSequence(withTiming(1, { duration: 1000 }), withTiming(0, { duration: 1000 })), -1, true);
+    progress.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 2400, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.2, { duration: 900, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      false
+    );
+    glow.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0, { duration: 1200, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
+    );
 
     const interval = setInterval(() => {
-      setPhraseIndex(i => (i + 1) % LOADING_PHRASES.length);
-    }, 2500);
+      setPhraseIndex((i) => (i + 1) % LOADING_PHRASES.length);
+    }, 2300);
+
     return () => clearInterval(interval);
-  }, []);
+  }, [glow, progress]);
 
   const progressStyle = useAnimatedStyle(() => ({
-    width: `${progress.value * 100}%`
+    width: `${Math.max(10, progress.value * 100)}%`,
   }));
 
   const glowStyle = useAnimatedStyle(() => ({
-    borderColor: interpolateColor(glow.value, [0, 1], [whimTheme.colors.accent.teal, whimTheme.colors.accent.violet]),
-    shadowColor: interpolateColor(glow.value, [0, 1], [whimTheme.colors.accent.teal, whimTheme.colors.accent.violet]),
+    borderColor: interpolateColor(
+      glow.value,
+      [0, 1],
+      [whimTheme.colors.accent.teal, whimTheme.colors.accent.violet]
+    ),
+    shadowColor: interpolateColor(
+      glow.value,
+      [0, 1],
+      [whimTheme.colors.accent.teal, whimTheme.colors.accent.violet]
+    ),
   }));
 
   return (
     <View style={styles.container}>
-      <View style={styles.progressContainer}>
-        <Animated.View style={[styles.progressBar, progressStyle]} />
+      <View style={styles.topRail}>
+        <Animated.View style={[styles.topRailProgress, progressStyle]} />
       </View>
-      
-      <View style={styles.content}>
-        <Animated.View style={[styles.iconContainer, glowStyle]}>
-          <Text style={styles.icon}>🍕🍸🍣🍔</Text>
+
+      <View style={styles.heroWrap}>
+        <Animated.View style={[styles.heroCard, glowStyle]}>
+          <View style={styles.emojiRow}>
+            {emojis.map((emoji, index) => (
+              <BouncingEmoji key={`${emoji}-${index}`} emoji={emoji} delayMs={index * 120} />
+            ))}
+          </View>
+          <Text style={styles.heroTitle}>Preparando restaurantes para ti</Text>
+          <Text style={styles.heroSubtitle}>{LOADING_PHRASES[phraseIndex]}</Text>
         </Animated.View>
-        
-        <View style={styles.chipsContainer}>
+
+        <View style={styles.chipsRow}>
           {activeFilters.length > 0 ? (
             activeFilters.map((filter, i) => (
-              <Animated.View key={i} style={[styles.chip, glowStyle]}>
+              <Animated.View key={`${filter}-${i}`} style={[styles.chip, glowStyle]}>
                 <Text style={styles.chipText}>{filter}</Text>
               </Animated.View>
             ))
           ) : (
             <Animated.View style={[styles.chip, glowStyle]}>
-              <Text style={styles.chipText}>Buscando...</Text>
+              <Text style={styles.chipText}>Buscando opciones...</Text>
             </Animated.View>
           )}
-        </View>
-        
-        <View accessibilityLiveRegion="polite" style={styles.textContainer}>
-          <Text style={styles.title}>Preparando tu lista</Text>
-          <Text style={styles.subtitle}>{LOADING_PHRASES[phraseIndex]}</Text>
         </View>
       </View>
     </View>
@@ -79,77 +163,81 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: whimTheme.colors.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 18,
   },
-  progressContainer: {
-    position: 'absolute',
+  topRail: {
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    height: 4,
+    height: 5,
     backgroundColor: whimTheme.colors.surface,
   },
-  progressBar: {
-    height: '100%',
+  topRailProgress: {
+    height: "100%",
     backgroundColor: whimTheme.colors.accent.teal,
   },
-  content: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
+  heroWrap: {
+    width: "100%",
+    maxWidth: 540,
+    alignItems: "center",
+    gap: 16,
   },
-  iconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: whimTheme.colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 32,
+  heroCard: {
+    width: "100%",
+    borderRadius: 26,
+    paddingHorizontal: 20,
+    paddingVertical: 22,
     borderWidth: 2,
+    backgroundColor: whimTheme.colors.surface,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 20,
+    shadowOpacity: 0.75,
+    shadowRadius: 24,
     elevation: 10,
   },
-  icon: {
-    fontSize: 48,
+  emojiRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 14,
   },
-  chipsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
+  emoji: {
+    fontSize: 31,
+  },
+  heroTitle: {
+    textAlign: "center",
+    fontFamily: whimTheme.fonts.display,
+    color: whimTheme.colors.text.primary,
+    fontSize: 25,
+    marginBottom: 8,
+  },
+  heroSubtitle: {
+    textAlign: "center",
+    fontFamily: whimTheme.fonts.body,
+    color: whimTheme.colors.text.secondary,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  chipsRow: {
+    width: "100%",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
     gap: 8,
-    marginBottom: 40,
   },
   chip: {
     backgroundColor: whimTheme.colors.surface,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 999,
     borderWidth: 1,
   },
   chipText: {
     color: whimTheme.colors.text.primary,
     fontFamily: whimTheme.fonts.body,
-    fontSize: 14,
+    fontSize: 13,
   },
-  textContainer: {
-    alignItems: 'center',
-  },
-  title: {
-    fontFamily: whimTheme.fonts.display,
-    color: whimTheme.colors.text.primary,
-    fontSize: 24,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontFamily: whimTheme.fonts.body,
-    color: whimTheme.colors.text.secondary,
-    fontSize: 16,
-    textAlign: 'center',
-    lineHeight: 24,
-  }
 });

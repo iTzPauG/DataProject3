@@ -61,10 +61,11 @@ module "cloud_run" {
 }
 
 module "iam" {
-  source       = "./modules/iam"
-  region       = var.region
-  project_id   = var.project_id
-  service_name = module.cloud_run.service_name
+  source                = "./modules/iam"
+  region                = var.region
+  project_id            = var.project_id
+  service_name          = module.cloud_run.service_name
+  service_account_email = module.cloud_run.service_account_email
 }
 
 module "registry_frontend" {

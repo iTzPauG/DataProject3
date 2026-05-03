@@ -17,8 +17,8 @@ SEARCH_RESULT_TARGET = 40
 FETCH_ALL_REVIEWS_TTL_S = 30 * 60
 FETCH_ALL_REVIEWS_EMPTY_TTL_S = 2 * 60
 FETCH_TIMEOUT_GOOGLE_S = 5.5
-FETCH_TIMEOUT_YELP_S = 8.0
-FETCH_TIMEOUT_TRIPADVISOR_S = 8.0
+FETCH_TIMEOUT_YELP_S = 12.0
+FETCH_TIMEOUT_TRIPADVISOR_S = 12.0
 
 
 def _normalize_google_price_level(raw_price_level: object) -> int | None:
@@ -397,8 +397,8 @@ async def fetch_all_reviews(
     """Fetch Google, Yelp, and TripAdvisor reviews in parallel."""
     t0 = time.perf_counter()
     safe_name = str(name or "Unknown")
-    # v3 invalidates stale entries created with overly strict timeout settings.
-    cache_key = f"all_reviews_v3:{place_id}:{language}:{lat:.4f}:{lng:.4f}"
+    # v5 invalidates stale entries created before TripAdvisor details-based matching.
+    cache_key = f"all_reviews_v5:{place_id}:{language}:{lat:.4f}:{lng:.4f}"
     cached = await cache_get(cache_key)
     if cached:
         return cached

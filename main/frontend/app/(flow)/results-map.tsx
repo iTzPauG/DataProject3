@@ -13,8 +13,6 @@ import {
   TouchableOpacity,
   UIManager,
   View,
-  Modal,
-  ScrollView,
 } from "react-native";
 import Map from "../../components/map/Map";
 import PrimaryButton from "../../components/PrimaryButton";
@@ -23,7 +21,6 @@ import BottomSheet from "../../components/sheet/BottomSheet";
 import WhimIcon from "../../components/WhimIcon";
 import { WhimLoadingScreen } from "../../components/whim/WhimLoadingScreen";
 import { WhimEmptyState } from "../../components/whim/WhimEmptyState";
-import { WhimResultsPreviewCard } from "../../components/whim/WhimResultsPreviewCard";
 import { BottomSheetRef } from "../../components/sheet/types";
 import { useAppState } from "../../hooks/useAppState";
 import { useFlowState } from "../../hooks/useFlowState";
@@ -33,7 +30,6 @@ import {
   recommendRestaurantsStream,
   VoteData,
   getBookmarks,
-  askBrain,
 } from "../../services/api";
 import { Restaurant } from "../../types/restaurant";
 import { MapItem } from "../../types";
@@ -49,75 +45,6 @@ const CARD_HEIGHT = 360;
 const MAX_RESULTS = 5;
 
 type Status = "loading" | "streaming" | "success" | "error";
-
-// ── Animated loading dots ───────────────────────────────────────────────────
-
-// -- Animated bouncing emojis (shown while loading) -------------------------
-
-
-
-const CATEGORY_EMOJIS: Record<string, string[]> = {
-  pizza:       ["🍕", "🧀", "🍝", "🧄", "🍽️"],
-  burgers:     ["🍔", "🍟", "🌭", "🧂", "🥬"],
-  hamburger:   ["🍔", "🍟", "🌭", "🧂", "🥬"], // legacy alias
-  tapas:       ["🥘", "🍤", "🫒", "🧀", "🍷"],
-  sushi:       ["🍣", "🍤", "🍥", "🍡", "🍢"],
-  paella:      ["🦞", "🐟", "🥦", "🧅", "🍽️"],
-  tacos:       ["🌮", "🌯", "🧆", "🌶️", "🥬"],
-  healthy:     ["🥗", "🥦", "🥑", "🥬", "🍎"],
-  vegan:       ["🌱", "🥦", "🥗", "🥑", "🥬"],
-  italian:     ["🍝", "🍕", "🧀", "🍻", "🍷"],
-  asian:       ["🍜", "🍣", "🍙", "🍛", "🍢"],
-  mexican:     ["🌮", "🌯", "🌶️", "🧆", "🍻"],
-  brunch:      ["🍳", "🥞", "🧇", "🥐", "☕"],
-  bakery:      ["🥐", "🧁", "🎂", "🍞", "☕"],
-  coffee:      ["☕", "🧋", "🍵", "🥐", "🍫"],
-  kebab:       ["🥭", "🧆", "🌭", "🧅", "🥦"],
-  bar:         ["🍺", "🍻", "🥂", "🍹", "🍷"],
-  cocktail:    ["🍹", "🍸", "🍷", "🥂", "🍓"],
-  wine_bar:    ["🍷", "🍇", "🥂", "🍹", "🍾"],
-  rooftop:     ["🍹", "🌟", "🍷", "🍻", "🥂"],
-};
-
-const DEFAULT_EMOJIS = ["🍕", "🍜", "🍣", "🥗", "🍔", "🌮", "🍷", "☕"];
-
-function getEmojisForCategory(cat: string | null): string[] {
-  if (!cat) return DEFAULT_EMOJIS;
-  const key = cat.trim().toLowerCase();
-  return CATEGORY_EMOJIS[key] ?? DEFAULT_EMOJIS;
-}
-
-function BouncingEmoji({ emoji, delay }: { emoji: string; delay: number }) {
-  const translateY = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
-        Animated.timing(translateY, { toValue: -14, duration: 350, easing: Easing.out(Easing.quad), useNativeDriver: false }),
-        Animated.timing(translateY, { toValue: 0, duration: 350, easing: Easing.in(Easing.quad), useNativeDriver: false }),
-        Animated.delay(800),
-      ]),
-    ).start();
-  }, [delay, translateY]);
-
-  return (
-    <Animated.Text style={{ fontSize: 26, transform: [{ translateY }] }}>
-      {emoji}
-    </Animated.Text>
-  );
-}
-
-function LoadingEmojis({ category }: { category: string | null }) {
-  const emojis = getEmojisForCategory(category);
-  return (
-    <View style={{ flexDirection: "row", gap: 10, justifyContent: "center", paddingVertical: 8 }}>
-      {emojis.map((emoji, i) => (
-        <BouncingEmoji key={i} emoji={emoji} delay={i * 120} />
-      ))}
-    </View>
-  );
-}
 
 function PulsingDot({ delay, color }: { delay: number; color: string }) {
   const scale = useRef(new Animated.Value(0.4)).current;
@@ -153,27 +80,6 @@ function PulsingDot({ delay, color }: { delay: number; color: string }) {
         opacity,
       }}
     />
-  );
-}
-
-function LoadingIndicator({ message, sub }: { message: string; sub?: string }) {
-  const { colors, typography } = useTheme();
-  return (
-    <View style={{ alignItems: "center", paddingVertical: 28, paddingHorizontal: 24 }}>
-      <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
-        <PulsingDot delay={0} color={colors.brand} />
-        <PulsingDot delay={200} color={colors.brand} />
-        <PulsingDot delay={400} color={colors.brand} />
-      </View>
-      <Text style={{ fontSize: 17, fontWeight: "700", color: colors.ink, textAlign: "center", fontFamily: typography.heading }}>
-        {message}
-      </Text>
-      {sub ? (
-        <Text style={{ marginTop: 6, fontSize: 13, color: colors.inkMuted, textAlign: "center", lineHeight: 19, fontFamily: typography.body }}>
-          {sub}
-        </Text>
-      ) : null}
-    </View>
   );
 }
 
@@ -527,43 +433,64 @@ export default function ResultsMapScreen() {
       fontWeight: '700',
       fontSize: 14,
     },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 20,
-    },
-    modalContent: {
+    resultsSummary: {
+      marginBottom: 14,
+      padding: 14,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: colors.stroke,
       backgroundColor: colors.surface,
-      borderRadius: radii.xl,
-      padding: 24,
-      width: '100%',
-      maxHeight: '80%',
-      ...shadows.medium,
+      ...shadows.soft,
     },
-    modalTitle: {
-      fontSize: 20,
-      fontWeight: '800',
+    resultsSummaryTop: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 10,
+    },
+    resultsSummaryTitle: {
+      fontSize: 16,
+      fontWeight: "800",
       color: colors.ink,
-      marginBottom: 16,
       fontFamily: typography.heading,
     },
-    modalText: {
-      fontSize: 15,
+    resultsSummaryCount: {
+      fontSize: 12,
+      color: colors.inkMuted,
+      fontFamily: typography.body,
+      marginTop: 2,
+    },
+    resultsMapBtn: {
+      borderRadius: radii.pill,
+      borderWidth: 1,
+      borderColor: colors.stroke,
+      backgroundColor: colors.chip,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    resultsMapBtnText: {
+      fontSize: 12,
       color: colors.ink,
-      lineHeight: 22,
+      fontWeight: "700",
       fontFamily: typography.body,
     },
-    modalCloseBtn: {
-      marginTop: 20,
-      alignSelf: 'flex-end',
-      padding: 10,
+    resultsSummaryFilters: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
     },
-    modalCloseText: {
-      color: colors.brand,
-      fontWeight: '700',
-      fontSize: 16,
+    resultsSummaryFilter: {
+      borderRadius: radii.pill,
+      borderWidth: 1,
+      borderColor: colors.stroke,
+      backgroundColor: colors.chip,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+    },
+    resultsSummaryFilterText: {
+      fontSize: 12,
+      color: colors.inkMuted,
+      fontFamily: typography.body,
     },
   }), [colors, radii, shadows, typography]);
 
@@ -578,8 +505,6 @@ export default function ResultsMapScreen() {
   const [votesMap, setVotesMap] = useState<Record<string, VoteData>>({});
   const [totalExpected, setTotalExpected] = useState<number | undefined>(undefined);
   const [savedItems, setSavedItems] = useState<MapItem[]>([]);
-  const [compareResult, setCompareResult] = useState<string | null>(null);
-  const [isComparing, setIsComparing] = useState(false);
 
   const sheetRef = useRef<BottomSheetRef>(null);
   const fetchingRef = useRef(false);
@@ -707,26 +632,6 @@ export default function ResultsMapScreen() {
     router.push({ pathname: "/(flow)/details", params: { id } });
   }, []);
 
-  const handleCompare = async () => {
-    if (!selectedId) return;
-    const currentPlace = restaurants.find(r => r.id === selectedId);
-    if (!currentPlace) return;
-
-    setIsComparing(true);
-    setCompareResult(null);
-    try {
-      const context = {
-        current_place: currentPlace,
-        saved_places: savedItems
-      };
-      const res = await askBrain(`Compara el lugar actual (${currentPlace.name}) con mis lugares guardados. ¿Cuál me recomiendas más y por qué?`, context);
-      setCompareResult(res.response);
-    } catch (e) {
-      setCompareResult("Error al comparar.");
-    } finally {
-      setIsComparing(false);
-    }
-  };
 
   const fmt = (s: string) =>
     s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -746,45 +651,15 @@ export default function ResultsMapScreen() {
   const hasResults = (restaurants || []).length > 0;
   const showMap = hasResults;
 
-  // ── Sheet header ────────────────────────────────────────────────────────
-
-  // Aggregate review source counts across all loaded restaurants
-  const reviewSourceCounts = useMemo(() => {
-    const totals = { google: 0, yelp: 0, tripadvisor: 0 };
-    for (const r of restaurants) {
-      if (r.reviewSources) {
-        totals.google += r.reviewSources.google || 0;
-        totals.yelp += r.reviewSources.yelp || 0;
-        totals.tripadvisor += r.reviewSources.tripadvisor || 0;
-      } else {
-        for (const rev of r.reviews || []) {
-          if (rev.source === "google") totals.google += 1;
-          else if (rev.source === "yelp") totals.yelp += 1;
-          else if (rev.source === "tripadvisor") totals.tripadvisor += 1;
-        }
-      }
-    }
-    // Add log here
-    console.log('[WHIM:REVIEWS] Total sources:', totals);
-    return totals;
-  }, [restaurants]);
-
   const activeFilters = [categoryLabel, moodLabel, priceLabel].filter(Boolean);
-
-  const sheetHeader = (
-    <WhimResultsPreviewCard 
-      count={restaurants.length} 
-      filters={activeFilters.map(f => ({ label: f, type: f === categoryLabel ? 'food' : f === priceLabel ? 'budget' : 'mood' }))}
-      onMapPress={() => sheetRef.current?.snapToIndex(0)}
-    />
-  );
+  const showResultsSummary = restaurants.length > 0 && status !== "loading";
 
   // ── Sheet content ───────────────────────────────────────────────────────
 
   const sheetContent = (() => {
     if (status === "loading" && (!results || results.length === 0)) {
       return (
-        <WhimLoadingScreen activeFilters={activeFilters} loadingPhase={status} />
+        <WhimLoadingScreen activeFilters={activeFilters} loadingPhase={status} selectedCategory={category} />
       );
     }
 
@@ -812,6 +687,30 @@ export default function ResultsMapScreen() {
 
     return (
       <>
+        {showResultsSummary ? (
+          <View style={styles.resultsSummary}>
+            <View style={styles.resultsSummaryTop}>
+              <View>
+                <Text style={styles.resultsSummaryTitle}>Resultados cercanos</Text>
+                <Text style={styles.resultsSummaryCount}>
+                  {restaurants.length} {restaurants.length === 1 ? "sitio recomendado" : "sitios recomendados"}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.resultsMapBtn} onPress={() => sheetRef.current?.snapToIndex(0)}>
+                <Text style={styles.resultsMapBtnText}>Ver mapa</Text>
+              </TouchableOpacity>
+            </View>
+            {activeFilters.length > 0 ? (
+              <View style={styles.resultsSummaryFilters}>
+                {activeFilters.map((filter, i) => (
+                  <View key={`${filter}-${i}`} style={styles.resultsSummaryFilter}>
+                    <Text style={styles.resultsSummaryFilterText}>{filter}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
         {restaurants.map((restaurant, index) => (
           <AnimatedCard key={restaurant.id}>
             <RestaurantCard
@@ -831,7 +730,7 @@ export default function ResultsMapScreen() {
   })();
 
   if (status === "loading" && !hasResults) {
-    return <WhimLoadingScreen activeFilters={activeFilters} loadingPhase={status} />;
+    return <WhimLoadingScreen activeFilters={activeFilters} loadingPhase={status} selectedCategory={category} />;
   }
 
   if (status === "success" && restaurants.length === 0) {
@@ -876,24 +775,11 @@ export default function ResultsMapScreen() {
         ref={sheetRef}
         snapPoints={["15%", "50%", "92%"]}
         initialSnapIndex={status === "loading" ? 0 : 1}
-        header={sheetHeader}
+        header={null}
       >
         {sheetContent}
       </BottomSheet>
 
-      <Modal visible={!!compareResult} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Comparativa</Text>
-            <ScrollView style={{ maxHeight: 400 }}>
-              <Text style={styles.modalText}>{compareResult}</Text>
-            </ScrollView>
-            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setCompareResult(null)}>
-              <Text style={styles.modalCloseText}>Cerrar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }

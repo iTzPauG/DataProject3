@@ -35,8 +35,9 @@ FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH", "")
 # External APIs
 HERE_API_KEY = os.getenv("HERE_API_KEY", "mock")
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
-YELP_API_KEY = os.getenv("YELP_API_KEY", "")
-TRIPADVISOR_API_KEY = os.getenv("TRIPADVISOR_API_KEY", "")
+# Strip protects against accidental newline/space in Secret Manager values.
+YELP_API_KEY = os.getenv("YELP_API_KEY", "").strip()
+TRIPADVISOR_API_KEY = os.getenv("TRIPADVISOR_API_KEY", "").strip()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GOOGLE_GENAI_API_KEY = os.getenv("GOOGLE_GENAI_API_KEY") or GEMINI_API_KEY
 GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "")
