@@ -308,7 +308,15 @@ async def live_search(
     """Streaming de resultados de búsqueda conforme llegan de cada proveedor."""
     async def stream_results():
         tasks = [
-            search_google_places(q, lat, lng, radius_m, category, bool(category), 20),
+            search_google_places(
+                query=q,
+                lat=lat,
+                lng=lng,
+                radius_m=radius_m,
+                category=category,
+                strict_category=bool(category),
+                limit=20,
+            ),
             search_overpass(lat, lng, radius_m, category, q if len(q) > 2 else None, 30),
             _search_local(q, category, radius_m, lat, lng)
         ]

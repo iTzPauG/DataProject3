@@ -105,6 +105,7 @@ export function AppStateProvider({
           const parsed = JSON.parse(raw) as Partial<AppState>;
           // Don't persist nearbyItems (they're transient)
           delete parsed.nearbyItems;
+          delete parsed.results;
           
           // Ensure mapPreferences is never null
           if (parsed.mapPreferences === null) {
@@ -130,7 +131,7 @@ export function AppStateProvider({
   // Persist when state changes (skip transient fields)
   useEffect(() => {
     if (!isHydrated) return;
-    const { nearbyItems, ...persistable } = state;
+    const { nearbyItems, results, ...persistable } = state;
     storage.setItem(STORAGE_KEY, JSON.stringify(persistable));
   }, [state, isHydrated]);
 

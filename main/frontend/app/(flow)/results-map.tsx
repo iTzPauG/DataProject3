@@ -639,7 +639,6 @@ export default function ResultsMapScreen() {
             accumulatedRef.current = [...accumulatedRef.current, restaurant].slice(0, MAX_RESULTS);
             // Progressive UI update
             setRestaurants([...accumulatedRef.current]);
-            setResults([...accumulatedRef.current]);
             if (accumulatedRef.current.length === 1) {
               setStatus("streaming");
             }

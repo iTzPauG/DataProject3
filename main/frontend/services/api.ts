@@ -7,7 +7,8 @@ import i18n from '../utils/i18n';
 
 // Derive the backend URL with autodetection for Railway production
 const getBaseUrl = () => {
-  const envUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+  const rawEnvUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+  const envUrl = rawEnvUrl?.trim().replace(/^['"]+|['"]+$/g, '');
   
   // If we have a valid environment URL and it's not localhost (or we ARE on localhost), use it
   if (envUrl && (!envUrl.includes('localhost') || (typeof window !== 'undefined' && window.location.hostname === 'localhost'))) {
@@ -21,7 +22,13 @@ const getBaseUrl = () => {
     return 'https://backend-production-bac63.up.railway.app';
   }
 
-  return 'http://localhost:8080';
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host && host !== 'localhost' && host !== '127.0.0.1') {
+      return `http://${host}:8000`;
+    }
+  }
+  return 'http://localhost:8000';
 };
 
 export const BASE_URL = getBaseUrl();
@@ -37,12 +44,59 @@ function buildUrl(path: string, params?: Record<string, string | undefined>): st
   return qs ? `${base}?${qs}` : base;
 }
 
+async function parseJsonResponse<T>(res: Response, context: string): Promise<T> {
+  const raw = await res.text();
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    const preview = raw.replace(/\s+/g, ' ').slice(0, 120);
+    throw new Error(
+      `${context} returned non-JSON. Check EXPO_PUBLIC_BACKEND_URL (${BASE_URL}). Response: ${preview}`
+    );
+  }
+}
+
 // Valencia city centre — fallback when geolocation is unavailable or denied
 const VALENCIA_LAT = 39.4699;
 const VALENCIA_LNG = -0.3763;
 
-export function getCurrentLocation(): Promise<{ lat: number; lng: number }> {
+interface LocationOptions {
+  enableHighAccuracy?: boolean;
+  timeoutMs?: number;
+  maximumAgeMs?: number;
+}
+
+const DEFAULT_LOCATION_OPTIONS: Required<LocationOptions> = {
+  enableHighAccuracy: true,
+  timeoutMs: 10000,
+  maximumAgeMs: 0,
+};
+
+const EXPLORE_LOCATION_OPTIONS: Required<LocationOptions> = {
+  enableHighAccuracy: false,
+  timeoutMs: 3500,
+  maximumAgeMs: 3 * 60 * 1000,
+};
+
+let lastKnownLocation: { lat: number; lng: number; timestamp: number } | null = null;
+
+export function getCurrentLocation(options: LocationOptions = {}): Promise<{ lat: number; lng: number }> {
+  const finalOptions = {
+    ...DEFAULT_LOCATION_OPTIONS,
+    ...options,
+  };
+
   return new Promise((resolve) => {
+    const now = Date.now();
+    if (
+      lastKnownLocation &&
+      finalOptions.maximumAgeMs > 0 &&
+      now - lastKnownLocation.timestamp <= finalOptions.maximumAgeMs
+    ) {
+      resolve({ lat: lastKnownLocation.lat, lng: lastKnownLocation.lng });
+      return;
+    }
+
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       console.warn('[LOCATION] Geolocation not supported, using fallback.');
       resolve({ lat: VALENCIA_LAT, lng: VALENCIA_LNG });
@@ -51,16 +105,21 @@ export function getCurrentLocation(): Promise<{ lat: number; lng: number }> {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         console.log('[LOCATION] Got current position:', pos.coords.latitude, pos.coords.longitude);
+        lastKnownLocation = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          timestamp: Date.now(),
+        };
         resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       },
       (err) => {
         console.warn('[LOCATION] Geolocation error, using fallback:', err.message);
         resolve({ lat: VALENCIA_LAT, lng: VALENCIA_LNG });
       },
-      { 
-        enableHighAccuracy: true,
-        timeout: 10000, 
-        maximumAge: 0 // Force fresh location for reports
+      {
+        enableHighAccuracy: finalOptions.enableHighAccuracy,
+        timeout: finalOptions.timeoutMs,
+        maximumAge: finalOptions.maximumAgeMs,
       }
     );
   });
@@ -438,7 +497,7 @@ export async function recommendRestaurants(
   input: RecommendInput
 ): Promise<{ top: Restaurant[] }> {
   const { parentCategory, subcategory, mood, priceLevel, fast = false, language = 'es' } = input;
-  const { lat, lng } = await getCurrentLocation();
+  const { lat, lng } = await getCurrentLocation(EXPLORE_LOCATION_OPTIONS);
 
   const recommendUrl = buildUrl('/recommend', { fast: fast ? 'true' : undefined });
 
@@ -446,6 +505,7 @@ export async function recommendRestaurants(
     method: 'POST',
     headers: { 
       'Content-Type': 'application/json',
+      Accept: 'application/json',
       'Accept-Language': i18n.language || 'es'
     },
     body: JSON.stringify({
@@ -465,7 +525,7 @@ export async function recommendRestaurants(
     throw new Error(`Backend error ${res.status}: ${detail}`);
   }
 
-  const data = await res.json();
+  const data = await parseJsonResponse<{ top?: Array<Record<string, unknown>> }>(res, 'recommend');
   const top: Restaurant[] = (data.top ?? []).map(
     (r: Record<string, unknown>) => sanitize(r)
   );
@@ -485,21 +545,22 @@ export interface StreamCallbacks {
   onError?: (error: Error) => void;
 }
 
-const POLL_INTERVAL_MS = 500;
-const STAGGER_DELAY_MS = 350; // delay between rendering each result within a batch
+const POLL_INTERVAL_MS = 250;
+const STAGGER_DELAY_MS = 50; // keep progressive rendering but avoid artificial slowness
 
 export async function recommendRestaurantsStream(
   input: RecommendStreamInput,
   callbacks: StreamCallbacks,
 ): Promise<void> {
   const { parentCategory, subcategory, mood, priceLevel, language = 'es' } = input;
-  const { lat, lng } = await getCurrentLocation();
+  const { lat, lng } = await getCurrentLocation(EXPLORE_LOCATION_OPTIONS);
 
   // Step 1: Start the job
-  const startRes = await fetch(`${BASE_URL}/recommend/start`, {
+  const startRes = await fetch(buildUrl('/recommend/start'), {
     method: 'POST',
     headers: { 
       'Content-Type': 'application/json',
+      Accept: 'application/json',
       'Accept-Language': i18n.language || 'es'
     },
     body: JSON.stringify({
@@ -519,13 +580,10 @@ export async function recommendRestaurantsStream(
     throw new Error(`Start error ${startRes.status}: ${detail}`);
   }
 
-  const startText = await startRes.text();
-  let job_id;
-  try {
-    const parsed = JSON.parse(startText);
-    job_id = parsed.job_id;
-  } catch (e) {
-    throw new Error(`Invalid JSON on start: ${startText.slice(0, 100)}`);
+  const startData = await parseJsonResponse<{ job_id?: string }>(startRes, 'recommend/start');
+  const job_id = startData.job_id;
+  if (!job_id) {
+    throw new Error('recommend/start did not return job_id');
   }
 
   // Step 2: Poll for results every POLL_INTERVAL_MS
@@ -535,13 +593,21 @@ export async function recommendRestaurantsStream(
   return new Promise<void>((resolve, reject) => {
     const poll = async () => {
       try {
-        const res = await fetch(`${BASE_URL}/recommend/poll/${job_id}?after=${cursor}`, {
-          headers: { 'Accept-Language': i18n.language || 'es' }
+        const res = await fetch(buildUrl(`/recommend/poll/${job_id}`, { after: String(cursor) }), {
+          headers: {
+            Accept: 'application/json',
+            'Accept-Language': i18n.language || 'es'
+          }
         });
         if (!res.ok) {
           throw new Error(`Poll error ${res.status}`);
         }
-        const data = await res.json();
+        const data = await parseJsonResponse<{
+          results?: Array<Record<string, unknown>>;
+          total?: number;
+          done?: boolean;
+          cursor?: number;
+        }>(res, 'recommend/poll');
 
         // Fire meta once we know the total
         if (!metaFired && data.total != null) {
@@ -549,13 +615,15 @@ export async function recommendRestaurantsStream(
           callbacks.onMeta?.({ total: data.total });
         }
 
-        cursor = data.cursor;
+        cursor = typeof data.cursor === 'number' ? data.cursor : cursor;
+        const pollResults = Array.isArray(data.results) ? data.results : [];
+        const pollDone = data.done === true;
 
-        if (data.results.length > 0) {
+        if (pollResults.length > 0) {
           // Stagger delivery of results to break React batching.
           // Each result gets its own setTimeout so React renders each individually.
-          const results = data.results;
-          const isDone = data.done;
+          const results = pollResults;
+          const isDone = pollDone;
 
           for (let i = 0; i < results.length; i++) {
             setTimeout(() => {
@@ -571,10 +639,10 @@ export async function recommendRestaurantsStream(
 
           // Schedule next poll AFTER all staggered deliveries finish
           if (!isDone) {
-            const nextPollDelay = Math.max(POLL_INTERVAL_MS, results.length * STAGGER_DELAY_MS + 100);
+            const nextPollDelay = Math.max(POLL_INTERVAL_MS, results.length * STAGGER_DELAY_MS + 50);
             setTimeout(poll, nextPollDelay);
           }
-        } else if (data.done) {
+        } else if (pollDone) {
           callbacks.onDone?.(cursor);
           resolve();
         } else {
@@ -588,7 +656,7 @@ export async function recommendRestaurantsStream(
     };
 
     // First poll quickly — meta should be available almost immediately
-    setTimeout(poll, 400);
+    setTimeout(poll, 150);
   });
 }
 

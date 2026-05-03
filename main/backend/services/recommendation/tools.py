@@ -9,10 +9,39 @@ import math
 import time
 
 from .category_flow import get_flow_definition
+from services.cache_service import cache_get, cache_set
 
 log = logging.getLogger("pipeline")
 
-SEARCH_RESULT_TARGET = 15
+SEARCH_RESULT_TARGET = 40
+FETCH_ALL_REVIEWS_TTL_S = 30 * 60
+FETCH_ALL_REVIEWS_EMPTY_TTL_S = 2 * 60
+FETCH_TIMEOUT_GOOGLE_S = 5.5
+FETCH_TIMEOUT_YELP_S = 8.0
+FETCH_TIMEOUT_TRIPADVISOR_S = 8.0
+
+
+def _normalize_google_price_level(raw_price_level: object) -> int | None:
+    """Convert Google Places price enums/ints to app levels (1..3)."""
+    if raw_price_level is None:
+        return None
+
+    if isinstance(raw_price_level, (int, float)):
+        lvl = int(raw_price_level)
+        if lvl <= 1:
+            return 1
+        if lvl == 2:
+            return 2
+        return 3
+
+    raw = str(raw_price_level).strip().upper()
+    if raw == "PRICE_LEVEL_INEXPENSIVE":
+        return 1
+    if raw == "PRICE_LEVEL_MODERATE":
+        return 2
+    if raw in ("PRICE_LEVEL_EXPENSIVE", "PRICE_LEVEL_VERY_EXPENSIVE"):
+        return 3
+    return None
 
 
 # ── Haversine distance ────────────────────────────────────────────────────────
@@ -105,6 +134,92 @@ def _build_query(parent_category: str, subcategory: str | None, mood: str | None
     return " ".join(seen)
 
 
+def _apply_budget_to_query(base_query: str, parent_category: str, price_level: int | None) -> str:
+    """Bias text search by budget for categories where it is meaningful."""
+    if price_level is None:
+        return base_query
+
+    budget_sensitive_categories = {"food", "nightlife", "shopping", "wellness", "coworking"}
+    if parent_category not in budget_sensitive_categories:
+        return base_query
+
+    if price_level == 1:
+        return f"{base_query} barato economico"
+    if price_level == 3:
+        return f"{base_query} premium exclusivo"
+    return base_query
+
+
+def _apply_mood_to_query(
+    base_query: str,
+    parent_category: str,
+    subcategory: str | None,
+    mood: str | None,
+) -> str:
+    """Bias text search with mood-only keywords for categories where it matters."""
+    mood_id = (mood or "").strip().lower()
+    if not mood_id:
+        return base_query
+
+    if parent_category == "food":
+        if mood_id in {"quick", "express", "urgent", "quick_stop"}:
+            if (subcategory or "").strip().lower() == "burgers":
+                return f"{base_query} fast food para llevar"
+            return f"{base_query} rapido para llevar"
+        if mood_id in {"date", "romantic", "date_night"}:
+            return f"{base_query} ambiente romantico"
+
+    return base_query
+
+
+def _google_price_levels(parent_category: str, price_level: int | None) -> list[str] | None:
+    """Translate app budget levels (1..3) into Google Places priceLevels filters."""
+    if price_level is None:
+        return None
+
+    budget_sensitive_categories = {"food", "nightlife", "shopping", "wellness", "coworking"}
+    if parent_category not in budget_sensitive_categories:
+        return None
+
+    if price_level == 1:
+        # Include moderate as fallback so cheap chains with sparse price metadata still appear.
+        return ["PRICE_LEVEL_INEXPENSIVE", "PRICE_LEVEL_MODERATE"]
+    if price_level == 2:
+        return ["PRICE_LEVEL_MODERATE"]
+    if price_level == 3:
+        return ["PRICE_LEVEL_EXPENSIVE", "PRICE_LEVEL_VERY_EXPENSIVE"]
+    return None
+
+
+def _search_runtime_options(
+    parent_category: str,
+    subcategory: str | None,
+    mood: str | None,
+    price_level: int | None,
+    max_radius: int,
+) -> dict:
+    """Build runtime options for Google Places structured filters and radius."""
+    mood_id = (mood or "").strip().lower()
+    options = {
+        "radius_m": max_radius,
+        "open_now": None,
+        "rank_preference": None,
+        "price_levels": _google_price_levels(parent_category, price_level),
+    }
+
+    # "Quick" plans should prefer places that are open now and physically close.
+    if mood_id in {"quick", "express", "urgent", "quick_stop"} and parent_category in {"food", "nightlife", "shopping"}:
+        options["open_now"] = True
+        options["rank_preference"] = "DISTANCE"
+        options["radius_m"] = min(max_radius, 3500)
+
+    # Burgers quick requests are usually chain-like fast food choices nearby.
+    if parent_category == "food" and (subcategory or "").strip().lower() == "burgers" and mood_id == "quick":
+        options["radius_m"] = min(int(options["radius_m"]), 3000)
+
+    return options
+
+
 async def search_places(
     parent_category: str,
     subcategory: str | None,
@@ -126,21 +241,28 @@ async def search_places(
         from services.google_places_service import search_places as gp_search
 
         query = _build_query(parent_category, subcategory, mood)
+        query = _apply_budget_to_query(query, parent_category, price_level)
+        query = _apply_mood_to_query(query, parent_category, subcategory, mood)
         log.info("[A] Google query: '%s' for %s/%s mood=%s", query, parent_category, subcategory, mood)
 
         flow = get_flow_definition(parent_category)
         max_radius = max(5000, int(flow.get("max_radius_m", 10000)))
+        runtime_options = _search_runtime_options(parent_category, subcategory, mood, price_level, max_radius)
 
         google_results = await gp_search(
             query=query,
             lat=lat,
             lng=lng,
-            radius_m=max_radius,
+            radius_m=int(runtime_options["radius_m"]),
             category=parent_category,
             subcategory=subcategory,
             strict_category=False,  # Let Google's AI decide relevance
             limit=SEARCH_RESULT_TARGET,
             language=language,
+            price_levels=runtime_options["price_levels"],
+            open_now=runtime_options["open_now"],
+            rank_preference=runtime_options["rank_preference"],
+            max_languages=1,
         )
 
         for r in google_results:
@@ -159,13 +281,7 @@ async def search_places(
                     continue
 
             raw_pl = meta.get("price_level")
-            pl_int = price_level or 2
-            if raw_pl == "PRICE_LEVEL_INEXPENSIVE":
-                pl_int = 1
-            elif raw_pl == "PRICE_LEVEL_MODERATE":
-                pl_int = 2
-            elif raw_pl in ("PRICE_LEVEL_EXPENSIVE", "PRICE_LEVEL_VERY_EXPENSIVE"):
-                pl_int = 3
+            pl_int = _normalize_google_price_level(raw_pl)
 
             dist = haversine(lat, lng, r.get("lat", lat), r.get("lng", lng))
             restaurants.append(
@@ -175,6 +291,7 @@ async def search_places(
                     "address": r.get("address"),
                     "rating": meta.get("rating", 0.0) or 4.0,
                     "price_level": pl_int,
+                    "price_known": pl_int is not None,
                     "lat": r.get("lat"),
                     "lng": r.get("lng"),
                     "photo_url": meta.get("photo_url", ""),
@@ -269,42 +386,74 @@ def _normalize_reviews(raw_reviews: object, source: str) -> list[dict]:
     return normalized
 
 
-async def fetch_all_reviews(place_id: str, name: str, lat: float, lng: float, language: str = "es") -> dict:
+async def fetch_all_reviews(
+    place_id: str,
+    name: str,
+    lat: float,
+    lng: float,
+    language: str = "es",
+    address: str = "",
+) -> dict:
     """Fetch Google, Yelp, and TripAdvisor reviews in parallel."""
     t0 = time.perf_counter()
     safe_name = str(name or "Unknown")
+    # v3 invalidates stale entries created with overly strict timeout settings.
+    cache_key = f"all_reviews_v3:{place_id}:{language}:{lat:.4f}:{lng:.4f}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
 
     from services.tripadvisor_service import get_tripadvisor_reviews
     from services.yelp_service import get_yelp_reviews
 
+    async def _safe_with_timeout(label: str, coro, timeout_s: float, fallback):
+        try:
+            return await asyncio.wait_for(coro, timeout=timeout_s)
+        except asyncio.TimeoutError:
+            log.info("[C'] %s timeout for %s after %.1fs", label, safe_name, timeout_s)
+            return fallback
+        except Exception as exc:
+            log.info("[C'] %s failed for %s: %s", label, safe_name, exc)
+            return fallback
+
     details_result, yelp_result, tripadvisor_result = await asyncio.gather(
-        get_place_details(place_id, language=language),
-        get_yelp_reviews(name=safe_name, lat=lat, lng=lng, language=language),
-        get_tripadvisor_reviews(name=safe_name, lat=lat, lng=lng, language=language),
-        return_exceptions=True,
+        _safe_with_timeout(
+            "google_details",
+            get_place_details(place_id, language=language),
+            FETCH_TIMEOUT_GOOGLE_S,
+            {},
+        ),
+        _safe_with_timeout(
+            "yelp_reviews",
+            get_yelp_reviews(name=safe_name, lat=lat, lng=lng, address=address, language=language),
+            FETCH_TIMEOUT_YELP_S,
+            {"reviews": [], "total_count": 0},
+        ),
+        _safe_with_timeout(
+            "tripadvisor_reviews",
+            get_tripadvisor_reviews(name=safe_name, lat=lat, lng=lng, address=address, language=language),
+            FETCH_TIMEOUT_TRIPADVISOR_S,
+            {"reviews": [], "total_count": 0},
+        ),
     )
 
     details: dict = {}
-    if isinstance(details_result, Exception):
-        log.warning("[C'] Google details failed for %s: %s", safe_name, details_result)
-    elif isinstance(details_result, dict):
+    if isinstance(details_result, dict):
         details = details_result
 
-    if isinstance(yelp_result, Exception):
-        log.info("[C'] Yelp enrichment failed for %s: %s", safe_name, yelp_result)
-        yelp_reviews: list[dict] = []
-        yelp_count = 0
-    else:
+    if isinstance(yelp_result, dict):
         yelp_reviews = _normalize_reviews(yelp_result.get("reviews", []), "yelp")
         yelp_count = yelp_result.get("total_count", 0)
-
-    if isinstance(tripadvisor_result, Exception):
-        log.info("[C'] TripAdvisor enrichment failed for %s: %s", safe_name, tripadvisor_result)
-        tripadvisor_reviews: list[dict] = []
-        tripadvisor_count = 0
     else:
+        yelp_reviews = []
+        yelp_count = 0
+
+    if isinstance(tripadvisor_result, dict):
         tripadvisor_reviews = _normalize_reviews(tripadvisor_result.get("reviews", []), "tripadvisor")
         tripadvisor_count = tripadvisor_result.get("total_count", 0)
+    else:
+        tripadvisor_reviews = []
+        tripadvisor_count = 0
 
     google_reviews = _normalize_reviews(details.get("google_reviews", []), "google")
     if not yelp_reviews:
@@ -327,7 +476,7 @@ async def fetch_all_reviews(place_id: str, name: str, lat: float, lng: float, la
         time.perf_counter() - t0,
     )
 
-    return {
+    result = {
         "place_id": place_id,
         "google_reviews": google_reviews,
         "yelp_reviews": yelp_reviews,
@@ -341,3 +490,8 @@ async def fetch_all_reviews(place_id: str, name: str, lat: float, lng: float, la
         "total_ratings": safe_total_ratings,
         "rating": safe_rating,
     }
+
+    has_secondary_reviews = bool(yelp_reviews or tripadvisor_reviews or yelp_count or tripadvisor_count)
+    ttl = FETCH_ALL_REVIEWS_TTL_S if has_secondary_reviews else FETCH_ALL_REVIEWS_EMPTY_TTL_S
+    await cache_set(cache_key, result, ttl=ttl)
+    return result

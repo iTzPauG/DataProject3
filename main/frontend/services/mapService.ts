@@ -2,14 +2,21 @@ import { Category, MapItem } from '../types';
 
 // Derive the backend URL with autodetection for Railway production
 const getBaseUrl = () => {
-  const envUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+  const rawEnvUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+  const envUrl = rawEnvUrl?.trim().replace(/^['"]+|['"]+$/g, '');
   if (envUrl && (!envUrl.includes('localhost') || (typeof window !== 'undefined' && window.location.hostname === 'localhost'))) {
     return envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
   }
   if (typeof window !== 'undefined' && window.location.hostname.includes('railway.app')) {
     return 'https://backend-production-bac63.up.railway.app';
   }
-  return 'http://localhost:8080';
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host && host !== 'localhost' && host !== '127.0.0.1') {
+      return `http://${host}:8000`;
+    }
+  }
+  return 'http://localhost:8000';
 };
 
 const BASE_URL = getBaseUrl();

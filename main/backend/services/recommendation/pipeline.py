@@ -44,8 +44,13 @@ MAX_DISTANCE_KM = 8.0
 PREFILTER_CANDIDATES = 20
 TOP_RESULTS = 10
 MIN_RESULTS = 5
-STREAM_BATCH_SIZE = 1
+STREAM_INITIAL_BATCH_SIZE = 1
+STREAM_BATCH_SIZE = 2
 LLM_BATCH_SPLIT = 3  # split top 5 into batches of 3+2 for parallel LLM
+LLM_MAX_GOOGLE_REVIEWS = 4
+LLM_MAX_YELP_REVIEWS = 3
+LLM_MAX_TRIPADVISOR_REVIEWS = 3
+LLM_MAX_TOTAL_REVIEWS = 10
 
 # ────────── Shared Gemini client ──────────
 _genai_client: genai.Client | None = None
@@ -203,10 +208,13 @@ async def _semantic_filter(candidates: list[dict], mood: str, price_level: int |
     for r in candidates:
         rating = float(r.get("rating", 0) or 0)
         price_diff = 0
-        pl = r.get("metadata", {}).get("price_level") or r.get("price_level")
+        raw_price = r.get("price_level")
+        price_known = isinstance(raw_price, (int, float)) and int(raw_price) > 0
+        pl = int(raw_price) if price_known else None
         if price_level is not None and pl is not None:
-            price_diff = abs(int(pl) - price_level)
-            
+            price_diff = abs(pl - price_level)
+
+        r["_price_known"] = price_known
         r["_price_diff"] = price_diff
         distance_km = r.get("distance_m", 0) / 1000.0
 
@@ -222,6 +230,35 @@ async def _semantic_filter(candidates: list[dict], mood: str, price_level: int |
         kept = far_candidates
     elif not kept and dropped:
         kept = candidates
+
+    # 1.5 Budget filter strategy:
+    # Prefer exact/near matches when possible, but keep unknown-price candidates
+    # as fallback so we don't end up with empty lists in areas with sparse price data.
+    if price_level is not None and kept:
+        exact_price = [r for r in kept if r.get("_price_known") and r.get("_price_diff", 99) == 0]
+        near_price = [r for r in kept if r.get("_price_known") and r.get("_price_diff", 99) == 1]
+        far_price = [r for r in kept if r.get("_price_known") and r.get("_price_diff", 99) >= 2]
+        unknown_price = [r for r in kept if not r.get("_price_known")]
+
+        budget_candidates: list[dict] = []
+        budget_candidates.extend(exact_price)
+        if len(budget_candidates) < MIN_RESULTS:
+            budget_candidates.extend(near_price)
+        if len(budget_candidates) < MIN_RESULTS:
+            budget_candidates.extend(unknown_price)
+        if len(budget_candidates) < MIN_RESULTS:
+            budget_candidates.extend(far_price)
+
+        log.info(
+            "[B] budget filter lvl=%s -> exact=%d near=%d unknown=%d far=%d final=%d",
+            price_level,
+            len(exact_price),
+            len(near_price),
+            len(unknown_price),
+            len(far_price),
+            len(budget_candidates),
+        )
+        kept = budget_candidates
 
     # 2. Vector Semantic Similarity (if mood is a natural language query)
     is_complex_query = bool(mood and len(mood) > COMPLEX_QUERY_MIN_LEN)
@@ -254,15 +291,40 @@ async def _semantic_filter(candidates: list[dict], mood: str, price_level: int |
             is_complex_query = False
 
     # 3. Final Sorting
+    mood_id = (mood or "").strip().lower()
+
     def _sort_key(r: dict):
         rate = float(r.get("rating") or 0.0)
         count = int(r.get("total_ratings") or 0)
         dist = int(r.get("distance_m", 0) or 0)
         pdiff = r.get("_price_diff", 0)
+        price_known = bool(r.get("_price_known"))
+        types = set(r.get("types") or [])
+        meta = r.get("metadata", {})
+        if isinstance(meta, dict):
+            types.update(meta.get("types", []) or [])
         
         base_score = rate * math.log10(max(10, count))
         dist_penalty = (dist / 1000.0) * 0.5
-        price_penalty = pdiff * 5.0
+        if price_level is None:
+            price_penalty = 0.0
+        else:
+            if not price_known:
+                # Unknown price: allow, but lower priority than known matching places.
+                price_penalty = 7.0
+            elif pdiff == 0:
+                price_penalty = 0.0
+            elif pdiff == 1:
+                price_penalty = 9.0
+            else:
+                # Big mismatch with requested budget.
+                price_penalty = 22.0
+
+        mood_boost = 0.0
+        if mood_id in {"quick", "express", "urgent", "quick_stop"}:
+            dist_penalty = (dist / 1000.0) * 1.1
+            if any(t in types for t in ("meal_takeaway", "meal_delivery", "fast_food_restaurant")):
+                mood_boost += 4.0
         
         semantic_boost = 0.0
         if is_complex_query:
@@ -271,7 +333,7 @@ async def _semantic_filter(candidates: list[dict], mood: str, price_level: int |
             sim = r.get("_semantic_score", 0.0)
             semantic_boost = sim * 20.0 
             
-        return base_score - dist_penalty - price_penalty + semantic_boost
+        return base_score - dist_penalty - price_penalty + semantic_boost + mood_boost
 
     if dropped:
         log.debug("[B] dropped %d candidates: %s", len(dropped), " | ".join(dropped))
@@ -418,6 +480,38 @@ def _all_reviews(r: dict) -> list[dict]:
                     review_with_source["source"] = source
                 reviews.append(review_with_source)
     return reviews
+
+
+def _pick_reviews_for_llm(source_reviews: list[dict], source: str, limit: int) -> list[dict]:
+    if limit <= 0:
+        return []
+    picked: list[dict] = []
+    for review in source_reviews:
+        if not isinstance(review, dict):
+            continue
+        text = _clean_review_text(str(review.get("text") or ""))
+        if not text:
+            continue
+        normalized = dict(review)
+        normalized["source"] = str(normalized.get("source") or source)
+        picked.append(normalized)
+
+    # Prioritize reviews with stronger signal (extreme ratings + richer text).
+    picked.sort(
+        key=lambda review: (
+            -abs(int(review.get("rating") or 0) - 3),
+            -len(_clean_review_text(str(review.get("text") or ""))),
+        )
+    )
+    return picked[:limit]
+
+
+def _reviews_for_llm(r: dict) -> list[dict]:
+    selected: list[dict] = []
+    selected.extend(_pick_reviews_for_llm(r.get("google_reviews") or [], "google", LLM_MAX_GOOGLE_REVIEWS))
+    selected.extend(_pick_reviews_for_llm(r.get("yelp_reviews") or [], "yelp", LLM_MAX_YELP_REVIEWS))
+    selected.extend(_pick_reviews_for_llm(r.get("tripadvisor_reviews") or [], "tripadvisor", LLM_MAX_TRIPADVISOR_REVIEWS))
+    return selected[:LLM_MAX_TOTAL_REVIEWS]
 
 
 def _review_source_counts(r: dict) -> dict[str, int]:
@@ -669,8 +763,8 @@ def _build_ai_context(r: dict) -> dict:
     return {
         "id": r["place_id"],
         "name": r["name"],
-        # Use all retrieved reviews so the LLM has full cross-platform evidence.
-        "reviews": _all_reviews(r),
+        # Keep cross-platform evidence but cap size to reduce LLM latency.
+        "reviews": _reviews_for_llm(r),
         "review_summary_support": r.get("review_summary", ""),
         "rating": r.get("rating", 0),
         "total_ratings": total,
@@ -898,7 +992,7 @@ async def recommend(parent_category: str, subcategory: str | None, mood: str, pr
 
     # ────────── PHASE 2: Pre-filter ──────────
     t_step = time.perf_counter()
-    candidates = _pre_filter(candidates, price_level)
+    candidates = await _semantic_filter(candidates, mood, price_level)
     top_winners = candidates[:TOP_RESULTS]
     log.info("[PERF] Step B (Pre-filter): %.2fs → top %d", time.perf_counter() - t_step, len(top_winners))
 
@@ -910,7 +1004,14 @@ async def recommend(parent_category: str, subcategory: str | None, mood: str, pr
     if needs_fetch:
         async def _deep_fetch_safe(r: dict) -> dict:
             try:
-                data = await fetch_all_reviews(r["place_id"], r["name"], r["lat"], r["lng"], language=language)
+                data = await fetch_all_reviews(
+                    r["place_id"],
+                    r["name"],
+                    r["lat"],
+                    r["lng"],
+                    language=language,
+                    address=str(r.get("address") or ""),
+                )
                 return _merge_fetched_data(r, data)
             except Exception as e:
                 log.warning("[C'] Deep fetch failed for %s: %s", r.get("name"), e)
@@ -1075,7 +1176,14 @@ async def _process_stream_batch(
     # Smart fetch → only for places missing reviews
     async def _smart_fetch(r: dict) -> dict:
         try:
-            data = await fetch_all_reviews(r["place_id"], r["name"], r["lat"], r["lng"], language=language)
+            data = await fetch_all_reviews(
+                r["place_id"],
+                r["name"],
+                r["lat"],
+                r["lng"],
+                language=language,
+                address=str(r.get("address") or ""),
+            )
             return _merge_fetched_data(r, data)
         except Exception:
             return r
@@ -1145,23 +1253,40 @@ async def recommend_stream(
         yield {"event": "meta", "total": len(candidates)}
 
         # Phase 3: Process in batches → each batch = 1 LLM call
-        for i in range(0, len(candidates), STREAM_BATCH_SIZE):
-            batch = candidates[i:i + STREAM_BATCH_SIZE]
+        if candidates:
+            first_batch = candidates[:STREAM_INITIAL_BATCH_SIZE]
             try:
-                results = await _process_stream_batch(
-                    batch, mood, language, parent_category, subcategory, price_level, lat, lng,
+                first_results = await _process_stream_batch(
+                    first_batch, mood, language, parent_category, subcategory, price_level, lat, lng,
                 )
-                for result in results:
+                for result in first_results:
                     result_index += 1
                     yield {"event": "result", "index": result_index, "data": result}
             except Exception as e:
-                log.error("[STREAM v2] Batch %d failed: %s", i // STREAM_BATCH_SIZE, e)
-                # Yield fallbacks for this batch so the stream doesn't break
-                for r in batch:
+                log.error("[STREAM v2] Initial batch failed: %s", e)
+                for r in first_batch:
                     result_index += 1
                     fb = _enrich_fallback(r)
                     fb["liveData"] = {"type": "none"}
                     yield {"event": "result", "index": result_index, "data": fb}
+
+            for i in range(STREAM_INITIAL_BATCH_SIZE, len(candidates), STREAM_BATCH_SIZE):
+                batch = candidates[i:i + STREAM_BATCH_SIZE]
+                try:
+                    results = await _process_stream_batch(
+                        batch, mood, language, parent_category, subcategory, price_level, lat, lng,
+                    )
+                    for result in results:
+                        result_index += 1
+                        yield {"event": "result", "index": result_index, "data": result}
+                except Exception as e:
+                    log.error("[STREAM v2] Batch %d failed: %s", i // STREAM_BATCH_SIZE, e)
+                    # Yield fallbacks for this batch so the stream doesn't break
+                    for r in batch:
+                        result_index += 1
+                        fb = _enrich_fallback(r)
+                        fb["liveData"] = {"type": "none"}
+                        yield {"event": "result", "index": result_index, "data": fb}
 
         total_time = time.perf_counter() - t_total
         log.info("[STREAM v2] DONE in %.2fs, yielded %d results", total_time, result_index)

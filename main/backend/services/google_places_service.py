@@ -9,6 +9,7 @@ Key design decisions:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections import OrderedDict
 from typing import Optional
@@ -104,6 +105,13 @@ async def search_places(
     strict_category: bool = False,
     limit: int = 20,
     language: str = "es",
+    price_levels: Optional[list[str]] = None,
+    open_now: Optional[bool] = None,
+    rank_preference: Optional[str] = None,
+    included_type: Optional[str] = None,
+    strict_type_filtering: bool = False,
+    max_languages: int = 3,
+    max_pages: int = 3,
 ) -> list[dict]:
     """Search for places using Google Places API (New) Text Search.
 
@@ -113,9 +121,30 @@ async def search_places(
     if not GOOGLE_MAPS_API_KEY:
         return []
 
+    safe_limit = max(1, min(int(limit), 60))
+    safe_max_languages = max(1, min(int(max_languages), len(_SEARCH_LANGUAGE_POOL)))
+    safe_max_pages = max(1, min(int(max_pages), 3))
+    normalized_rank = (rank_preference or "").strip().upper()
+    if normalized_rank not in {"DISTANCE", "RELEVANCE"}:
+        normalized_rank = ""
+
+    normalized_price_levels: list[str] = []
+    if price_levels:
+        for level in price_levels:
+            raw = str(level or "").strip().upper()
+            if raw.startswith("PRICE_LEVEL_") and raw != "PRICE_LEVEL_FREE":
+                normalized_price_levels.append(raw)
+    if normalized_price_levels:
+        seen: set[str] = set()
+        normalized_price_levels = [p for p in normalized_price_levels if not (p in seen or seen.add(p))]
+
+    normalized_included_type = (included_type or "").strip()
+
     cache_key = (
-        f"gp_search_v2:{query}:{lat:.4f}:{lng:.4f}:{radius_m}:"
-        f"{category or ''}:{subcategory or ''}:{strict_category}:{limit}:{language}"
+        f"gp_search_v3:{query}:{lat:.4f}:{lng:.4f}:{radius_m}:"
+        f"{category or ''}:{subcategory or ''}:{strict_category}:{safe_limit}:{language}:"
+        f"{','.join(normalized_price_levels)}:{int(bool(open_now))}:{normalized_rank}:"
+        f"{normalized_included_type}:{int(strict_type_filtering)}:{safe_max_languages}:{safe_max_pages}"
     )
     cached = await cache_get(cache_key)
     if cached:
@@ -123,7 +152,7 @@ async def search_places(
 
     included_types = set(CATEGORY_TO_GOOGLE_TYPES.get(category or "", []))
 
-    search_languages = _search_languages_for_query(language, max_languages=3)
+    search_languages = _search_languages_for_query(language, max_languages=safe_max_languages)
 
     # We do NOT enforce includedType — Text Search is smart enough to find
     # what the user wants based on the query, and restricting to a single type
@@ -156,22 +185,65 @@ async def search_places(
         client = _get_http_client()
 
         async def _search_lang(lang: str) -> tuple[str, dict | None]:
-            body: dict = {
-                "textQuery": query,
-                "locationBias": {
-                    "circle": {
-                        "center": {"latitude": lat, "longitude": lng},
-                        "radius": float(radius_m),
-                    }
-                },
-                "maxResultCount": min(limit, 20),
-                "languageCode": lang,
-            }
-            resp = await client.post(f"{_BASE}/places:searchText", json=body, headers=headers)
-            if resp.status_code != 200:
-                log.error("Google Places searchText failed [%s] lang=%s query=%r body=%s", resp.status_code, lang, query, resp.text[:400])
+            collected_places: list[dict] = []
+            page_token: str | None = None
+
+            for _ in range(safe_max_pages):
+                page_size = min(20, safe_limit - len(collected_places))
+                if page_size <= 0:
+                    break
+
+                body: dict = {
+                    "textQuery": query,
+                    "locationBias": {
+                        "circle": {
+                            "center": {"latitude": lat, "longitude": lng},
+                            "radius": float(radius_m),
+                        }
+                    },
+                    "pageSize": page_size,
+                    "languageCode": lang,
+                }
+                if page_token:
+                    body["pageToken"] = page_token
+                if normalized_price_levels:
+                    body["priceLevels"] = normalized_price_levels
+                if open_now is not None:
+                    body["openNow"] = bool(open_now)
+                if normalized_rank:
+                    body["rankPreference"] = normalized_rank
+                if normalized_included_type:
+                    body["includedType"] = normalized_included_type
+                    if strict_type_filtering:
+                        body["strictTypeFiltering"] = True
+
+                resp = await client.post(f"{_BASE}/places:searchText", json=body, headers=headers)
+                if resp.status_code != 200:
+                    log.error(
+                        "Google Places searchText failed [%s] lang=%s query=%r body=%s",
+                        resp.status_code,
+                        lang,
+                        query,
+                        resp.text[:400],
+                    )
+                    if not collected_places:
+                        return lang, None
+                    break
+
+                payload = resp.json()
+                page_places = payload.get("places", []) or []
+                if page_places:
+                    collected_places.extend(page_places)
+                    if len(collected_places) >= safe_limit:
+                        break
+
+                page_token = payload.get("nextPageToken")
+                if not page_token:
+                    break
+
+            if not collected_places:
                 return lang, None
-            return lang, resp.json()
+            return lang, {"places": collected_places[:safe_limit]}
 
         payloads = await asyncio.gather(*[_search_lang(lang) for lang in search_languages])
         data_by_lang = OrderedDict(payloads)
@@ -237,7 +309,7 @@ async def search_places(
                 entry["review_summary"] = _extract_review_summary(place)
 
     results: list[dict] = []
-    for pid, entry in list(merged_by_id.items())[:limit]:
+    for pid, entry in list(merged_by_id.items())[:safe_limit]:
         place = entry["place"]
         place_types = set(place.get("types", []))
         if strict_category and included_types and not (place_types & included_types):
@@ -280,8 +352,6 @@ async def search_places(
     await cache_set(cache_key, results, ttl=300)
     return results
 
-
-import asyncio
 
 _REVIEW_LANGUAGE_POOL = ("es", "en", "fr", "it", "de", "ca", "pt")
 
