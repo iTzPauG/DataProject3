@@ -54,7 +54,7 @@ interface AppStateContextValue extends AppState {
   // Map setters
   setMapRegion: (r: MapRegion | null) => void;
   setSelectedCategory: (c: string | null) => void;
-  setNearbyItems: (items: MapItem[]) => void;
+  setNearbyItems: (items: MapItem[] | ((prev: MapItem[]) => MapItem[])) => void;
   setMapPreferences: (prefs: Partial<MapPreferences>) => void;
   /** true once the initial storage load has completed */
   isHydrated: boolean;
@@ -195,9 +195,11 @@ export function AppStateProvider({
   const setSelectedCategory = useCallback((selectedCategory: string | null) => {
     setState((s) => ({ ...s, selectedCategory }));
   }, []);
-
-  const setNearbyItems = useCallback((nearbyItems: MapItem[]) => {
-    setState((s) => ({ ...s, nearbyItems }));
+  const setNearbyItems = useCallback((nearbyItems: MapItem[] | ((prev: MapItem[]) => MapItem[])) => {
+    setState((s) => ({
+      ...s,
+      nearbyItems: typeof nearbyItems === 'function' ? nearbyItems(Array.isArray(s.nearbyItems) ? s.nearbyItems : []) : nearbyItems,
+    }));
   }, []);
 
   const setMapPreferences = useCallback((prefs: Partial<MapPreferences>) => {

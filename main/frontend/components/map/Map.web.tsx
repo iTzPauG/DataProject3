@@ -32,6 +32,16 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 const DEFAULT_COLOR = '#7F8392'; // slate
 
+const CATEGORY_STYLES: Record<string, { color: string; icon: string }> = {
+  restaurant: { color: '#C97A5C', icon: '🍽️' },
+  event:      { color: '#D2A257', icon: '🎉' },
+  nightlife:  { color: '#8A7ED6', icon: '🎵' },
+  cinema:     { color: '#9C7BB0', icon: '🎬' },
+  market:     { color: '#C98E6A', icon: '🛒' },
+  report:     { color: '#B5A050', icon: '⚠️' },
+};
+const DEFAULT_STYLE = { color: DEFAULT_COLOR, icon: '📍' };
+
 // ─── Category marker icon ─────────────────────────────────────────────────────
 
 function createCategoryIcon(

@@ -1043,3 +1043,30 @@ export async function fetchNearbyItems(
         return [];
     }
 }
+
+export async function fetchPlaceExtra(placeId: string): Promise<{ take: string | null; live: any; vote: VoteData | null }> {
+  try {
+    const [takeRes, liveRes, voteRes] = await Promise.all([
+      fetch(`${BASE_URL}/places/${placeId}/take`).catch(() => null),
+      fetch(`${BASE_URL}/places/${placeId}/live-data`).catch(() => null),
+      fetch(`${BASE_URL}/votes/${placeId}`).catch(() => null),
+    ]);
+    const take = takeRes?.ok ? (await takeRes.json()).take ?? null : null;
+    const live = liveRes?.ok ? await liveRes.json() : null;
+    const vote = voteRes?.ok ? await voteRes.json() : null;
+    return { take, live, vote };
+  } catch {
+    return { take: null, live: null, vote: null };
+  }
+}
+
+export async function getPlaceData(placeId: string): Promise<MapItem | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/search/universal?q=${encodeURIComponent(placeId)}&lat=39.4699&lng=-0.3763&radius_m=50000`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.results ?? []).find((r: any) => r.id === placeId) ?? null;
+  } catch {
+    return null;
+  }
+}
