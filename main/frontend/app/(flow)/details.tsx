@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import LiveDataAddon from "../../components/LiveDataAddon";
 import PrimaryButton from "../../components/PrimaryButton";
+import ReviewList from "../../components/ReviewList";
 import VoteButtons from "../../components/VoteButtons";
 import WhimIcon from "../../components/WhimIcon";
 import { useFlowState } from "../../hooks/useFlowState";
@@ -413,7 +414,11 @@ export default function DetailsScreen() {
           <VoteButtons itemId={restaurant.id} itemType="place" initial={voteData} />
         </View>
 
-        <View style={styles.actions}>
+        <View style={{ paddingHorizontal: 16 }}>
+          <ReviewList reviews={restaurant.reviews} />
+        </View>
+
+        <View style={[styles.actions, { marginHorizontal: 16, marginTop: 24 }]}>
           <Pressable
             style={[styles.actionButton, styles.actionPrimary]}
             onPress={() => openDirections(restaurant.lat, restaurant.lng, restaurant.name)}

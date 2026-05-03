@@ -24,3 +24,14 @@ node_modules
 JOURNAL.md
 DATABASE_ARCHITECTURE.md
 PROJECT_STRUCTURE.md
+FOOD_SELECTION_TREE.md
+WHIM_BEFORE_METRICS.md
+WHIM_AFTER_METRICS.md
+WHIM_REVAMP_REPORT.md
+DESIGN.md
+.impeccable.md
+
+# Gemini CLI / Agent local state
+.gemini/
+.agents/
+.omg/
