@@ -11,12 +11,12 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-import { whimTheme } from "../../constants/whimTheme";
+import { useTheme } from "../../utils/theme";
 
 const LOADING_PHRASES = [
-  "Leyendo reseÃ±as reales para filtrar mejor...",
+  "Leyendo reseñas reales para filtrar mejor...",
   "Buscando sitios que encajen contigo de verdad...",
-  "Casi listo, preparando tu selecciÃ³n final...",
+  "Casi listo, preparando tu selección final...",
 ];
 
 const CATEGORY_EMOJIS: Record<string, string[]> = {
@@ -66,7 +66,7 @@ function BouncingEmoji({ emoji, delayMs }: { emoji: string; delayMs: number }) {
     transform: [{ translateY: y.value }],
   }));
 
-  return <Animated.Text style={[styles.emoji, style]}>{emoji}</Animated.Text>;
+  return <Animated.Text style={[stylesStatic.emoji, style]}>{emoji}</Animated.Text>;
 }
 
 export const WhimLoadingScreen = ({
@@ -77,10 +77,86 @@ export const WhimLoadingScreen = ({
   loadingPhase?: string;
   selectedCategory?: string | null;
 }) => {
+  const { colors, typography, radii, shadows } = useTheme();
   const [phraseIndex, setPhraseIndex] = useState(0);
   const progress = useSharedValue(0);
   const glow = useSharedValue(0);
   const emojis = useMemo(() => emojisForCategory(selectedCategory), [selectedCategory]);
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          backgroundColor: colors.shell,
+          alignItems: "center",
+          justifyContent: "center",
+          paddingHorizontal: 18,
+        },
+        topRail: {
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 5,
+          backgroundColor: colors.chip,
+        },
+        topRailProgress: {
+          height: "100%",
+          backgroundColor: colors.brand,
+        },
+        heroWrap: {
+          width: "100%",
+          maxWidth: 540,
+          alignItems: "center",
+          gap: 16,
+        },
+        heroCard: {
+          width: "100%",
+          borderRadius: radii.xl,
+          paddingHorizontal: 20,
+          paddingVertical: 22,
+          borderWidth: 1.5,
+          backgroundColor: colors.surface,
+          ...shadows.lift,
+        },
+        heroTitle: {
+          textAlign: "center",
+          fontFamily: typography.heading,
+          color: colors.ink,
+          fontSize: 25,
+          marginBottom: 8,
+          fontWeight: "800",
+        },
+        heroSubtitle: {
+          textAlign: "center",
+          fontFamily: typography.body,
+          color: colors.inkMuted,
+          fontSize: 15,
+          lineHeight: 22,
+        },
+        chipsRow: {
+          width: "100%",
+          flexDirection: "row",
+          flexWrap: "wrap",
+          justifyContent: "center",
+          gap: 8,
+        },
+        chip: {
+          backgroundColor: colors.surface,
+          paddingHorizontal: 14,
+          paddingVertical: 8,
+          borderRadius: 999,
+          borderWidth: 1,
+        },
+        chipText: {
+          color: colors.ink,
+          fontFamily: typography.body,
+          fontSize: 13,
+        },
+      }),
+    [colors, typography, radii, shadows]
+  );
 
   useEffect(() => {
     progress.value = withRepeat(
@@ -115,12 +191,12 @@ export const WhimLoadingScreen = ({
     borderColor: interpolateColor(
       glow.value,
       [0, 1],
-      [whimTheme.colors.accent.teal, whimTheme.colors.accent.violet]
+      [colors.stroke, colors.brand]
     ),
     shadowColor: interpolateColor(
       glow.value,
       [0, 1],
-      [whimTheme.colors.accent.teal, whimTheme.colors.accent.violet]
+      [colors.brandMuted, colors.brand]
     ),
   }));
 
@@ -132,7 +208,7 @@ export const WhimLoadingScreen = ({
 
       <View style={styles.heroWrap}>
         <Animated.View style={[styles.heroCard, glowStyle]}>
-          <View style={styles.emojiRow}>
+          <View style={stylesStatic.emojiRow}>
             {emojis.map((emoji, index) => (
               <BouncingEmoji key={`${emoji}-${index}`} emoji={emoji} delayMs={index * 120} />
             ))}
@@ -159,44 +235,7 @@ export const WhimLoadingScreen = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: whimTheme.colors.bg,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 18,
-  },
-  topRail: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 5,
-    backgroundColor: whimTheme.colors.surface,
-  },
-  topRailProgress: {
-    height: "100%",
-    backgroundColor: whimTheme.colors.accent.teal,
-  },
-  heroWrap: {
-    width: "100%",
-    maxWidth: 540,
-    alignItems: "center",
-    gap: 16,
-  },
-  heroCard: {
-    width: "100%",
-    borderRadius: 26,
-    paddingHorizontal: 20,
-    paddingVertical: 22,
-    borderWidth: 2,
-    backgroundColor: whimTheme.colors.surface,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.75,
-    shadowRadius: 24,
-    elevation: 10,
-  },
+const stylesStatic = StyleSheet.create({
   emojiRow: {
     flexDirection: "row",
     justifyContent: "center",
@@ -206,38 +245,5 @@ const styles = StyleSheet.create({
   },
   emoji: {
     fontSize: 31,
-  },
-  heroTitle: {
-    textAlign: "center",
-    fontFamily: whimTheme.fonts.display,
-    color: whimTheme.colors.text.primary,
-    fontSize: 25,
-    marginBottom: 8,
-  },
-  heroSubtitle: {
-    textAlign: "center",
-    fontFamily: whimTheme.fonts.body,
-    color: whimTheme.colors.text.secondary,
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  chipsRow: {
-    width: "100%",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 8,
-  },
-  chip: {
-    backgroundColor: whimTheme.colors.surface,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  chipText: {
-    color: whimTheme.colors.text.primary,
-    fontFamily: whimTheme.fonts.body,
-    fontSize: 13,
   },
 });

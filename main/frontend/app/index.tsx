@@ -32,9 +32,21 @@ const useDotStyle = (sv: Animated.SharedValue<number>) =>
   }));
 
 export default function SplashScreen() {
-  const { colors, typography } = useTheme();
+  const { typography } = useTheme();
   const { t } = useTranslation();
   const { city } = useLocation();
+  const splash = useMemo(
+    () => ({
+      bg: "#F2F6FC",
+      ink: "#13233C",
+      muted: "#4B5D79",
+      brand: "#2B63E0",
+      blobA: "#9DBBFF",
+      blobB: "#C8F0DF",
+      logo: "#13233C",
+    }),
+    []
+  );
   
   const slogans = useMemo(() => t('splash.slogans', { returnObjects: true }) as string[] || [], [t]);
   const exploreVerbs = useMemo(() => t('explore.exploreVerbs', { returnObjects: true }) as string[], [t]);
@@ -74,7 +86,7 @@ export default function SplashScreen() {
   const dynamicStyles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors.bg,
+      backgroundColor: splash.bg,
     },
     headlineContainer: {
       flexDirection: 'row',
@@ -85,7 +97,7 @@ export default function SplashScreen() {
     verb: {
       fontSize: 32,
       fontWeight: '900',
-      color: colors.ink,
+      color: splash.ink,
       fontFamily: typography.heading,
       textTransform: 'uppercase',
       letterSpacing: 2,
@@ -93,13 +105,13 @@ export default function SplashScreen() {
     city: {
       fontSize: 32,
       fontWeight: '300',
-      color: colors.brand,
+      color: splash.brand,
       fontFamily: typography.heading,
     },
     tagline: {
       fontSize: 15,
       fontWeight: '400',
-      color: colors.inkMuted,
+      color: splash.muted,
       marginTop: 12,
       fontFamily: typography.body,
       textAlign: 'center',
@@ -109,9 +121,9 @@ export default function SplashScreen() {
       width: 8,
       height: 8,
       borderRadius: 4,
-      backgroundColor: colors.brand,
+      backgroundColor: splash.brand,
     },
-  }), [colors, typography]);
+  }), [splash, typography]);
 
   useEffect(() => {
     // Mesh gradient slow movement
@@ -227,16 +239,16 @@ export default function SplashScreen() {
     <Animated.View style={[dynamicStyles.container, containerStyle]}>
       {/* Mesh Gradient Background */}
       <View style={StyleSheet.absoluteFillObject}>
-        <Animated.View style={[styles.blob, { backgroundColor: colors.brandDeep }, blob1Style]} />
-        <Animated.View style={[styles.blob, { backgroundColor: colors.accent, width: width * 1.2, height: width * 1.2 }, blob2Style]} />
-        <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFillObject} />
+        <Animated.View style={[styles.blob, { backgroundColor: splash.blobA }, blob1Style]} />
+        <Animated.View style={[styles.blob, { backgroundColor: splash.blobB, width: width * 1.2, height: width * 1.2 }, blob2Style]} />
+        <BlurView intensity={78} tint="light" style={StyleSheet.absoluteFillObject} />
       </View>
 
       <Animated.View style={styles.content}>
         <Animated.View style={[styles.logoWrap, logoStyle]}>
           <Image
             source={require('../assets/whim-logo-new.png')}
-            style={[styles.logo, { tintColor: '#FFFFFF' }]}
+            style={[styles.logo, { tintColor: splash.logo }]}
             resizeMode="contain"
             accessibilityLabel="WHIM Logo"
           />

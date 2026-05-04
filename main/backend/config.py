@@ -7,7 +7,21 @@ from dotenv import load_dotenv
 
 def _load_env_files() -> None:
     """Load .env files only when explicitly enabled for local development."""
-    enabled = (os.getenv("ENABLE_DOTENV", "0") or "").strip().lower() in ("1", "true", "yes", "on")
+    raw_flag = os.getenv("ENABLE_DOTENV")
+    if raw_flag is None:
+        # Default to enabled in local/dev runtimes so API keys in repo-root .env work out
+        # of the box. Managed runtimes typically inject environment variables directly.
+        managed_runtime = any(
+            os.getenv(var)
+            for var in (
+                "K_SERVICE",                   # Cloud Run
+                "RAILWAY_ENVIRONMENT_NAME",    # Railway
+                "GAE_ENV",                     # App Engine
+            )
+        )
+        enabled = not managed_runtime
+    else:
+        enabled = (raw_flag or "").strip().lower() in ("1", "true", "yes", "on")
     if not enabled:
         return
 

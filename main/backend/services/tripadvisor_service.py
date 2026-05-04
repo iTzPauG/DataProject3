@@ -269,7 +269,7 @@ async def _find_location_id(
     if not _is_api_key_configured() or not name:
         return None, 0
 
-    cache_key = f"tripadvisor_match_v5:{name}:{lat:.4f}:{lng:.4f}:{address}:{language}"
+    cache_key = f"tripadvisor_match_v6:{name}:{lat:.4f}:{lng:.4f}:{address}:{language}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return cached.get("id"), cached.get("count", 0)
@@ -285,8 +285,10 @@ async def _find_location_id(
     if address:
         base_params["address"] = address
 
-    async def _search_locations(search_query: str) -> list[dict]:
+    async def _search_locations(search_query: str, *, include_category: bool = True) -> list[dict]:
         params = {**base_params, "searchQuery": search_query}
+        if not include_category:
+            params.pop("category", None)
         try:
             client = _get_http_client()
             response = await client.get(f"{_BASE}/location/search", params=params)
@@ -299,15 +301,16 @@ async def _find_location_id(
             return []
         return _search_results(payload)
 
-    async def _nearby_locations() -> list[dict]:
+    async def _nearby_locations(*, include_category: bool = True) -> list[dict]:
         nearby_params: dict[str, object] = {
             "key": TRIPADVISOR_API_KEY,
-            "category": "restaurants",
             "latLong": f"{lat},{lng}",
             "radius": 4,
             "radiusUnit": "km",
             "language": _language_code(language),
         }
+        if include_category:
+            nearby_params["category"] = "restaurants"
         if address:
             nearby_params["address"] = address
         try:
@@ -328,7 +331,14 @@ async def _find_location_id(
         if locations:
             break
     if not locations:
+        for query in _location_query_variants(name, address):
+            locations.extend(await _search_locations(query, include_category=False))
+            if locations:
+                break
+    if not locations:
         locations = await _nearby_locations()
+    if not locations:
+        locations = await _nearby_locations(include_category=False)
 
     if not locations:
         await cache_set(cache_key, {"id": None, "count": 0}, ttl=1800)
@@ -365,20 +375,21 @@ async def _find_location_id(
         if not _is_location_match(location, name=name, lat=lat, lng=lng) and score < 0.50:
             continue
 
-        details = await _fetch_location_details(candidate_id, language)
-        if details is None:
-            continue
-
-        details_reviews = _location_review_count(details)
         location_id = candidate_id
-        review_count = max(_location_review_count(location), details_reviews)
+        review_count = _location_review_count(location)
+        # Details request is optional: when it fails we keep the best scored
+        # candidate to avoid dropping TripAdvisor entirely on slower responses.
+        details = await _fetch_location_details(candidate_id, language)
+        if details is not None:
+            review_count = max(review_count, _location_review_count(details))
         break
 
     if not location_id and fallback_best_id and fallback_best_score >= _FALLBACK_MIN_SCORE:
         details = await _fetch_location_details(fallback_best_id, language)
+        location_id = fallback_best_id
+        review_count = fallback_review_count
         if details is not None:
-            location_id = fallback_best_id
-            review_count = max(fallback_review_count, _location_review_count(details))
+            review_count = max(review_count, _location_review_count(details))
 
     await cache_set(cache_key, {"id": location_id or "", "count": review_count}, ttl=1800)
     return location_id, review_count
@@ -441,7 +452,7 @@ async def get_tripadvisor_reviews(
     if not location_id:
         return {"reviews": [], "total_count": 0}
 
-    cache_key = f"tripadvisor_reviews_v5:{location_id}:{language}"
+    cache_key = f"tripadvisor_reviews_v6:{location_id}:{language}"
     cached = await cache_get(cache_key)
     if cached:
         return {"reviews": cached, "total_count": review_count}

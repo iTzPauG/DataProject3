@@ -90,13 +90,13 @@ export default function MapTab() {
           fontSize: 10,
           letterSpacing: 2,
           textTransform: 'uppercase',
-          color: colors.inkFaint,
+          color: '#FFFFFF',
           fontFamily: typography.body,
           fontWeight: '700',
         },
         eyebrowAction: {
           fontSize: 12,
-          color: colors.inkMuted,
+          color: '#FFFFFF',
           fontFamily: typography.body,
           fontWeight: '600',
         },
@@ -112,11 +112,14 @@ export default function MapTab() {
           flex: 1,
           fontSize: 17,
           fontWeight: '500',
-          color: colors.ink,
+          color: '#FFFFFF',
+          caretColor: '#FFFFFF',
           paddingVertical: 8,
           fontFamily: typography.body,
           // @ts-ignore web-only outline removal
           outlineStyle: 'none',
+          // @ts-ignore web-only text fill (Safari/Chromium)
+          WebkitTextFillColor: '#FFFFFF',
         } as any,
         iconBtn: {
           width: 36,
@@ -174,13 +177,13 @@ export default function MapTab() {
         dropdownName: {
           fontSize: 15,
           fontWeight: '600',
-          color: colors.ink,
+          color: '#FFFFFF',
           fontFamily: typography.body,
           letterSpacing: -0.1,
         },
         dropdownAddress: {
           fontSize: 13,
-          color: colors.inkFaint,
+          color: '#FFFFFF',
           marginTop: 4,
           fontFamily: typography.body,
         },
@@ -438,7 +441,7 @@ export default function MapTab() {
                   <Icon
                     name="crosshair"
                     size={13}
-                    color={colors.inkMuted}
+                    color="#FFFFFF"
                     strokeWidth={1.2}
                   />
                   <Text style={styles.eyebrowAction}>{t("home.recenter")}</Text>
@@ -450,17 +453,17 @@ export default function MapTab() {
                   <Icon
                     name="search"
                     size={20}
-                    color={colors.inkMuted}
+                    color="#FFFFFF"
                     strokeWidth={1.8}
                   />
                 </View>
                 <TextInput
                   style={styles.searchInput}
                   placeholder={t("home.searchPlaceholder")}
-                  placeholderTextColor={colors.inkFaint}
+                  placeholderTextColor="#FFFFFF"
                   value={searchQuery}
                   onChangeText={handleSearchChange}
-                  clearButtonMode="while-editing"
+                  selectionColor="#FFFFFF"
                   accessibilityLabel={t("common.search")}
                 />
                 {searchQuery.length > 0 ? (
@@ -478,7 +481,7 @@ export default function MapTab() {
                     <Icon
                       name="close"
                       size={16}
-                      color={colors.inkMuted}
+                      color="#FFFFFF"
                       strokeWidth={1.6}
                     />
                   </TouchableOpacity>

@@ -203,10 +203,10 @@ export const FloatingSearch = () => {
 
       <View style={[styles.bar, { backgroundColor: colors.surface, borderTopColor: colors.stroke }]}>
         <View style={[styles.inputWrap, { backgroundColor: colors.bg, borderColor: colors.strokeStrong }]}>
-          <Icon name="search" size={16} color={colors.inkMuted} strokeWidth={2} />
+          <Icon name="search" size={16} color="#FFFFFF" strokeWidth={2} />
           <TextInput
             placeholder={t('home.searchPlaceholder')}
-            placeholderTextColor={colors.inkFaint}
+            placeholderTextColor="#FFFFFF"
             value={query}
             onChangeText={handleChange}
             onFocus={() => setFocused(true)}
@@ -216,13 +216,15 @@ export const FloatingSearch = () => {
               search(query);
             }}
             returnKeyType="search"
-            style={[styles.input, { color: colors.ink, fontFamily: typography.body }]}
+            style={[styles.input, { color: '#FFFFFF', fontFamily: typography.body }]}
+            selectionColor="#FFFFFF"
+            cursorColor="#FFFFFF"
             autoCorrect={false}
             autoCapitalize="none"
           />
           {query.length > 0 && (
             <TouchableOpacity onPress={handleClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-               <Icon name="close" size={14} color={colors.inkMuted} strokeWidth={2.5} />
+               <Icon name="close" size={14} color="#FFFFFF" strokeWidth={2.5} />
             </TouchableOpacity>
           )}
         </View>

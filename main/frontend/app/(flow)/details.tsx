@@ -28,11 +28,12 @@ function openDirections(lat: number, lng: number, name: string) {
 
 export default function DetailsScreen() {
   const { colors, radii, shadows, typography } = useTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id } = useLocalSearchParams<{ id: string | string[] }>();
   const { results, category, parentCategory } = useFlowState();
   const [voteData, setVoteData] = useState<VoteData | undefined>();
   const [liveData, setLiveData] = useState<LiveDataResult | null>(null);
-  const restaurant = results?.find((item) => item.id === id);
+  const placeId = Array.isArray(id) ? id[0] : id;
+  const restaurant = results?.find((item) => item.id === placeId);
 
   const styles = useMemo(
     () =>
@@ -268,13 +269,13 @@ export default function DetailsScreen() {
   const LIVE_DATA_CATS = new Set(["cinema", "nature", "sport"]);
 
   useEffect(() => {
-    if (!id) return;
-    getVotes(id)
+    if (!placeId) return;
+    getVotes(placeId)
       .then((data) => {
         if (data) setVoteData(data);
       })
       .catch(() => {});
-  }, [id]);
+  }, [placeId]);
 
   useEffect(() => {
     setLiveData(null);
@@ -412,25 +413,25 @@ export default function DetailsScreen() {
           {liveData && <LiveDataAddon data={liveData} />}
 
           <VoteButtons itemId={restaurant.id} itemType="place" initial={voteData} />
+
+          <View style={styles.actions}>
+            <Pressable
+              style={[styles.actionButton, styles.actionPrimary]}
+              onPress={() => openDirections(restaurant.lat, restaurant.lng, restaurant.name)}
+            >
+              <Text style={styles.actionPrimaryText}>Directions</Text>
+            </Pressable>
+            <Pressable style={styles.actionButton} onPress={() => void shareRestaurant(restaurant)}>
+              <Text style={styles.actionSecondaryText}>Share</Text>
+            </Pressable>
+            <Pressable style={styles.actionButton} onPress={() => restaurant.phone && Linking.openURL(`tel:${restaurant.phone}`)}>
+              <Text style={styles.actionSecondaryText}>Call</Text>
+            </Pressable>
+          </View>
         </View>
 
         <View style={{ paddingHorizontal: 16 }}>
           <ReviewList reviews={restaurant.reviews} />
-        </View>
-
-        <View style={[styles.actions, { marginHorizontal: 16, marginTop: 24 }]}>
-          <Pressable
-            style={[styles.actionButton, styles.actionPrimary]}
-            onPress={() => openDirections(restaurant.lat, restaurant.lng, restaurant.name)}
-          >
-            <Text style={styles.actionPrimaryText}>Directions</Text>
-          </Pressable>
-          <Pressable style={styles.actionButton} onPress={() => void shareRestaurant(restaurant)}>
-            <Text style={styles.actionSecondaryText}>Share</Text>
-          </Pressable>
-          <Pressable style={styles.actionButton} onPress={() => restaurant.phone && Linking.openURL(`tel:${restaurant.phone}`)}>
-            <Text style={styles.actionSecondaryText}>Call</Text>
-          </Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>

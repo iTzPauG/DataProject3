@@ -570,6 +570,9 @@ export default function ResultsMapScreen() {
             accumulatedRef.current = [...accumulatedRef.current, restaurant].slice(0, MAX_RESULTS);
             // Progressive UI update
             setRestaurants([...accumulatedRef.current]);
+            // Keep flow state in sync while streaming so details can open safely
+            // even if the user taps the first card before onDone fires.
+            setResults(accumulatedRef.current.slice(0, MAX_RESULTS));
             if (accumulatedRef.current.length === 1) {
               setStatus("streaming");
             }
@@ -638,6 +641,27 @@ export default function ResultsMapScreen() {
   const categoryLabel = category ? fmt(category) : "";
   const moodLabel = mood ? fmt(mood) : "";
   const priceLabel = priceLevel ? formatPriceLevel(priceLevel) : "";
+  const conflictingFilter = useMemo(() => {
+    if (moodLabel) return { key: "mood" as const, label: moodLabel };
+    if (priceLabel) return { key: "price" as const, label: priceLabel };
+    if (categoryLabel) return { key: "category" as const, label: categoryLabel };
+    return { key: "category" as const, label: "Filtros" };
+  }, [moodLabel, priceLabel, categoryLabel]);
+
+  const handleRemoveConflictingFilter = useCallback(() => {
+    if (conflictingFilter.key === "mood") {
+      router.replace("/(flow)/mood");
+      return;
+    }
+    if (conflictingFilter.key === "price") {
+      router.replace("/(flow)/price");
+      return;
+    }
+    router.replace({
+      pathname: "/(flow)/category",
+      params: { categoryId: parentCategory ?? "food" },
+    });
+  }, [conflictingFilter.key, parentCategory]);
 
   // Imperatively advance the sheet when streaming finishes — initialSnapIndex is
   // only read at mount, so we need an explicit snap call on the success transition.
@@ -678,8 +702,8 @@ export default function ResultsMapScreen() {
     if (status === "success" && restaurants.length === 0) {
       return (
         <WhimEmptyState 
-          conflictingFilter={moodLabel || categoryLabel || 'Filtros'} 
-          onRemoveFilter={() => router.back()} 
+          conflictingFilter={conflictingFilter.label} 
+          onRemoveFilter={handleRemoveConflictingFilter} 
           onReset={() => router.replace('/(tabs)')} 
         />
       );
@@ -734,7 +758,13 @@ export default function ResultsMapScreen() {
   }
 
   if (status === "success" && restaurants.length === 0) {
-    return <WhimEmptyState conflictingFilter={moodLabel || categoryLabel || 'Filtros'} onRemoveFilter={() => router.back()} onReset={() => router.replace('/(tabs)')} />;
+    return (
+      <WhimEmptyState
+        conflictingFilter={conflictingFilter.label}
+        onRemoveFilter={handleRemoveConflictingFilter}
+        onReset={() => router.replace('/(tabs)')}
+      />
+    );
   }
 
   return (
