@@ -18,7 +18,10 @@ import { useFlowState } from "../../hooks/useFlowState";
 import { getPlaceLiveData, getVotes, LiveDataResult, VoteData } from "../../services/api";
 import { formatDistance, formatPriceLevel, formatRating, formatReviews } from "../../utils/format";
 import { shareRestaurant } from "../../utils/share";
+import { storage } from "../../utils/storage";
 import { useTheme } from "../../utils/theme";
+
+const SAVED_PINS_KEY = 'whim_saved_pins';
 
 function openDirections(lat: number, lng: number, name: string) {
   const encoded = encodeURIComponent(name);
@@ -31,6 +34,8 @@ export default function DetailsScreen() {
   const { results, category, parentCategory } = useFlowState();
   const [voteData, setVoteData] = useState<VoteData | undefined>();
   const [liveData, setLiveData] = useState<LiveDataResult | null>(null);
+  const [isSaved, setIsSaved] = useState(false);
+  const [savingPin, setSavingPin] = useState(false);
   const placeId = Array.isArray(id) ? id[0] : id;
   const restaurant = results?.find((item) => item.id === placeId);
 
@@ -217,6 +222,10 @@ export default function DetailsScreen() {
           backgroundColor: colors.brand,
           borderColor: colors.brand,
         },
+        actionSaved: {
+          borderColor: '#FFD700',
+          backgroundColor: 'rgba(255,215,0,0.12)',
+        },
         actionPrimaryText: {
           color: colors.surface,
           fontSize: 14,
@@ -225,6 +234,12 @@ export default function DetailsScreen() {
         },
         actionSecondaryText: {
           color: colors.ink,
+          fontSize: 14,
+          fontWeight: "700",
+          fontFamily: typography.heading,
+        },
+        actionSavedText: {
+          color: '#FFD700',
           fontSize: 14,
           fontWeight: "700",
           fontFamily: typography.heading,
@@ -296,6 +311,43 @@ export default function DetailsScreen() {
         setLiveData(null);
       });
   }, [restaurant?.id, restaurant?.liveData, category, parentCategory]);
+
+  // Load saved-pin state from AsyncStorage
+  useEffect(() => {
+    if (!placeId) return;
+    storage.getItem(SAVED_PINS_KEY).then((raw) => {
+      const saved: any[] = raw ? JSON.parse(raw) : [];
+      setIsSaved(saved.some((s) => s.id === placeId));
+    }).catch(() => {});
+  }, [placeId]);
+
+  const handleSavePin = async () => {
+    if (!restaurant || savingPin) return;
+    setSavingPin(true);
+    try {
+      const raw = await storage.getItem(SAVED_PINS_KEY);
+      const saved: any[] = raw ? JSON.parse(raw) : [];
+      if (isSaved) {
+        const updated = saved.filter((s) => s.id !== restaurant.id);
+        await storage.setItem(SAVED_PINS_KEY, JSON.stringify(updated));
+        setIsSaved(false);
+      } else {
+        saved.push({
+          id: restaurant.id,
+          name: restaurant.name,
+          lat: restaurant.lat,
+          lng: restaurant.lng,
+          photoUrl: restaurant.photoUrl,
+          address: restaurant.address,
+        });
+        await storage.setItem(SAVED_PINS_KEY, JSON.stringify(saved));
+        setIsSaved(true);
+      }
+    } catch {
+    } finally {
+      setSavingPin(false);
+    }
+  };
 
   const renderBoldText = (text: string, baseStyle: any, boldColor: string) => {
     const parts = text.split(/\*\*(.*?)\*\*/g);
@@ -406,8 +458,20 @@ export default function DetailsScreen() {
             <Pressable style={styles.actionButton} onPress={() => void shareRestaurant(restaurant)}>
               <Text style={styles.actionSecondaryText}>Compartir</Text>
             </Pressable>
-            <Pressable style={styles.actionButton} onPress={() => restaurant.phone && Linking.openURL(`tel:${restaurant.phone}`)}>
+            <Pressable
+              style={styles.actionButton}
+              onPress={() => restaurant.phone && Linking.openURL(`tel:${restaurant.phone}`)}
+            >
               <Text style={styles.actionSecondaryText}>Llamar</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.actionButton, isSaved && styles.actionSaved]}
+              onPress={() => void handleSavePin()}
+              disabled={savingPin}
+            >
+              <Text style={isSaved ? styles.actionSavedText : styles.actionSecondaryText}>
+                {isSaved ? '★ Guardado' : '☆ Guardar'}
+              </Text>
             </Pressable>
           </View>
         </View>

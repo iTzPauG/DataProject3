@@ -13,7 +13,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
-import CategoryFilter from '../../components/CategoryFilter';
 import Icon from '../../components/Icon';
 import Map from '../../components/map/Map';
 import NearbySheet from '../../components/NearbySheet';
@@ -21,9 +20,12 @@ import { useAppState } from '../../hooks/useAppState';
 import { useDeviceType } from '../../hooks/useDeviceType';
 import { useLocation } from '../../hooks/useLocation';
 import { BASE_URL } from '../../services/api';
-import { fetchCategories, fetchNearbyItems } from '../../services/mapService';
-import { Category, MapItem } from '../../types';
+import { fetchNearbyItems } from '../../services/mapService';
+import { MapItem } from '../../types';
+import { storage } from '../../utils/storage';
 import { useTheme } from '../../utils/theme';
+
+const SAVED_PINS_KEY = 'whim_saved_pins';
 
 type AutocompleteResult = {
   display: string;
@@ -36,7 +38,7 @@ type AutocompleteResult = {
 
 const FOOD_SUBCATEGORIES = [
   { id: 'pizza', label: 'Pizza', emoji: '🍕' },
-  { id: 'sushi', label: 'Sushi', emoji: '🍱' },
+  { id: 'sushi', label: 'Sushi', emoji: '🍣' },
   { id: 'tapas', label: 'Tapas', emoji: '🥘' },
   { id: 'burgers', label: 'Burgers', emoji: '🍔' },
   { id: 'asian', label: 'Asiática', emoji: '🍜' },
@@ -45,6 +47,8 @@ const FOOD_SUBCATEGORIES = [
   { id: 'healthy', label: 'Sano', emoji: '🥗' },
   { id: 'vegan', label: 'Vegano', emoji: '🌱' },
   { id: 'kebab', label: 'Kebab', emoji: '🥙' },
+  { id: 'brunch', label: 'Brunch', emoji: '🥞' },
+  { id: 'coffee', label: 'Café', emoji: '☕' },
 ];
 
 export default function MapTab() {
@@ -65,12 +69,12 @@ export default function MapTab() {
   } = useAppState();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedFoodSubcat, setSelectedFoodSubcat] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [acResults, setAcResults] = useState<AutocompleteResult[]>([]);
   const [selectedSearchItem, setSelectedSearchItem] = useState<AutocompleteResult | null>(null);
+  const [savedPins, setSavedPins] = useState<MapItem[]>([]);
   const hasAutoCentered = useRef(false);
   const acTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -338,14 +342,6 @@ export default function MapTab() {
     }
   }, [location, setMapRegion]);
 
-  const handleCategorySelect = useCallback(
-    (categoryId: string | null) => {
-      setSelectedCategory(categoryId);
-      setSelectedFoodSubcat(null);
-    },
-    [setSelectedCategory],
-  );
-
   const handleFoodSubcatSelect = useCallback(
     (subcatId: string | null) => { setSelectedFoodSubcat(subcatId); },
     [],
@@ -395,16 +391,39 @@ export default function MapTab() {
       .catch(() => {});
   }, [selectedId]);
 
+  // Always work in food mode; deep-link param can override the subcategory
   useEffect(() => {
-    fetchCategories().then(setCategories).catch(() => {});
-    setSelectedCategory(null);
+    setSelectedCategory('food');
+    if (params.category) {
+      const sub = FOOD_SUBCATEGORIES.find((s) => s.id === params.category);
+      if (sub) setSelectedFoodSubcat(params.category);
+    }
   }, []);
 
+  // Load locally saved restaurant pins
   useEffect(() => {
-    if (params.category && params.category !== selectedCategory) {
-      setSelectedCategory(params.category);
-    }
-  }, [params.category, selectedCategory, setSelectedCategory]);
+    storage.getItem(SAVED_PINS_KEY).then((raw) => {
+      if (!raw) return;
+      const pins: any[] = JSON.parse(raw);
+      const mapItems: MapItem[] = pins.map((p) => ({
+        item_id: p.id,
+        item_type: 'place' as const,
+        title: p.name,
+        category_id: 'food',
+        lat: p.lat,
+        lng: p.lng,
+        distance_m: 0,
+        color: '#FFD700',
+        icon: '⭐',
+        metadata: {
+          photo_url: p.photoUrl ?? '',
+          address: p.address ?? '',
+          saved: true,
+        },
+      }));
+      setSavedPins(mapItems);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (
@@ -420,10 +439,6 @@ export default function MapTab() {
   }, [location.loading, location.error, location.lat, location.lng, handleCenterOnUser]);
 
   useEffect(() => {
-    if (!selectedCategory) {
-      setNearbyItems([]);
-      return;
-    }
     const searchLat = mapRegion?.lat ?? location.lat;
     const searchLng = mapRegion?.lng ?? location.lng;
     if (searchLat === null || searchLng === null) return;
@@ -433,15 +448,13 @@ export default function MapTab() {
       try {
         const lang =
           mapPreferences.language === 'system' ? 'es' : mapPreferences.language;
-        const itemTypes: string[] = ['place'];
-        if (mapPreferences.showRealTimeEvents) itemTypes.push('event', 'report');
         const items = await fetchNearbyItems(
           searchLat,
           searchLng,
           mapPreferences.defaultRadiusM,
-          selectedCategory,
+          'food',
           lang,
-          itemTypes,
+          ['place'],
           selectedFoodSubcat ?? undefined,
         );
         setNearbyItems(items);
@@ -453,21 +466,27 @@ export default function MapTab() {
     return () => {
       if (fetchTimer.current) clearTimeout(fetchTimer.current);
     };
-  }, [selectedCategory, selectedFoodSubcat]);
+  }, [selectedFoodSubcat]);
 
   const displayItems = useMemo(() => {
-    if (!selectedSearchItem) return nearbyItems;
-    const pin: MapItem = {
-      item_id: '__search_pin__',
-      item_type: 'place',
-      title: selectedSearchItem.display,
-      lat: selectedSearchItem.lat,
-      lng: selectedSearchItem.lng,
-      category_id: null,
-      metadata: {},
-    } as any;
-    return [pin, ...nearbyItems.filter((i) => i.item_id !== '__search_pin__')];
-  }, [nearbyItems, selectedSearchItem]);
+    let base: MapItem[] = nearbyItems;
+    if (selectedSearchItem) {
+      const pin: MapItem = {
+        item_id: '__search_pin__',
+        item_type: 'place',
+        title: selectedSearchItem.display,
+        lat: selectedSearchItem.lat,
+        lng: selectedSearchItem.lng,
+        category_id: null,
+        metadata: {},
+      } as any;
+      base = [pin, ...nearbyItems.filter((i) => i.item_id !== '__search_pin__')];
+    }
+    // Append locally saved pins that aren't already present
+    const baseIds = new Set(base.map((i) => i.item_id));
+    const extra = savedPins.filter((sp) => !baseIds.has(sp.item_id));
+    return extra.length > 0 ? [...base, ...extra] : base;
+  }, [nearbyItems, selectedSearchItem, savedPins]);
 
   return (
     <AnimatedTabScene>
@@ -556,38 +575,40 @@ export default function MapTab() {
             </BlurView>
           </View>
 
-          {/* Category filter row */}
+          {/* Food type filter row */}
           <View style={styles.filterPanel}>
             <BlurView intensity={60} tint="dark" style={[styles.panelBlur, { borderRadius: 16 }]}>
-              <CategoryFilter
-                categories={categories}
-                selected={selectedCategory}
-                onSelect={handleCategorySelect}
-              />
-              {selectedCategory === 'food' && (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.foodSubcatRow}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.foodSubcatRow}
+              >
+                <TouchableOpacity
+                  style={[styles.foodSubcatChip, selectedFoodSubcat === null && styles.foodSubcatChipActive]}
+                  onPress={() => handleFoodSubcatSelect(null)}
+                  activeOpacity={0.7}
                 >
-                  {FOOD_SUBCATEGORIES.map((sub) => {
-                    const active = selectedFoodSubcat === sub.id;
-                    return (
-                      <TouchableOpacity
-                        key={sub.id}
-                        style={[styles.foodSubcatChip, active && styles.foodSubcatChipActive]}
-                        onPress={() => handleFoodSubcatSelect(active ? null : sub.id)}
-                        activeOpacity={0.7}
-                      >
-                        <Text>{sub.emoji}</Text>
-                        <Text style={[styles.foodSubcatChipText, active && styles.foodSubcatChipTextActive]}>
-                          {sub.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              )}
+                  <Text style={[styles.foodSubcatChipText, selectedFoodSubcat === null && styles.foodSubcatChipTextActive]}>
+                    Todo 🍴
+                  </Text>
+                </TouchableOpacity>
+                {FOOD_SUBCATEGORIES.map((sub) => {
+                  const active = selectedFoodSubcat === sub.id;
+                  return (
+                    <TouchableOpacity
+                      key={sub.id}
+                      style={[styles.foodSubcatChip, active && styles.foodSubcatChipActive]}
+                      onPress={() => handleFoodSubcatSelect(active ? null : sub.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Text>{sub.emoji}</Text>
+                      <Text style={[styles.foodSubcatChipText, active && styles.foodSubcatChipTextActive]}>
+                        {sub.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
             </BlurView>
           </View>
 
@@ -628,7 +649,7 @@ export default function MapTab() {
           selectedId={selectedId}
           onSelectItem={handleSheetItemPress}
           loading={loading}
-          hasSearched={selectedCategory !== null}
+          hasSearched={true}
         />
       </View>
     </AnimatedTabScene>

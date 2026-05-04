@@ -1,4 +1,5 @@
 """Map / Places endpoints — nearby items and place details."""
+import asyncio
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -7,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 from database import get_db
 from models.schemas import PlaceResult
 from services.recommendation.tools import search_generic_category_places
+from services.overpass_service import search_overpass
 from services.recommendation.pipeline import enrich_place_result
 from services.live_data_service import get_live_data
 
@@ -26,14 +28,51 @@ async def nearby_items(
     try:
         places = []
         if "place" in item_types:
-            places = await search_generic_category_places(
-                parent_category=categories or "food",
-                subcategory=subcategory,
-                lat=lat,
-                lng=lng,
-                price_level=None,
-                language=language,
+            # Query Google Places and OSM in parallel for maximum coverage
+            raw = await asyncio.gather(
+                search_generic_category_places(
+                    parent_category=categories or "food",
+                    subcategory=subcategory,
+                    lat=lat,
+                    lng=lng,
+                    price_level=None,
+                    language=language,
+                ),
+                search_overpass(
+                    lat=lat,
+                    lng=lng,
+                    radius_m=int(radius),
+                    category=categories or "food",
+                    limit=40,
+                ),
+                return_exceptions=True,
             )
+            google_results = raw[0] if not isinstance(raw[0], Exception) else []
+            osm_results = raw[1] if not isinstance(raw[1], Exception) else []
+
+            places = list(google_results)
+
+            # Merge OSM results that aren't already covered by Google
+            google_names = {p.get("name", "").lower() for p in places}
+            for osm in osm_results:
+                name = osm.get("name", "")
+                if not name or name.lower() in google_names:
+                    continue
+                places.append({
+                    "place_id": f"osm_{osm['osm_id']}",
+                    "name": name,
+                    "lat": osm["lat"],
+                    "lng": osm["lng"],
+                    "address": osm.get("address", ""),
+                    "rating": 0,
+                    "price_level": None,
+                    "photo_url": "",
+                    "distance_m": 0,
+                    "category_id": categories or "food",
+                    "subcategory": osm.get("amenity") or subcategory or "",
+                    "google_reviews": [],
+                    "review_summary": "",
+                })
 
         reports = []
         events = []
