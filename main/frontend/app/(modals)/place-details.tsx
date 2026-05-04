@@ -132,7 +132,7 @@ export default function PlaceDetailsModal() {
       setLoadingExtra(true);
       try {
         const [extra, baseData] = await Promise.all([
-          fetchPlaceExtra(id),
+          fetchPlaceExtra(id, item?.metadata),
           !nearbyItems.find(i => i.item_id === id) ? getPlaceData(id) : Promise.resolve(null)
         ]);
         if (extra) {

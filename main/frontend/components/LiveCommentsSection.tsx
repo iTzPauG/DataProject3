@@ -374,7 +374,7 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
-          <LiveCommentIcon size={20} color="#FFFFFF" />
+          <Ionicons name="chatbubbles" size={20} color="#FFFFFF" />
           <Text style={styles.title}>En directo</Text>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={() => setShowModal(true)}>

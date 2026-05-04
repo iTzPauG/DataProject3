@@ -1045,18 +1045,26 @@ export async function fetchNearbyItems(
     }
 }
 
-export async function fetchPlaceExtra(placeId: string): Promise<{ take: string | null; live: any; vote: VoteData | null }> {
+export async function fetchPlaceExtra(placeId: string, metadata?: any): Promise<{ take: any; live: any; vote: VoteData | null }> {
   try {
+    const url = new URL(`${BASE_URL}/places/${placeId}/take`);
+    if (metadata) {
+      Object.entries(metadata).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) url.searchParams.append(k, String(v));
+      });
+    }
+
     const [takeRes, liveRes, voteRes] = await Promise.all([
-      fetch(`${BASE_URL}/places/${placeId}/take`).catch(() => null),
+      fetch(url.toString()).catch(() => null),
       fetch(`${BASE_URL}/places/${placeId}/live-data`).catch(() => null),
       fetch(`${BASE_URL}/votes/${placeId}`).catch(() => null),
     ]);
-    const take = takeRes?.ok ? (await takeRes.json()).take ?? null : null;
+    const take = takeRes?.ok ? await takeRes.json() : null;
     const live = liveRes?.ok ? await liveRes.json() : null;
     const vote = voteRes?.ok ? await voteRes.json() : null;
     return { take, live, vote };
-  } catch {
+  } catch (err) {
+    console.error('fetchPlaceExtra failed', err);
     return { take: null, live: null, vote: null };
   }
 }
@@ -1066,7 +1074,11 @@ export async function getPlaceData(placeId: string): Promise<MapItem | null> {
     const res = await fetch(`${BASE_URL}/search/universal?q=${encodeURIComponent(placeId)}&lat=39.4699&lng=-0.3763&radius_m=50000`);
     if (!res.ok) return null;
     const data = await res.json();
-    return (data.results ?? []).find((r: any) => r.id === placeId) ?? null;
+    const found = (data.results ?? []).find((r: any) => r.id === placeId);
+    if (!found) return null;
+    
+    // Ensure it's enriched before returning
+    return normalizeSearchResult(found);
   } catch {
     return null;
   }

@@ -414,35 +414,36 @@ export default function MapTab() {
     }
   }, [location.loading, location.error, location.lat, location.lng, handleCenterOnUser]);
 
-  useEffect(() => {
+  // Search only triggered by subcategory selection (manual)
+  const performSearch = useCallback(async () => {
     const searchLat = mapRegion?.lat ?? location.lat ?? 39.4699;
     const searchLng = mapRegion?.lng ?? location.lng ?? -0.3763;
+    setLoading(true);
+    try {
+      const lang = mapPreferences.language === 'system' ? 'es' : mapPreferences.language;
+      const items = await fetchNearbyItems(
+        searchLat,
+        searchLng,
+        mapPreferences.defaultRadiusM,
+        'food',
+        lang,
+        ['place'],
+        selectedFoodSubcat ?? undefined,
+      );
+      setNearbyItems(items);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedFoodSubcat, mapRegion?.lat, mapRegion?.lng, location.lat, location.lng, mapPreferences.language, mapPreferences.defaultRadiusM]);
 
-    if (fetchTimer.current) clearTimeout(fetchTimer.current);
-    fetchTimer.current = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const lang =
-          mapPreferences.language === 'system' ? 'es' : mapPreferences.language;
-        const items = await fetchNearbyItems(
-          searchLat,
-          searchLng,
-          mapPreferences.defaultRadiusM,
-          'food',
-          lang,
-          ['place'],
-          selectedFoodSubcat ?? undefined,
-        );
-        setNearbyItems(items);
-      } catch {
-      } finally {
-        setLoading(false);
-      }
-    }, 300);
-    return () => {
-      if (fetchTimer.current) clearTimeout(fetchTimer.current);
-    };
-  }, [selectedFoodSubcat, mapRegion?.lat, mapRegion?.lng, location.lat, location.lng]);
+  // Initial load once hydrated
+  useEffect(() => {
+    if (isHydrated && nearbyItems.length === 0) {
+      void performSearch();
+    }
+  }, [isHydrated]);
 
   const displayItems = useMemo(() => {
     let base: MapItem[] = nearbyItems;
@@ -492,22 +493,27 @@ export default function MapTab() {
               <BlurView intensity={60} tint="dark" style={styles.panelBlur}>
                 <View style={styles.eyebrowRow}>
                   <Text style={styles.eyebrow}>{t("home.locationNow")}</Text>
-                  <TouchableOpacity
-                    onPress={handleCenterOnUser}
-                    activeOpacity={0.7}
-                    accessibilityLabel={t("home.recenter")}
-                    accessibilityRole="button"
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-                  >
-                    <Icon
-                      name="crosshair"
-                      size={13}
-                      color="#FFFFFF"
-                      strokeWidth={1.2}
-                    />
-                    <Text style={styles.eyebrowAction}>{t("home.recenter")}</Text>
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                    <TouchableOpacity onPress={() => router.push('/(modals)/saved-items')} activeOpacity={0.7} accessibilityLabel="Favoritos" accessibilityRole="button" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Icon name="bookmark" size={13} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleCenterOnUser}
+                      activeOpacity={0.7}
+                      accessibilityLabel={t("home.recenter")}
+                      accessibilityRole="button"
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                    >
+                      <Icon
+                        name="crosshair"
+                        size={13}
+                        color="#FFFFFF"
+                        strokeWidth={1.2}
+                      />
+                      <Text style={styles.eyebrowAction}>{t("home.recenter")}</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 <View style={styles.searchRow}>

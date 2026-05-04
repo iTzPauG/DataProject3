@@ -250,8 +250,8 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
     [selectedId, onSelectItem],
   );
 
-  const desktopWidth = 440;
-  const desktopLeft = 24;
+  const desktopWidth = 600;
+  const desktopLeft = 40;
 
   if (!selectedId && !hasSearched && (!items || items.length === 0) && !loading) return null;
 
