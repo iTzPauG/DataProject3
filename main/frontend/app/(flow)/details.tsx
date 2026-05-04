@@ -13,6 +13,7 @@ import {
 import LiveCommentsSection from "../../components/LiveCommentsSection";
 import LiveDataAddon from "../../components/LiveDataAddon";
 import PrimaryButton from "../../components/PrimaryButton";
+import ReviewList from "../../components/ReviewList";
 import VoteButtons from "../../components/VoteButtons";
 import WhimIcon from "../../components/WhimIcon";
 import { useFlowState } from "../../hooks/useFlowState";
