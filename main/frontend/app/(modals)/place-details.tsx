@@ -15,7 +15,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LiveCommentsSection from '../../components/LiveCommentsSection';
 import LiveDataAddon from '../../components/LiveDataAddon';
-import LiveCommentsSection from '../../components/LiveCommentsSection';
 import ReviewList from '../../components/ReviewList';
 import VoteButtons from '../../components/VoteButtons';
 import { useAppState } from '../../hooks/useAppState';
