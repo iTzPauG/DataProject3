@@ -149,7 +149,7 @@ export default function PlaceDetailsModal() {
   }, [id]);
 
   useEffect(() => {
-    setIsBookmarked(bookmarkedIds.includes(id));
+    setIsBookmarked((bookmarkedIds ?? []).includes(id));
   }, [bookmarkedIds, id]);
 
   async function handleToggleBookmark() {

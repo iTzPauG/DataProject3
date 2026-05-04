@@ -195,11 +195,10 @@ export function AppStateProvider({
   const setSelectedCategory = useCallback((selectedCategory: string | null) => {
     setState((s) => ({ ...s, selectedCategory }));
   }, []);
-
   const setNearbyItems = useCallback((nearbyItems: MapItem[] | ((prev: MapItem[]) => MapItem[])) => {
     setState((s) => ({
       ...s,
-      nearbyItems: typeof nearbyItems === "function" ? nearbyItems(s.nearbyItems) : nearbyItems,
+      nearbyItems: typeof nearbyItems === 'function' ? nearbyItems(Array.isArray(s.nearbyItems) ? s.nearbyItems : []) : nearbyItems,
     }));
   }, []);
 
