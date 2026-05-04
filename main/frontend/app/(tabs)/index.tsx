@@ -66,6 +66,7 @@ export default function MapTab() {
     mapRegion,
     setMapRegion,
     mapPreferences,
+    isHydrated,
   } = useAppState();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);

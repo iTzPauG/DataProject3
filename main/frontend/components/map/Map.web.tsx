@@ -435,6 +435,7 @@ export default function Map({
         style={{ width: '100%', height: '100%' }}
         zoomControl={false}
         attributionControl={false}
+        wheelPxPerZoomLevel={60}
       >
         <TileLayer attribution={attribution} url={tileUrl} />
         {overlayTileUrl ? (
@@ -555,7 +556,7 @@ export default function Map({
           </TouchableOpacity>
           <View style={styles.zoomDivider} />
           <TouchableOpacity style={styles.zoomBtn} onPress={() => leafletMapRef.current?.zoomOut()} activeOpacity={0.75}>
-            <Text style={styles.zoomBtnText}>−</Text>
+            <Text style={styles.zoomBtnText}>-</Text>
           </TouchableOpacity>
         </View>
       )}
