@@ -35,3 +35,6 @@ DESIGN.md
 .gemini/
 .agents/
 .omg/
+
+# Claude Code local state
+.claude/

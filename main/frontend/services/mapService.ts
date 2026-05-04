@@ -48,10 +48,12 @@ export async function fetchNearbyItems(
   category?: string | null,
   language: string = 'es',
   itemTypes?: string[],
+  subcategory?: string,
 ): Promise<MapItem[]> {
   try {
     const params: any = { lat, lng, radius };
     if (category) params.categories = category;
+    if (subcategory) params.subcategory = subcategory;
     params.language = language;
     
     const qs = new URLSearchParams();

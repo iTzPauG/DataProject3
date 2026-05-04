@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
+import CategoryFilter from '../../components/CategoryFilter';
 import Icon from '../../components/Icon';
 import Map from '../../components/map/Map';
 import NearbySheet from '../../components/NearbySheet';
@@ -31,6 +33,19 @@ type AutocompleteResult = {
   address?: string;
   raw?: any;
 };
+
+const FOOD_SUBCATEGORIES = [
+  { id: 'pizza', label: 'Pizza', emoji: '🍕' },
+  { id: 'sushi', label: 'Sushi', emoji: '🍱' },
+  { id: 'tapas', label: 'Tapas', emoji: '🥘' },
+  { id: 'burgers', label: 'Burgers', emoji: '🍔' },
+  { id: 'asian', label: 'Asiática', emoji: '🍜' },
+  { id: 'italian', label: 'Italiana', emoji: '🍝' },
+  { id: 'mexican', label: 'Mexicana', emoji: '🌮' },
+  { id: 'healthy', label: 'Sano', emoji: '🥗' },
+  { id: 'vegan', label: 'Vegano', emoji: '🌱' },
+  { id: 'kebab', label: 'Kebab', emoji: '🥙' },
+];
 
 export default function MapTab() {
   const { t } = useTranslation();
@@ -52,6 +67,7 @@ export default function MapTab() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedFoodSubcat, setSelectedFoodSubcat] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [acResults, setAcResults] = useState<AutocompleteResult[]>([]);
   const [selectedSearchItem, setSelectedSearchItem] = useState<AutocompleteResult | null>(null);
@@ -187,6 +203,42 @@ export default function MapTab() {
           marginTop: 4,
           fontFamily: typography.body,
         },
+        foodSubcatChip: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: 10,
+          paddingVertical: 6,
+          borderRadius: 20,
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.15)',
+          backgroundColor: 'rgba(255,255,255,0.08)',
+          gap: 4,
+        },
+        foodSubcatChipActive: {
+          backgroundColor: '#FF6B35',
+          borderColor: '#FF6B35',
+        },
+        foodSubcatChipText: {
+          fontSize: 12,
+          fontWeight: '600',
+          color: '#FFFFFF',
+          fontFamily: typography.body,
+        },
+        foodSubcatChipTextActive: {
+          color: '#FFFFFF',
+          fontWeight: '700',
+        },
+        filterPanel: {
+          marginTop: 8,
+          borderRadius: 16,
+          overflow: 'hidden',
+          ...shadows.lift,
+        },
+        foodSubcatRow: {
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          gap: 6,
+        },
       }),
     [colors, typography, shadows, rightOffset, isDesktop, insets.bottom],
   );
@@ -286,6 +338,19 @@ export default function MapTab() {
     }
   }, [location, setMapRegion]);
 
+  const handleCategorySelect = useCallback(
+    (categoryId: string | null) => {
+      setSelectedCategory(categoryId);
+      setSelectedFoodSubcat(null);
+    },
+    [setSelectedCategory],
+  );
+
+  const handleFoodSubcatSelect = useCallback(
+    (subcatId: string | null) => { setSelectedFoodSubcat(subcatId); },
+    [],
+  );
+
   useEffect(() => {
     if (!selectedId) return;
     const item = nearbyItems.find((i) => i.item_id === selectedId);
@@ -377,6 +442,7 @@ export default function MapTab() {
           selectedCategory,
           lang,
           itemTypes,
+          selectedFoodSubcat ?? undefined,
         );
         setNearbyItems(items);
       } catch {
@@ -387,7 +453,7 @@ export default function MapTab() {
     return () => {
       if (fetchTimer.current) clearTimeout(fetchTimer.current);
     };
-  }, [selectedCategory]);
+  }, [selectedCategory, selectedFoodSubcat]);
 
   const displayItems = useMemo(() => {
     if (!selectedSearchItem) return nearbyItems;
@@ -487,6 +553,41 @@ export default function MapTab() {
                   </TouchableOpacity>
                 ) : null}
               </View>
+            </BlurView>
+          </View>
+
+          {/* Category filter row */}
+          <View style={styles.filterPanel}>
+            <BlurView intensity={60} tint="dark" style={[styles.panelBlur, { borderRadius: 16 }]}>
+              <CategoryFilter
+                categories={categories}
+                selected={selectedCategory}
+                onSelect={handleCategorySelect}
+              />
+              {selectedCategory === 'food' && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.foodSubcatRow}
+                >
+                  {FOOD_SUBCATEGORIES.map((sub) => {
+                    const active = selectedFoodSubcat === sub.id;
+                    return (
+                      <TouchableOpacity
+                        key={sub.id}
+                        style={[styles.foodSubcatChip, active && styles.foodSubcatChipActive]}
+                        onPress={() => handleFoodSubcatSelect(active ? null : sub.id)}
+                        activeOpacity={0.7}
+                      >
+                        <Text>{sub.emoji}</Text>
+                        <Text style={[styles.foodSubcatChipText, active && styles.foodSubcatChipTextActive]}>
+                          {sub.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
             </BlurView>
           </View>
 

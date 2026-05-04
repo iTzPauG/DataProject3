@@ -12,7 +12,6 @@ import {
 } from "react-native";
 import LiveDataAddon from "../../components/LiveDataAddon";
 import PrimaryButton from "../../components/PrimaryButton";
-import ReviewList from "../../components/ReviewList";
 import VoteButtons from "../../components/VoteButtons";
 import WhimIcon from "../../components/WhimIcon";
 import { useFlowState } from "../../hooks/useFlowState";
@@ -139,12 +138,6 @@ export default function DetailsScreen() {
           color: colors.inkMuted,
           fontSize: 14,
           fontFamily: typography.body,
-        },
-        sourceBreakdown: {
-          color: colors.inkWhisper,
-          fontSize: 12,
-          fontFamily: typography.body,
-          marginTop: -8,
         },
         metaCard: {
           backgroundColor: colors.chip,
@@ -338,12 +331,6 @@ export default function DetailsScreen() {
   }
 
   const distance = restaurant.distanceM > 0 ? formatDistance(restaurant.distanceM) : null;
-  const sourceCounts = restaurant.reviewSources ?? {
-    google: (restaurant.reviews || []).filter((review) => review.source === "google").length,
-    yelp: (restaurant.reviews || []).filter((review) => review.source === "yelp").length,
-    tripadvisor: (restaurant.reviews || []).filter((review) => review.source === "tripadvisor").length,
-  };
-  const hasSourceCounts = sourceCounts.google + sourceCounts.yelp + sourceCounts.tripadvisor > 0;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -376,13 +363,8 @@ export default function DetailsScreen() {
 
           <View style={styles.ratingRow}>
             <Text style={styles.ratingPrimary}>★ {formatRating(restaurant.rating)}</Text>
-            <Text style={styles.ratingMeta}>{formatReviews(restaurant.reviewsCount)} reviews</Text>
+            <Text style={styles.ratingMeta}>{formatReviews(restaurant.reviewsCount)} reseñas</Text>
           </View>
-          {hasSourceCounts ? (
-            <Text style={styles.sourceBreakdown}>
-              G {sourceCounts.google} · Y {sourceCounts.yelp} · T {sourceCounts.tripadvisor}
-            </Text>
-          ) : null}
 
           <View style={styles.metaCard}>
             <Text style={styles.metaTitle}>Address</Text>
@@ -419,19 +401,15 @@ export default function DetailsScreen() {
               style={[styles.actionButton, styles.actionPrimary]}
               onPress={() => openDirections(restaurant.lat, restaurant.lng, restaurant.name)}
             >
-              <Text style={styles.actionPrimaryText}>Directions</Text>
+              <Text style={styles.actionPrimaryText}>Cómo llegar</Text>
             </Pressable>
             <Pressable style={styles.actionButton} onPress={() => void shareRestaurant(restaurant)}>
-              <Text style={styles.actionSecondaryText}>Share</Text>
+              <Text style={styles.actionSecondaryText}>Compartir</Text>
             </Pressable>
             <Pressable style={styles.actionButton} onPress={() => restaurant.phone && Linking.openURL(`tel:${restaurant.phone}`)}>
-              <Text style={styles.actionSecondaryText}>Call</Text>
+              <Text style={styles.actionSecondaryText}>Llamar</Text>
             </Pressable>
           </View>
-        </View>
-
-        <View style={{ paddingHorizontal: 16 }}>
-          <ReviewList reviews={restaurant.reviews} />
         </View>
       </ScrollView>
     </SafeAreaView>

@@ -19,6 +19,7 @@ async def nearby_items(
     lng: float,
     radius: float = 2000.0,
     categories: Optional[str] = None,
+    subcategory: Optional[str] = None,
     language: str = "es",
     item_types: list[str] = Query(["place", "event", "report"]),
 ):
@@ -27,7 +28,7 @@ async def nearby_items(
         if "place" in item_types:
             places = await search_generic_category_places(
                 parent_category=categories or "food",
-                subcategory=None,
+                subcategory=subcategory,
                 lat=lat,
                 lng=lng,
                 price_level=None,
