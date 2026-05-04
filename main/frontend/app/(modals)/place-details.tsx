@@ -438,7 +438,3 @@ const styles = StyleSheet.create({
   takeLoadingText: { fontSize: 14, color: '#A8AEC7' },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 100 },
 });
-nItems: 'center', gap: 10 },
-  takeLoadingText: { fontSize: 14, color: '#A8AEC7' },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 100 },
-});
