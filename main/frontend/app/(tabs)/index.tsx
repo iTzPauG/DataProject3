@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+﻿import { useTranslation } from "react-i18next";
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -439,9 +439,9 @@ export default function MapTab() {
   }, [location.loading, location.error, location.lat, location.lng, handleCenterOnUser]);
 
   useEffect(() => {
-    const searchLat = mapRegion?.lat ?? location.lat;
-    const searchLng = mapRegion?.lng ?? location.lng;
-    if (searchLat === null || searchLng === null) return;
+    const searchLat = mapRegion?.lat ?? location.lat ?? 39.4699;
+    const searchLng = mapRegion?.lng ?? location.lng ?? -0.3763;
+
     if (fetchTimer.current) clearTimeout(fetchTimer.current);
     fetchTimer.current = setTimeout(async () => {
       setLoading(true);
@@ -466,7 +466,7 @@ export default function MapTab() {
     return () => {
       if (fetchTimer.current) clearTimeout(fetchTimer.current);
     };
-  }, [selectedFoodSubcat]);
+  }, [selectedFoodSubcat, mapRegion?.lat, mapRegion?.lng, location.lat, location.lng]);
 
   const displayItems = useMemo(() => {
     let base: MapItem[] = nearbyItems;
@@ -490,94 +490,95 @@ export default function MapTab() {
 
   return (
     <AnimatedTabScene>
-      <View style={styles.container}>
-        <Map
-          items={displayItems}
-          selectedId={selectedId}
-          onSelectItem={handleSheetItemPress}
-          onRegionChange={handleRegionChange}
-          region={mapRegion ?? undefined}
-          mapType={mapPreferences.mapStyle}
-          minimalist={minimalist}
-          gadoOverlay={mapPreferences.gadoOverlay}
-        />
+      <View style={{ flex: 1, position: 'relative' }}>
+        <View style={styles.container}>
+          <Map
+            items={displayItems}
+            selectedId={selectedId}
+            onSelectItem={handleSheetItemPress}
+            onRegionChange={handleRegionChange}
+            region={mapRegion ?? undefined}
+            mapType={mapPreferences.mapStyle}
+            minimalist={minimalist}
+            gadoOverlay={mapPreferences.gadoOverlay}
+          />
 
-        <View
-          style={{
-            position: 'absolute',
-            zIndex: 10,
-            top: insets.top + 14,
-            left: leftOffset,
-            right: rightOffset,
-          }}
-        >
-          <View style={styles.panel}>
-            <BlurView intensity={60} tint="dark" style={styles.panelBlur}>
-              <View style={styles.eyebrowRow}>
-                <Text style={styles.eyebrow}>{t("home.locationNow")}</Text>
-                <TouchableOpacity
-                  onPress={handleCenterOnUser}
-                  activeOpacity={0.7}
-                  accessibilityLabel={t("home.recenter")}
-                  accessibilityRole="button"
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-                >
-                  <Icon
-                    name="crosshair"
-                    size={13}
-                    color="#FFFFFF"
-                    strokeWidth={1.2}
-                  />
-                  <Text style={styles.eyebrowAction}>{t("home.recenter")}</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.searchRow}>
-                <View style={styles.iconBtn}>
-                  <Icon
-                    name="search"
-                    size={20}
-                    color="#FFFFFF"
-                    strokeWidth={1.8}
-                  />
-                </View>
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder={t("home.searchPlaceholder")}
-                  placeholderTextColor="#FFFFFF"
-                  value={searchQuery}
-                  onChangeText={handleSearchChange}
-                  selectionColor="#FFFFFF"
-                  accessibilityLabel={t("common.search")}
-                />
-                {searchQuery.length > 0 ? (
+          <View
+            style={{
+              position: 'absolute',
+              zIndex: 10,
+              top: insets.top + 14,
+              left: leftOffset,
+              right: rightOffset,
+            }}
+          >
+            <View style={styles.panel}>
+              <BlurView intensity={60} tint="dark" style={styles.panelBlur}>
+                <View style={styles.eyebrowRow}>
+                  <Text style={styles.eyebrow}>{t("home.locationNow")}</Text>
                   <TouchableOpacity
-                    style={styles.iconBtn}
-                    activeOpacity={0.6}
-                    onPress={() => {
-                      setSearchQuery('');
-                      setAcResults([]);
-                      setSelectedSearchItem(null);
-                    }}
-                    accessibilityLabel={t("common.close")}
+                    onPress={handleCenterOnUser}
+                    activeOpacity={0.7}
+                    accessibilityLabel={t("home.recenter")}
                     accessibilityRole="button"
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
                   >
                     <Icon
-                      name="close"
-                      size={16}
+                      name="crosshair"
+                      size={13}
                       color="#FFFFFF"
-                      strokeWidth={1.6}
+                      strokeWidth={1.2}
                     />
+                    <Text style={styles.eyebrowAction}>{t("home.recenter")}</Text>
                   </TouchableOpacity>
-                ) : null}
-              </View>
-            </BlurView>
-          </View>
+                </View>
 
-          {/* Food type filter row */}
-          <View style={styles.filterPanel}>
-            <BlurView intensity={60} tint="dark" style={[styles.panelBlur, { borderRadius: 16 }]}>
+                <View style={styles.searchRow}>
+                  <View style={styles.iconBtn}>
+                    <Icon
+                      name="search"
+                      size={20}
+                      color="#FFFFFF"
+                      strokeWidth={1.8}
+                    />
+                  </View>
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder={t("home.searchPlaceholder")}
+                    placeholderTextColor="#FFFFFF"
+                    value={searchQuery}
+                    onChangeText={handleSearchChange}
+                    selectionColor="#FFFFFF"
+                    accessibilityLabel={t("common.search")}
+                  />
+                  {searchQuery.length > 0 ? (
+                    <TouchableOpacity
+                      style={styles.iconBtn}
+                      activeOpacity={0.6}
+                      onPress={() => {
+                        setSearchQuery('');
+                        setAcResults([]);
+                        setSelectedSearchItem(null);
+                      }}
+                      accessibilityLabel={t("common.close")}
+                      accessibilityRole="button"
+                    >
+                      <Icon
+                        name="close"
+                        size={16}
+                        color="#FFFFFF"
+                        strokeWidth={1.6}
+                      />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </BlurView>
+            </View>
+
+            {/* Food type filter row */}
+            <View style={styles.filterPanel}>
+              <BlurView intensity={60} tint="dark" style={[styles.panelBlur, { borderRadius: 16 }]}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -644,6 +645,28 @@ export default function MapTab() {
           )}
         </View>
 
+        <TouchableOpacity
+          onPress={() => router.push('/(tabs)/profile')}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Perfil"
+          style={{
+            position: 'absolute',
+            top: insets.top + 14,
+            right: 16,
+            zIndex: 20,
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: 'rgba(30,30,40,0.7)',
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.18)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Icon name="person" size={20} color="#FFFFFF" strokeWidth={1.4} />
+        </TouchableOpacity>
         <NearbySheet
           items={nearbyItems}
           selectedId={selectedId}
@@ -652,6 +675,7 @@ export default function MapTab() {
           hasSearched={true}
         />
       </View>
+    </View>
     </AnimatedTabScene>
   );
 }

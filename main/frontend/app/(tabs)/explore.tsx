@@ -1,8 +1,6 @@
 import { router } from 'expo-router';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,9 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
-import WhimIcon from '../../components/WhimIcon';
 import { useFlowState } from '../../hooks/useFlowState';
-import { ExploreCategory, getExploreCategories } from '../../services/api';
 import { useTheme } from '../../utils/theme';
 
 const FOOD_SUBCATEGORIES = [
@@ -32,8 +28,6 @@ const FOOD_SUBCATEGORIES = [
 export default function ExploreTab() {
   const { colors, typography, radii, shadows } = useTheme();
   const { reset, setParentCategory, setCategory } = useFlowState();
-  const [categories, setCategories] = useState<ExploreCategory[]>([]);
-  const [loadingCategories, setLoadingCategories] = useState(true);
 
   const dynamicStyles = useMemo(() => StyleSheet.create({
     safe: {
@@ -46,39 +40,50 @@ export default function ExploreTab() {
       color: colors.ink,
       fontFamily: typography.heading,
     },
+    sectionSubtitle: {
+      fontSize: 14,
+      color: colors.inkMuted,
+      lineHeight: 20,
+      fontFamily: typography.body,
+      marginTop: 4,
+    },
     title: {
-      fontSize: 28,
+      fontSize: 32,
       fontWeight: '800',
       color: colors.ink,
-      marginBottom: 4,
+      marginBottom: 8,
       fontFamily: typography.heading,
+      textAlign: 'center',
     },
     subtitle: {
-      fontSize: 15,
+      fontSize: 16,
       color: colors.inkMuted,
-      lineHeight: 22,
+      lineHeight: 24,
       fontFamily: typography.body,
+      textAlign: 'center',
     },
-    foodChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
+    foodCard: {
       backgroundColor: colors.surface,
-      borderRadius: radii.pill,
+      borderRadius: radii.lg,
       borderWidth: 1,
       borderColor: colors.stroke,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      gap: 6,
+      padding: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 140,
+      width: '48%', // Para 2 columnas
       ...shadows.soft,
     },
-    foodChipEmoji: {
-      fontSize: 18,
+    foodCardEmoji: {
+      fontSize: 32,
+      marginBottom: 8,
     },
-    foodChipLabel: {
-      fontSize: 13,
+    foodCardLabel: {
+      fontSize: 16,
       fontWeight: '700',
       color: colors.ink,
       fontFamily: typography.heading,
+      textAlign: 'center',
     },
     card: {
       backgroundColor: colors.surface,
@@ -113,13 +118,6 @@ export default function ExploreTab() {
     },
   }), [colors, typography, radii, shadows]);
 
-  useEffect(() => {
-    getExploreCategories()
-      .then(setCategories)
-      .catch(() => {})
-      .finally(() => setLoadingCategories(false));
-  }, []);
-
   function handleFoodSubcatPress(subcatId: string) {
     reset();
     setParentCategory('food');
@@ -127,102 +125,35 @@ export default function ExploreTab() {
     router.push('/(flow)/mood');
   }
 
-  function handleCategoryPress(category: ExploreCategory) {
-    if (category.active === false) {
-      Alert.alert('Próximamente', 'Esta funcionalidad estará disponible pronto');
-      return;
-    }
-    if (category.id === 'report') {
-      router.push('/(tabs)/report');
-      return;
-    }
-    const eventCategories = new Set(['event', 'market', 'music']);
-    if (eventCategories.has(category.id)) {
-      router.push({
-        pathname: '/(flow)/explore-list',
-        params: { categoryId: category.id, itemType: 'event', title: category.label },
-      });
-      return;
-    }
-    router.push({ pathname: '/(flow)/category', params: { categoryId: category.id } });
-  }
-
   return (
     <AnimatedTabScene>
     <SafeAreaView style={dynamicStyles.safe} edges={['top']}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={dynamicStyles.title}>Explorar</Text>
-          <Text style={dynamicStyles.subtitle}>Descubre lo mejor de tu ciudad</Text>
+          <Text style={dynamicStyles.title}>🍽️ ¿Qué te apetece comer?</Text>
+          <Text style={dynamicStyles.subtitle}>Descubre los mejores lugares para comer en tu ciudad</Text>
         </View>
 
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Food type quick-access */}
-          <View style={styles.sectionHeader}>
-            <Text style={dynamicStyles.sectionTitle}>¿Qué te apetece comer?</Text>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.foodChipsScroll}
-          >
+          {/* Food type selection grid */}
+          <View style={styles.foodGrid}>
             {FOOD_SUBCATEGORIES.map((sub) => (
               <TouchableOpacity
                 key={sub.id}
-                style={dynamicStyles.foodChip}
+                style={dynamicStyles.foodCard}
                 activeOpacity={0.7}
                 onPress={() => handleFoodSubcatPress(sub.id)}
                 accessibilityLabel={sub.label}
                 accessibilityRole="button"
               >
-                <Text style={dynamicStyles.foodChipEmoji}>{sub.emoji}</Text>
-                <Text style={dynamicStyles.foodChipLabel}>{sub.label}</Text>
+                <Text style={dynamicStyles.foodCardEmoji}>{sub.emoji}</Text>
+                <Text style={dynamicStyles.foodCardLabel}>{sub.label}</Text>
               </TouchableOpacity>
             ))}
-          </ScrollView>
-
-          {/* Other categories */}
-          <View style={styles.sectionHeader}>
-            <Text style={dynamicStyles.sectionTitle}>Más categorías</Text>
           </View>
-          {loadingCategories ? (
-            <ActivityIndicator
-              size="large"
-              color={colors.brand}
-              style={{ marginTop: 32 }}
-            />
-          ) : (
-            <View style={styles.grid}>
-              {categories.map((cat) => (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={styles.cardWrapper}
-                  activeOpacity={0.7}
-                  onPress={() => handleCategoryPress(cat)}
-                  accessibilityLabel={`Categoría ${cat.label}`}
-                  accessibilityRole="button"
-                >
-                  <View style={[dynamicStyles.card, { borderRadius: radii.lg }, cat.active === false && styles.cardInactive]}>
-                    <View style={dynamicStyles.cardIcon}>
-                      <WhimIcon name={cat.id} category={cat.id} size={28} color={colors.brand} accessibilityLabel={`Icono ${cat.label}`} />
-                    </View>
-                    <Text style={dynamicStyles.cardLabel}>{cat.label}</Text>
-                    {cat.description ? (
-                      <Text style={dynamicStyles.cardDescription}>{cat.description}</Text>
-                    ) : null}
-                    {cat.active === false && (
-                      <View style={[styles.comingSoonBadge, { borderRadius: radii.sm }]}>
-                        <Text style={styles.comingSoonText}>Pronto</Text>
-                      </View>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -247,8 +178,9 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 12,
+    paddingTop: 40,
+    paddingBottom: 40,
+    alignItems: 'center',
   },
   scrollContent: {
     paddingBottom: 24,
@@ -257,6 +189,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingBottom: 8,
     gap: 8,
+  },
+  foodGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 18,
+    paddingTop: 20,
+    paddingBottom: 24,
+    gap: 16,
   },
   grid: {
     flexDirection: 'row',

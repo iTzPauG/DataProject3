@@ -393,7 +393,11 @@ export default function DetailsScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           {restaurant.photoUrl ? (
-            <Image source={{ uri: restaurant.photoUrl }} style={styles.photo} resizeMode="cover" />
+            <Image
+              source={{ uri: restaurant.photoUrl }}
+              style={styles.photo}
+              resizeMode="cover"
+            />
           ) : (
             <View style={styles.photoPlaceholder}>
               <WhimIcon name="restaurant" category="food" size={44} color={colors.brand} />

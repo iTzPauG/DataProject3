@@ -104,11 +104,8 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="profile"
-        options={{
-          tabBarIcon: ({ focused }) => renderTab('profile', focused),
-        }}
+        options={{ href: null }}
       />
-      <Tabs.Screen name="report" options={{ href: null }} />
     </Tabs>
   );
 }

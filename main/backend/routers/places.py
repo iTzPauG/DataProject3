@@ -33,6 +33,7 @@ async def nearby_items(
                 search_generic_category_places(
                     parent_category=categories or "food",
                     subcategory=subcategory,
+                    mood=None,
                     lat=lat,
                     lng=lng,
                     price_level=None,
