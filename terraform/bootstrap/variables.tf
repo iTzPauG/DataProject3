@@ -1,5 +1,5 @@
 variable "project_id" {
-  default = "pruebas-edem-dataproject3"
+  default = "project1grupo7"
 }
 
 variable "region" {

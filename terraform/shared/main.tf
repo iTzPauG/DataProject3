@@ -1,6 +1,6 @@
 terraform {
   backend "gcs" {
-    bucket = "pruebas-edem-dataproject3-tfstate"
+    bucket = "project1grupo7-tfstate"
     prefix = "terraform/state/shared"
   }
 
@@ -25,19 +25,19 @@ terraform {
 }
 
 provider "google" {
-  project = "pruebas-edem-dataproject3"
+  project = "project1grupo7"
   region  = "europe-west1"
 }
 
 provider "google-beta" {
-  project = "pruebas-edem-dataproject3"
+  project = "project1grupo7"
   region  = "europe-west1"
 }
 
 # ── Artifact Registry ─────────────────────────────────────────────────────────
 module "registry" {
   source     = "../modules/registry"
-  project_id = "pruebas-edem-dataproject3"
+  project_id = "project1grupo7"
   region     = "europe-west1"
 }
 
@@ -45,27 +45,27 @@ module "registry" {
 # ── BigQuery (analytics global) ───────────────────────────────────────────────
 module "databases" {
   source     = "../modules/databases"
-  project_id = "pruebas-edem-dataproject3"
+  project_id = "project1grupo7"
   region     = "europe-west1"
 }
 
 # ── GitHub Actions CI/CD permissions ─────────────────────────────────────────
 resource "google_project_iam_member" "github_actions_registry" {
-  project = "pruebas-edem-dataproject3"
+  project = "project1grupo7"
   role    = "roles/artifactregistry.writer"
-  member  = "serviceAccount:github-actions@pruebas-edem-dataproject3.iam.gserviceaccount.com"
+  member  = "serviceAccount:github-actions@project1grupo7.iam.gserviceaccount.com"
 }
 
 resource "google_project_iam_member" "github_actions_run_admin" {
-  project = "pruebas-edem-dataproject3"
+  project = "project1grupo7"
   role    = "roles/run.admin"
-  member  = "serviceAccount:github-actions@pruebas-edem-dataproject3.iam.gserviceaccount.com"
+  member  = "serviceAccount:github-actions@project1grupo7.iam.gserviceaccount.com"
 }
 
 resource "google_project_iam_member" "github_actions_sa_user" {
-  project = "pruebas-edem-dataproject3"
+  project = "project1grupo7"
   role    = "roles/iam.serviceAccountUser"
-  member  = "serviceAccount:github-actions@pruebas-edem-dataproject3.iam.gserviceaccount.com"
+  member  = "serviceAccount:github-actions@project1grupo7.iam.gserviceaccount.com"
 }
 
 # ── Outputs para que los workspaces puedan leerlos ───────────────────────────
