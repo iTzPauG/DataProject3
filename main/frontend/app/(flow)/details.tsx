@@ -452,6 +452,8 @@ export default function DetailsScreen() {
 
           <VoteButtons itemId={restaurant.id} itemType="place" initial={voteData} />
 
+          <LiveCommentsSection placeId={restaurant.id} placeName={restaurant.name} lat={restaurant.lat} lng={restaurant.lng} />
+
           <View style={styles.actions}>
             <Pressable
               style={[styles.actionButton, styles.actionPrimary]}

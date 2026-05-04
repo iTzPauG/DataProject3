@@ -72,26 +72,21 @@ function BouncingEmoji({ emoji, delayMs }: { emoji: string; delayMs: number }) {
   return <Animated.Text style={[stylesStatic.emoji, style]}>{emoji}</Animated.Text>;
 }
 
-// Smooth Material-style indeterminate progress bar — slides left→right, never goes backwards
-function IndeterminateBar({ color }: { color: string }) {
+// Smooth, predictable progress bar that fills up over a set time
+function ProgressBar({ color }: { color: string }) {
   const { width: screenWidth } = useWindowDimensions();
-  const BAR_W = screenWidth * 0.4; // 40% of screen width
-  const slideX = useSharedValue(-BAR_W);
+  const progress = useSharedValue(0);
 
   useEffect(() => {
-    slideX.value = -BAR_W;
-    slideX.value = withRepeat(
-      withTiming(screenWidth + BAR_W, {
-        duration: 1800,
-        easing: Easing.inOut(Easing.ease),
-      }),
-      -1,
-      false,
-    );
-  }, [BAR_W, screenWidth, slideX]);
+    progress.value = 0;
+    progress.value = withTiming(screenWidth, {
+      duration: 4000,
+      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+    });
+  }, [screenWidth, progress]);
 
   const barStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: slideX.value }],
+    width: progress.value,
   }));
 
   return (
@@ -99,7 +94,7 @@ function IndeterminateBar({ color }: { color: string }) {
       <Animated.View
         style={[
           stylesStatic.progressThumb,
-          { width: BAR_W, backgroundColor: color },
+          { backgroundColor: color },
           barStyle,
         ]}
       />
@@ -210,7 +205,7 @@ export const WhimLoadingScreen = ({
 
   return (
     <View style={styles.container}>
-      <IndeterminateBar color={colors.brand} />
+      <ProgressBar color={colors.brand} />
 
       <Animated.View style={[styles.heroCard, glowStyle]}>
         <View style={stylesStatic.emojiRow}>

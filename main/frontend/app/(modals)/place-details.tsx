@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LiveDataAddon from '../../components/LiveDataAddon';
+import LiveCommentsSection from '../../components/LiveCommentsSection';
 import ReviewList from '../../components/ReviewList';
 import VoteButtons from '../../components/VoteButtons';
 import { useAppState } from '../../hooks/useAppState';
@@ -434,6 +435,10 @@ const styles = StyleSheet.create({
   takeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   takeText: { flex: 1, fontSize: 14, lineHeight: 20, color: '#D6D9E6' },
   takeLoading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  takeLoadingText: { fontSize: 14, color: '#A8AEC7' },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 100 },
+});
+nItems: 'center', gap: 10 },
   takeLoadingText: { fontSize: 14, color: '#A8AEC7' },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 100 },
 });
