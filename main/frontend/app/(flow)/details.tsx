@@ -449,6 +449,8 @@ export default function DetailsScreen() {
             ))}
           </View>
 
+          <ReviewList reviews={restaurant.reviews} />
+
           {liveData && <LiveDataAddon data={liveData} />}
 
           <VoteButtons itemId={restaurant.id} itemType="place" initial={voteData} />

@@ -83,13 +83,13 @@ export default function TabsLayout() {
   };
 
   return (
-    <Tabs
+      <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.ink,
         tabBarInactiveTintColor: colors.inkFaint,
         tabBarStyle: styles.tabBar,
-        tabBarItemStyle: { maxWidth: 120, marginHorizontal: 'auto' }, // This centers the tabs when there's extra space
+        tabBarItemStyle: { maxWidth: 120, marginHorizontal: 30 }, // Spaced out
         tabBarHideOnKeyboard: true,
         tabBarShowLabel: false,
       }}

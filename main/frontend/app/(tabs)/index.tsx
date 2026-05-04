@@ -494,27 +494,22 @@ export default function MapTab() {
               <BlurView intensity={60} tint="dark" style={styles.panelBlur}>
                 <View style={styles.eyebrowRow}>
                   <Text style={styles.eyebrow}>{t("home.locationNow")}</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-                    <TouchableOpacity onPress={() => router.push('/(modals)/saved-items')} activeOpacity={0.7} accessibilityLabel="Favoritos" accessibilityRole="button" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Icon name="bookmark" size={13} color="#FFFFFF" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={handleCenterOnUser}
-                      activeOpacity={0.7}
-                      accessibilityLabel={t("home.recenter")}
-                      accessibilityRole="button"
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-                    >
-                      <Icon
-                        name="crosshair"
-                        size={13}
-                        color="#FFFFFF"
-                        strokeWidth={1.2}
-                      />
-                      <Text style={styles.eyebrowAction}>{t("home.recenter")}</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity
+                    onPress={handleCenterOnUser}
+                    activeOpacity={0.7}
+                    accessibilityLabel={t("home.recenter")}
+                    accessibilityRole="button"
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                  >
+                    <Icon
+                      name="crosshair"
+                      size={13}
+                      color="#FFFFFF"
+                      strokeWidth={1.2}
+                    />
+                    <Text style={styles.eyebrowAction}>{t("home.recenter")}</Text>
+                  </TouchableOpacity>
                 </View>
 
                 <View style={styles.searchRow}>
@@ -575,6 +570,13 @@ export default function MapTab() {
                   <Text style={[styles.foodSubcatChipText, selectedFoodSubcat === null && styles.foodSubcatChipTextActive]}>
                     Todo 🍴
                   </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.foodSubcatChip, { borderColor: '#FFD700', backgroundColor: 'rgba(255,215,0,0.1)' }]}
+                  onPress={() => router.push('/(modals)/saved-items')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#FFD700' }}>⭐ Favoritos</Text>
                 </TouchableOpacity>
                 {FOOD_SUBCATEGORIES.map((sub) => {
                   const active = selectedFoodSubcat === sub.id;

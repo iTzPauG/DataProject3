@@ -131,16 +131,28 @@ export default function PlaceDetailsModal() {
     async function loadData() {
       setLoadingExtra(true);
       try {
-        const [extra, baseData] = await Promise.all([
-          fetchPlaceExtra(id, item?.metadata),
-          !nearbyItems.find(i => i.item_id === id) ? getPlaceData(id) : Promise.resolve(null)
-        ]);
+        let currentItem = nearbyItems.find(i => i.item_id === id);
+        if (!currentItem) {
+          const baseData = await getPlaceData(id);
+          if (baseData) {
+            setParsedPlaceData(baseData);
+            currentItem = baseData;
+          }
+        }
+        
+        // Now fetch enrichment with full metadata context
+        const extraPayload = currentItem ? {
+          lat: currentItem.lat,
+          lng: currentItem.lng,
+          name: currentItem.title,
+          ...currentItem.metadata
+        } : {};
+        const extra = await fetchPlaceExtra(id, extraPayload);
         if (extra) {
           setPlaceTake(extra.take);
           setLiveData(extra.live);
           setVoteData(extra.vote);
         }
-        if (baseData) setParsedPlaceData(baseData);
       } catch (err) {
         console.error('Error fetching details:', err);
       } finally {
@@ -148,7 +160,7 @@ export default function PlaceDetailsModal() {
       }
     }
     loadData();
-  }, [id]);
+  }, [id, nearbyItems]);
 
   useEffect(() => {
     setIsBookmarked((bookmarkedIds ?? []).includes(id));
