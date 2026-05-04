@@ -26,7 +26,7 @@ export interface MapPreferences {
   defaultRadiusM: number;
   showRealTimeEvents: boolean;
   theme: 'system' | 'light' | 'dark';
-  language: 'system' | 'es' | 'en' | 'fr';
+  language: 'system' | 'es' | 'en' | 'fr' | 'pt' | 'de';
   searchMode: 'radius' | 'city';
 }
 

@@ -86,6 +86,8 @@ export default function SettingsModal() {
     { value: 'es', label: t('settings.language.es') },
     { value: 'en', label: t('settings.language.en') },
     { value: 'fr', label: t('settings.language.fr') },
+    { value: 'pt', label: t('settings.language.pt', { defaultValue: 'Português' }) },
+    { value: 'de', label: t('settings.language.de', { defaultValue: 'Deutsch' }) },
   ], [t]);
 
   const dynamicStyles = useMemo(() => StyleSheet.create({

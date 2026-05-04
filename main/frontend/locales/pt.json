@@ -58,7 +58,7 @@
     "errorRegister": "Error signing up"
   },
   "tabs": {
-    "explore": "Explore",
+    "explore": "Descobrir",
     "wellness": "Wellness",
     "pets": "Pets",
     "automotive": "Automotive",
@@ -66,7 +66,7 @@
     "profile": "Profile",
     "hola": "Hola",
     "saved": "Saved",
-    "index": "Map"
+    "index": "Mapa"
   },
   "home": {
     "locationNow": "València · Now",
@@ -270,12 +270,12 @@
     "language": {
       "title": "Language",
       "subtitle": "Customize the app and reviews language.",
-      "system": "System",
-      "es": "Español",
-      "en": "English",
-      "fr": "Français",
-      "pt": "Portuguese",
-      "de": "German"
+      "system": "Sistema",
+      "es": "Espanhol",
+      "en": "Inglês",
+      "fr": "Francês",
+      "pt": "Português",
+      "de": "Alemão"
     },
     "mapLayer": {
       "title": "Map Layer",

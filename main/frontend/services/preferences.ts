@@ -1,7 +1,7 @@
 import { BASE_URL } from './api';
 
 type LocalMapStyle = 'standard' | 'satellite' | 'hybrid' | 'terrain' | 'minimal';
-type LocalLanguage = 'system' | 'es' | 'en' | 'fr';
+type LocalLanguage = 'system' | 'es' | 'en' | 'fr' | 'pt' | 'de';
 type LocalTheme = 'system' | 'light' | 'dark';
 
 export interface LocalPreferencesSnapshot {
@@ -67,6 +67,8 @@ function normalizeLanguage(language: string | undefined, fallback: LocalLanguage
     case 'es':
     case 'en':
     case 'fr':
+    case 'pt':
+    case 'de':
       return language;
     default:
       return fallback;

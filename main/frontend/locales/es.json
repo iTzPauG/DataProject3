@@ -65,7 +65,8 @@
     "profile": "Perfil",
     "hola": "Hola",
     "saved": "Guardados",
-    "index": "Mapa"
+    "index": "Mapa",
+    "explore": "Explorar"
   },
   "home": {
     "locationNow": "València · Ahora",
@@ -271,7 +272,9 @@
       "system": "Sistema",
       "es": "Español",
       "en": "Inglés",
-      "fr": "Francés"
+      "fr": "Francés",
+      "pt": "Portugués",
+      "de": "Alemán"
     },
     "mapLayer": {
       "title": "Capa de Mapa",
