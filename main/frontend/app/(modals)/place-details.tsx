@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import LiveCommentsSection from '../../components/LiveCommentsSection';
 import LiveDataAddon from '../../components/LiveDataAddon';
 import LiveCommentsSection from '../../components/LiveCommentsSection';
 import ReviewList from '../../components/ReviewList';
@@ -341,6 +342,15 @@ export default function PlaceDetailsModal() {
             )}
 
             <ReviewList reviews={(placeTake?.reviews as any[] | undefined) || item.metadata?.google_reviews as any[] || []} />
+
+            {item.item_type === 'place' && (
+              <LiveCommentsSection
+                placeId={id}
+                placeName={item.title}
+                lat={item.lat}
+                lng={item.lng}
+              />
+            )}
 
             {liveData && <LiveDataAddon data={liveData} />}
 

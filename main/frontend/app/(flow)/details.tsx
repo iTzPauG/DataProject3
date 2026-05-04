@@ -10,6 +10,7 @@ import {
   Text,
   View,
 } from "react-native";
+import LiveCommentsSection from "../../components/LiveCommentsSection";
 import LiveDataAddon from "../../components/LiveDataAddon";
 import LiveCommentsSection from "../../components/LiveCommentsSection";
 import PrimaryButton from "../../components/PrimaryButton";
@@ -450,6 +451,13 @@ export default function DetailsScreen() {
           </View>
 
           {liveData && <LiveDataAddon data={liveData} />}
+
+          <LiveCommentsSection
+            placeId={restaurant.id}
+            placeName={restaurant.name}
+            lat={restaurant.lat}
+            lng={restaurant.lng}
+          />
 
           <VoteButtons itemId={restaurant.id} itemType="place" initial={voteData} />
 

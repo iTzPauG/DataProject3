@@ -518,7 +518,7 @@ export default function Map({
           const distance = r.distanceM > 0 ? formatDistance(r.distanceM) : '';
           const votes = votesMap?.[r.id];
           const voteLabel = votes
-            ? `+${votes.likes}  âˆ’${votes.dislikes}`
+            ? `+${votes.likes}  −${votes.dislikes}`
             : '';
           return (
             <Marker
@@ -532,8 +532,8 @@ export default function Map({
                   {r.name}
                 </strong>
                 <br />
-                <span style={{ color: '#FFCC00' }}>â˜…</span> {r.rating.toFixed(1)}
-                {distance ? ` Â· ${distance}` : ''}
+                <span style={{ color: '#FFCC00' }}>★</span> {r.rating.toFixed(1)}
+                {distance ? ` · ${distance}` : ''}
                 {voteLabel ? (
                   <>
                     <br />
@@ -555,7 +555,7 @@ export default function Map({
           </TouchableOpacity>
           <View style={styles.zoomDivider} />
           <TouchableOpacity style={styles.zoomBtn} onPress={() => leafletMapRef.current?.zoomOut()} activeOpacity={0.75}>
-            <Text style={styles.zoomBtnText}>âˆ’</Text>
+            <Text style={styles.zoomBtnText}>−</Text>
           </TouchableOpacity>
         </View>
       )}
