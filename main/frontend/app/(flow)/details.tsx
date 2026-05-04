@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import LiveDataAddon from "../../components/LiveDataAddon";
+import LiveCommentsSection from "../../components/LiveCommentsSection";
 import PrimaryButton from "../../components/PrimaryButton";
 import VoteButtons from "../../components/VoteButtons";
 import WhimIcon from "../../components/WhimIcon";

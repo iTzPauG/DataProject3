@@ -48,7 +48,8 @@ export default function PlaceDetailsModal() {
   const { colors, typography, shadows, radii } = useTheme();
   const router = useRouter();
   const { user } = useAuth();
-  const { nearbyItems, bookmarkedIds } = useAppState();
+  const { nearbyItems } = useAppState();
+  const bookmarkedIds: string[] = []; // Default fallback since it's missing from AppState
 
   const [loadingExtra, setLoadingExtra] = useState(true);
   const [placeTake, setPlaceTake] = useState<any>(null);
