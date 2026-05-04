@@ -30,6 +30,7 @@ export default function VoteButtons({
   const displayTitle = title || t('vote.worthIt');
   const { colors, radii, typography } = useTheme();
   const [likes, setLikes] = useState(0);
+  const [dislikes, setDislikes] = useState(0);
   const [userVote, setUserVote] = useState(0);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState("");
@@ -40,6 +41,7 @@ export default function VoteButtons({
   useEffect(() => {
     if (initial) {
       setLikes(Number(initial.likes) || 0);
+      setDislikes(Number(initial.dislikes) || 0);
       setUserVote(Number(initial.userVote) || 0);
     }
   }, [initial]);
@@ -147,7 +149,7 @@ export default function VoteButtons({
             disabled={loading}
           >
             <WhimIcon name="like" category="feedback" size={18} color={userVote === 1 ? colors.success : colors.inkMuted} />
-            <Text style={[styles.buttonLabel, userVote === 1 && styles.likeLabelActive]}>{t('common.likedIt')}</Text>
+            <Text style={[styles.buttonLabel, userVote === 1 && styles.likeLabelActive]}>{likes > 0 ? likes : ''} {t('common.likedIt')}</Text>
           </Pressable>
         </Animated.View>
 
@@ -162,7 +164,7 @@ export default function VoteButtons({
             disabled={loading}
           >
             <WhimIcon name="dislike" category="feedback" size={18} color={userVote === -1 ? colors.danger : colors.inkMuted} />
-            <Text style={[styles.buttonLabel, userVote === -1 && styles.dislikeLabelActive]}>{t('common.nope')}</Text>
+            <Text style={[styles.buttonLabel, userVote === -1 && styles.dislikeLabelActive]}>{dislikes > 0 ? dislikes : ''} {t('common.nope')}</Text>
           </Pressable>
         </Animated.View>
       </View>

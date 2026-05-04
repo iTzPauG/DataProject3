@@ -27,6 +27,7 @@ export interface MapPreferences {
   showRealTimeEvents: boolean;
   theme: 'system' | 'light' | 'dark';
   language: 'system' | 'es' | 'en' | 'fr';
+  searchMode: 'radius' | 'city';
 }
 
 interface AppState {
@@ -78,6 +79,7 @@ const DEFAULT_STATE: AppState = {
     showRealTimeEvents: true,
     theme: 'system',
     language: 'system',
+    searchMode: 'radius',
   },
 };
 

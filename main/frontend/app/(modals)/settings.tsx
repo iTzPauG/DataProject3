@@ -290,6 +290,7 @@ export default function SettingsModal() {
     defaultRadiusM: mapPreferences.defaultRadiusM,
     theme: mapPreferences.theme,
     language: mapPreferences.language,
+    searchMode: mapPreferences.searchMode,
   }), [mapPreferences]);
 
   useEffect(() => {
@@ -410,35 +411,47 @@ export default function SettingsModal() {
         <View style={dynamicStyles.section}>
           <Text style={dynamicStyles.sectionTitle}>{t('settings.defaultRadius.title')}</Text>
           <Text style={dynamicStyles.sectionSubtitle}>{t('settings.defaultRadius.subtitle')}</Text>
-          
+
           <View style={[staticStyles.toggleRow, { marginBottom: 20 }]}>
             <View style={staticStyles.toggleCopy}>
-              <Text style={dynamicStyles.toggleTitle}>{t('settings.defaultRadius.realTime')}</Text>
-              <Text style={dynamicStyles.toggleText}>{t('settings.defaultRadius.realTimeDesc')}</Text>
+              <Text style={dynamicStyles.toggleTitle}>{t('settings.defaultRadius.realTime', { defaultValue: 'Search by Map Center (Radius)' })}</Text>
+              <Text style={dynamicStyles.toggleText}>{t('settings.defaultRadius.realTimeDesc', { defaultValue: 'Search using the current map center and distance' })}</Text>
             </View>
             <Switch
-              value={mapPreferences.showRealTimeEvents}
-              onValueChange={(val) => setMapPreferences({ showRealTimeEvents: val })}
+              value={mapPreferences.searchMode !== 'city'}
+              onValueChange={(val) => setMapPreferences({ searchMode: val ? 'radius' : 'city' })}
               trackColor={{ true: colors.brand, false: colors.stroke }}
             />
           </View>
 
-          <Text style={[dynamicStyles.toggleTitle, { marginBottom: 12 }]}>{t('settings.defaultRadius.autoSearch')}</Text>
-          <View style={staticStyles.radiusRow}>
+          <View style={[staticStyles.toggleRow, { marginBottom: 20, opacity: mapPreferences.searchMode === 'city' ? 1 : 0.5 }]}>
+            <View style={staticStyles.toggleCopy}>
+              <Text style={dynamicStyles.toggleTitle}>{t('settings.defaultRadius.citySearch', { defaultValue: 'Search by City Boundary' })}</Text>
+              <Text style={dynamicStyles.toggleText}>{t('settings.defaultRadius.citySearchDesc', { defaultValue: 'Find results across the entire current city (disables radius)' })}</Text>
+            </View>
+            <Switch
+              value={mapPreferences.searchMode === 'city'}
+              onValueChange={(val) => setMapPreferences({ searchMode: val ? 'city' : 'radius' })}
+              trackColor={{ true: colors.brand, false: colors.stroke }}
+            />
+          </View>
+
+          <Text style={[dynamicStyles.toggleTitle, { marginBottom: 12, opacity: mapPreferences.searchMode === 'city' ? 0.5 : 1 }]}>{t('settings.defaultRadius.autoSearch')}</Text>
+          <View style={[staticStyles.radiusRow, { opacity: mapPreferences.searchMode === 'city' ? 0.5 : 1 }]}>
             {RADIUS_OPTIONS.map((val) => (
               <TouchableOpacity
                 key={val}
-                onPress={() => setMapPreferences({ defaultRadiusM: val })}
-                style={[dynamicStyles.radiusChip, mapPreferences.defaultRadiusM === val && { backgroundColor: colors.brand }]}
+                onPress={() => mapPreferences.searchMode !== 'city' && setMapPreferences({ defaultRadiusM: val })}
+                disabled={mapPreferences.searchMode === 'city'}
+                style={[dynamicStyles.radiusChip, mapPreferences.defaultRadiusM === val && mapPreferences.searchMode !== 'city' && { backgroundColor: colors.brand }]}
               >
-                <Text style={[dynamicStyles.radiusChipText, mapPreferences.defaultRadiusM === val && { color: '#FFF' }]}>
+                <Text style={[dynamicStyles.radiusChipText, mapPreferences.defaultRadiusM === val && mapPreferences.searchMode !== 'city' && { color: '#FFF' }]}>
                   {formatRadius(val)}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
-
         <TouchableOpacity 
           style={dynamicStyles.doneButton} 
           onPress={() => router.back()}

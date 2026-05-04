@@ -33,9 +33,12 @@ export default function TabsLayout() {
           bottom: 0,
           left: 0,
           right: 0,
+          justifyContent: 'center',
+          alignItems: 'center',
         },
         item: {
           flex: 1,
+          maxWidth: 120, // keep them contained to center them better
           alignItems: 'center',
           justifyContent: 'flex-start',
           gap: 6,
@@ -86,6 +89,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.ink,
         tabBarInactiveTintColor: colors.inkFaint,
         tabBarStyle: styles.tabBar,
+        tabBarItemStyle: { maxWidth: 120, marginHorizontal: 'auto' }, // This centers the tabs when there's extra space
         tabBarHideOnKeyboard: true,
         tabBarShowLabel: false,
       }}

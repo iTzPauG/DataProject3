@@ -11,6 +11,7 @@ export interface LocalPreferencesSnapshot {
   language: LocalLanguage;
   theme: LocalTheme;
   showRealTimeEvents: boolean;
+  searchMode: 'radius' | 'city';
 }
 
 export interface RemotePreferences {
@@ -115,6 +116,7 @@ export function toLocalPreferences(
     language: normalizeLanguage(remote.language, fallback.language),
     theme: normalizeTheme(remote.theme, fallback.theme),
     showRealTimeEvents: remote.show_real_time_events ?? fallback.showRealTimeEvents,
+    searchMode: (remote as any).search_mode ?? fallback.searchMode ?? 'radius',
   };
 }
 
@@ -130,5 +132,6 @@ export function toRemotePreferences(
     default_radius_m: local.defaultRadiusM,
     theme: local.theme,
     language: local.language,
-  };
+    search_mode: local.searchMode,
+  } as RemotePreferences;
 }

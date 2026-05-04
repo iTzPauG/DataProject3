@@ -302,8 +302,8 @@ async def create_place_comment(req: PlaceCommentCreate, request: Request):
             await db.execute(
                 """INSERT INTO community_reports
                        (id, created_by, anon_fingerprint, report_type, title, description,
-                        lat, lng, address_hint, created_at, expires_at, is_active)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,1)""",
+                        lat, lng, address_hint, created_at, expires_at, is_active, confirmations, denials, confidence)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,1,0,0,0.5)""",
                 (
                     report_id,
                     user_id,
@@ -324,7 +324,7 @@ async def create_place_comment(req: PlaceCommentCreate, request: Request):
             return {"comment": dict(row) if row else {"id": report_id}}
         except Exception as exc:
             logger.error("Error creating place comment: %s", exc)
-            raise HTTPException(status_code=500, detail="Could not create comment")
+            raise HTTPException(status_code=500, detail=f"Could not create comment: {str(exc)}")
 
 @router.get("/comments/summary")
 async def summarise_place_comments(
