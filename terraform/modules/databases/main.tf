@@ -1,35 +1,30 @@
 # ── Firestore ────────────────────────────────────────────────────────────────
 
 resource "google_firestore_database" "default" {
-  project     = var.project_id
-  name        = "(default)"
-  location_id = var.region
-  type        = "FIRESTORE_NATIVE"
-
+  project                 = var.project_id
+  name                    = "(default)"
+  location_id             = var.region
+  type                    = "FIRESTORE_NATIVE"
   delete_protection_state = "DELETE_PROTECTION_ENABLED"
 }
 
-# TTL policy: auto-expire active_reports after expires_at field
 resource "google_firestore_field" "reports_ttl" {
   project    = var.project_id
   database   = google_firestore_database.default.name
   collection = "active_reports"
   field      = "expires_at"
-
   ttl_config {}
 }
 
-# TTL policy: auto-expire brain_jobs after 1h
 resource "google_firestore_field" "brain_jobs_ttl" {
   project    = var.project_id
   database   = google_firestore_database.default.name
   collection = "brain_jobs"
   field      = "expires_at"
-
   ttl_config {}
 }
 
-# ── Firebase Auth ─────────────────────────────────────────────────────────────
+# ── Firebase ──────────────────────────────────────────────────────────────────
 
 resource "google_firebase_project" "default" {
   provider = google-beta
@@ -43,21 +38,19 @@ resource "google_firebase_web_app" "gado" {
   depends_on   = [google_firebase_project.default]
 }
 
-# ── BigQuery ─────────────────────────────────────────────────────────────────
+# ── BigQuery datasets (compartidos, las tablas van por workspace) ─────────────
 
 resource "google_bigquery_dataset" "analytics" {
-  project    = var.project_id
-  dataset_id = "gado_analytics"
-  location   = var.region
-
+  project                    = var.project_id
+  dataset_id                 = "gado_analytics"
+  location                   = var.region
   delete_contents_on_destroy = false
 }
 
 resource "google_bigquery_dataset" "snapshots" {
-  project    = var.project_id
-  dataset_id = "gado_snapshots"
-  location   = var.region
-
+  project                    = var.project_id
+  dataset_id                 = "gado_snapshots"
+  location                   = var.region
   delete_contents_on_destroy = false
 }
 

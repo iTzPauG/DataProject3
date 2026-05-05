@@ -1,5 +1,5 @@
 resource "google_cloud_run_v2_service" "frontend" {
-  name     = "gado-frontend-${var.workspace}"
+  name     = "gado-frontend-${terraform.workspace}"
   location = var.region
 
   template {
