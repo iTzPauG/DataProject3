@@ -9,7 +9,7 @@ import {
   updateProfile,
   User,
 } from 'firebase/auth';
-import { auth } from '../services/supabase';
+import { auth } from '../services/firebase';
 import { BASE_URL } from '../services/api';
 
 export interface UserProfile {
@@ -19,6 +19,10 @@ export interface UserProfile {
   avatar_url: string | null;
   reputation_score: number;
   reports_count: number;
+  role: 'user' | 'business' | 'admin';
+  restaurant_place_id: string | null;
+  restaurant_name: string | null;
+  restaurant_cuisine: string | null;
 }
 
 interface AuthState {

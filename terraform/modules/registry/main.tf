@@ -16,6 +16,7 @@ resource "null_resource" "docker_build_push" {
       filesha256("${path.module}/../../../main/backend/Dockerfile"),
       filesha256("${path.module}/../../../main/backend/requirements.txt"),
     ]))
+    code_hash = sha256(join("\n", [for f in sort(fileset("${path.module}/../../../main/backend", "**/*.py")) : filesha256("${path.module}/../../../main/backend/${f}")]))
   }
 
   provisioner "local-exec" {

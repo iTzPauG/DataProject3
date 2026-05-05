@@ -294,6 +294,17 @@ export default function ProfileTab() {
     }
   }
 
+  const menuItems: ProfileMenuItem[] = [
+    ...MENU_ITEMS,
+    ...(profile?.role === 'business' ? [{
+      id: 'deals',
+      label: 'Mis Ofertas',
+      icon: 'pricetag-outline' as keyof typeof Ionicons.glyphMap,
+      description: 'Gestiona tus ofertas flash',
+      route: '/(modals)/my-deals',
+    }] : []),
+  ];
+
   function handleSignOut() {
     if (typeof window !== 'undefined') {
       if (window.confirm('¿Estás seguro de que quieres cerrar sesión?')) {
@@ -377,12 +388,12 @@ export default function ProfileTab() {
 
           {/* Menu items */}
           <View style={styles.menuSection}>
-            {MENU_ITEMS.map((item, index) => (
+            {menuItems.map((item, index) => (
               <TouchableOpacity
                 key={item.id}
                 style={[
                   styles.menuItem,
-                  index === MENU_ITEMS.length - 1 && styles.menuItemLast,
+                  index === menuItems.length - 1 && styles.menuItemLast,
                 ]}
                 activeOpacity={0.6}
                 onPress={() => handleMenuPress(item)}

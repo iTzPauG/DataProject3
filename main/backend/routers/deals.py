@@ -1,17 +1,52 @@
-"""Deals / flash offers for restaurants."""
+"""Deals / flash offers — only business accounts can create/edit/delete."""
 import uuid
+from datetime import datetime, timezone
 from typing import Optional
-from datetime import datetime
-from fastapi import APIRouter, Request, HTTPException
 
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
-from database import get_db
-from auth import get_optional_user, _get_app
 
-# Importamos las utilidades de Firebase directamente
-from firebase_admin import firestore, messaging
+from auth import get_optional_user, _get_app
+from database import get_db
 
 router = APIRouter(prefix="/deals", tags=["deals"])
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+async def _require_business(request: Request, db) -> str:
+    """Return firebase_uid if the caller is a business account, else raise."""
+    uid = get_optional_user(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Autenticación requerida")
+    row = await db.fetchrow(
+        "SELECT role FROM profiles WHERE firebase_uid=$1", uid
+    )
+    if not row or row["role"] != "business":
+        raise HTTPException(status_code=403, detail="Solo cuentas de restaurante pueden gestionar ofertas")
+    return uid
+
+
+def _firestore_sync(deal_id: str, data: dict):
+    """Write/update deal in Firestore for real-time frontend."""
+    try:
+        _get_app()
+        from firebase_admin import firestore as fs
+        fs.client().collection("deals").document(deal_id).set(data, merge=True)
+    except Exception as e:
+        print(f"[deals] Firestore sync error: {e}")
+
+
+def _firestore_delete(deal_id: str):
+    try:
+        _get_app()
+        from firebase_admin import firestore as fs
+        fs.client().collection("deals").document(deal_id).delete()
+    except Exception as e:
+        print(f"[deals] Firestore delete error: {e}")
+
+
+# ── Schemas ───────────────────────────────────────────────────────────────────
 
 class DealBody(BaseModel):
     restaurant_id: str
@@ -19,106 +54,116 @@ class DealBody(BaseModel):
     cuisine: str
     available_at: datetime
     seats: int
-    description: str | None = None
+    description: Optional[str] = None
+
+
+class DealUpdate(BaseModel):
+    price: Optional[float] = None
+    cuisine: Optional[str] = None
+    available_at: Optional[datetime] = None
+    seats: Optional[int] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("")
-def list_deals(
+async def list_deals(
     cuisine: Optional[str] = None,
     price_max: Optional[float] = None,
-    lat: Optional[float] = None,
-    lng: Optional[float] = None,
-    radius: Optional[int] = 1500,
 ):
-    """List available deals with optional filters. Not yet implemented."""
-    pass
+    """List active deals with optional filters."""
+    async with get_db() as db:
+        conditions = ["is_active = true", "available_at > now()"]
+        params: list = []
+
+        if cuisine:
+            params.append(cuisine)
+            conditions.append(f"cuisine = ${len(params)}")
+        if price_max is not None:
+            params.append(price_max)
+            conditions.append(f"price <= ${len(params)}")
+
+        where = " AND ".join(conditions)
+        rows = await db.fetch(
+            f"SELECT * FROM deals WHERE {where} ORDER BY available_at ASC",
+            *params,
+        )
+        return {"deals": [dict(r) for r in rows]}
+
 
 @router.get("/{deal_id}")
-def get_deal(deal_id: str):
-    """Get a single deal by ID. Not yet implemented."""
-    pass
+async def get_deal(deal_id: str):
+    """Get a single deal by ID."""
+    async with get_db() as db:
+        row = await db.fetchrow("SELECT * FROM deals WHERE id=$1", deal_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Oferta no encontrada")
+    return dict(row)
+
 
 @router.post("")
 async def create_deal(body: DealBody, request: Request):
-    """Create a deal (requires auth)."""
-    # 1. Verificar autenticación (opcional o requerido según tu lógica)
-    user_id = get_optional_user(request)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Debes estar autenticado para crear una oferta.")
+    """Create a deal. Requires business account."""
+    async with get_db() as db:
+        uid = await _require_business(request, db)
+        deal_id = str(uuid.uuid4())
+        row = await db.fetchrow(
+            """INSERT INTO deals (id, restaurant_id, owner_uid, price, cuisine, available_at, seats, description)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *""",
+            deal_id, body.restaurant_id, uid, body.price, body.cuisine,
+            body.available_at, body.seats, body.description,
+        )
+        deal = dict(row)
 
-    deal_id = str(uuid.uuid4())
-    
-    # 2. Escribir en Cloud SQL (Fuente de la verdad)
-    async with get_db() as conn:
-        # Nota: Asumo que tienes una tabla 'deals' y que la tabla 'users' tiene un 'fcm_token'. 
-        # Adapta los nombres de las columnas si son diferentes en tu esquema.
-        insert_query = """
-            INSERT INTO deals (id, restaurant_id, price, cuisine, available_at, seats, description)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            RETURNING *;
-        """
-        try:
-            row = await conn.fetchrow(
-                insert_query, 
-                deal_id, body.restaurant_id, body.price, body.cuisine,
-                body.available_at, body.seats, body.description
-            )
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error al guardar en SQL: {str(e)}")
+    _firestore_sync(deal_id, {
+        **deal,
+        "available_at": body.available_at.isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"success": True, "deal": deal}
 
-        # 3. Escribir en Firestore (Para el frontend en tiempo real)
-        _get_app()  # Aseguramos que Firebase esté inicializado
-        db = firestore.client()
-        deal_data = {
-            "id": deal_id,
-            "restaurant_id": body.restaurant_id,
-            "price": body.price,
-            "cuisine": body.cuisine,
-            "available_at": body.available_at.isoformat(),
-            "seats": body.seats,
-            "description": body.description,
-            "created_at": firestore.SERVER_TIMESTAMP
-        }
-        db.collection("deals").document(deal_id).set(deal_data)
-
-        # 4. Enviar Notificaciones Push
-        # Buscamos los FCM tokens de los usuarios que han guardado este restaurante (item_id)
-        # Ajusta esta query según cómo tengas estructurada tu tabla de favoritos/usuarios
-        token_query = """
-            SELECT u.fcm_token 
-            FROM users u
-            JOIN bookmarks b ON u.id = b.user_id
-            WHERE b.item_id = $1 AND b.item_type = 'place' AND u.fcm_token IS NOT NULL
-        """
-        tokens_records = await conn.fetch(token_query, body.restaurant_id)
-        tokens = [rec['fcm_token'] for rec in tokens_records]
-
-        if tokens:
-            # Firebase Cloud Messaging permite enviar hasta 500 tokens por lote (Multicast)
-            message = messaging.MulticastMessage(
-                notification=messaging.Notification(
-                    title=f"¡Oferta de última hora! 🚨",
-                    body=f"Plazas limitadas por {body.price}€. ¡Corre antes de que vuelen!"
-                ),
-                data={
-                    "deal_id": deal_id, 
-                    "restaurant_id": body.restaurant_id,
-                    "type": "flash_deal"
-                },
-                tokens=tokens,
-            )
-            try:
-                messaging.send_each_for_multicast(message)
-            except Exception as e:
-                print(f"Error enviando notificaciones: {e}")
-
-    return {"success": True, "deal": dict(row)}
 
 @router.patch("/{deal_id}")
-def update_deal(deal_id: str, body: DealBody, request: Request):
-    """Update a deal (requires auth). Not yet implemented."""
-    pass
+async def update_deal(deal_id: str, body: DealUpdate, request: Request):
+    """Update a deal. Only the owner business account can update."""
+    data = body.model_dump(exclude_unset=True)
+    if not data:
+        raise HTTPException(status_code=400, detail="No hay campos para actualizar")
+
+    async with get_db() as db:
+        uid = await _require_business(request, db)
+        existing = await db.fetchrow("SELECT owner_uid FROM deals WHERE id=$1", deal_id)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Oferta no encontrada")
+        if existing["owner_uid"] != uid:
+            raise HTTPException(status_code=403, detail="No eres el propietario de esta oferta")
+
+        cols = list(data.keys())
+        vals = list(data.values())
+        set_clause = ", ".join(f"{c}=${i+2}" for i, c in enumerate(cols))
+        row = await db.fetchrow(
+            f"UPDATE deals SET {set_clause}, updated_at=now() WHERE id=$1 RETURNING *",
+            deal_id, *vals,
+        )
+        deal = dict(row)
+
+    _firestore_sync(deal_id, {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in deal.items()})
+    return {"success": True, "deal": deal}
+
 
 @router.delete("/{deal_id}")
-def delete_deal(deal_id: str, request: Request):
-    """Delete a deal (requires auth). Not yet implemented."""
-    pass
+async def delete_deal(deal_id: str, request: Request):
+    """Delete a deal. Only the owner business account can delete."""
+    async with get_db() as db:
+        uid = await _require_business(request, db)
+        existing = await db.fetchrow("SELECT owner_uid FROM deals WHERE id=$1", deal_id)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Oferta no encontrada")
+        if existing["owner_uid"] != uid:
+            raise HTTPException(status_code=403, detail="No eres el propietario de esta oferta")
+        await db.execute("DELETE FROM deals WHERE id=$1", deal_id)
+
+    _firestore_delete(deal_id)
+    return {"success": True}

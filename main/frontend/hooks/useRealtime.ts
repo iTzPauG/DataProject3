@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { supabase } from '../services/supabase';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { db } from '../services/firebase';
 
 type RealtimeCallback = (payload: {
   eventType: 'INSERT' | 'UPDATE' | 'DELETE';
@@ -9,65 +9,56 @@ type RealtimeCallback = (payload: {
 }) => void;
 
 interface UseRealtimeOptions {
+  /** Firestore collection name (e.g. 'deals', 'community_reports') */
   table: string;
   event?: 'INSERT' | 'UPDATE' | 'DELETE' | '*';
+  /** Optional Firestore where filter, e.g. "is_active==true" */
   filter?: string;
   enabled?: boolean;
 }
 
 /**
- * Subscribe to Supabase Realtime changes on a table.
+ * Subscribe to Firestore real-time changes on a collection.
  *
  * Usage:
  * ```ts
  * useRealtime(
- *   { table: 'community_reports', event: 'INSERT', enabled: true },
- *   (payload) => {
- *     // Add new report pin to map
- *     console.log('New report:', payload.new);
- *   }
+ *   { table: 'deals', enabled: true },
+ *   (payload) => console.log('New deal:', payload.new),
  * );
  * ```
  */
-export function useRealtime(
-  options: UseRealtimeOptions,
-  callback: RealtimeCallback,
-): void {
-  const { table, event = '*', filter, enabled = true } = options;
-  const channelRef = useRef<RealtimeChannel | null>(null);
+export function useRealtime(options: UseRealtimeOptions, callback: RealtimeCallback): void {
+  const { table, enabled = true } = options;
   const callbackRef = useRef(callback);
   callbackRef.current = callback;
 
   useEffect(() => {
     if (!enabled) return;
 
-    const channelName = `realtime:${table}:${event}:${filter ?? 'all'}`;
+    const colRef = collection(db, table);
+    const q = query(colRef, orderBy('created_at', 'desc'), limit(50));
 
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes' as any,
-        {
-          event,
-          schema: 'public',
-          table,
-          ...(filter ? { filter } : {}),
-        },
-        (payload: any) => {
-          callbackRef.current({
-            eventType: payload.eventType,
-            new: payload.new ?? {},
-            old: payload.old ?? {},
-          });
-        },
-      )
-      .subscribe();
+    // Track previous docs to detect INSERT vs UPDATE vs DELETE
+    const prevDocs = new Map<string, Record<string, unknown>>();
 
-    channelRef.current = channel;
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        const newData = { id: change.doc.id, ...change.doc.data() } as Record<string, unknown>;
+        const oldData = prevDocs.get(change.doc.id) ?? {};
 
-    return () => {
-      supabase.removeChannel(channel);
-      channelRef.current = null;
-    };
-  }, [table, event, filter, enabled]);
+        let eventType: 'INSERT' | 'UPDATE' | 'DELETE';
+        if (change.type === 'added') eventType = 'INSERT';
+        else if (change.type === 'modified') eventType = 'UPDATE';
+        else eventType = 'DELETE';
+
+        callbackRef.current({ eventType, new: newData, old: oldData });
+
+        if (change.type === 'removed') prevDocs.delete(change.doc.id);
+        else prevDocs.set(change.doc.id, newData);
+      });
+    });
+
+    return unsubscribe;
+  }, [table, enabled]);
 }

@@ -1,5 +1,5 @@
 import { Restaurant } from '../types/restaurant';
-import { auth } from './supabase';
+import { auth } from './firebase';
 import { storage } from '../utils/storage';
 import { Category, CommunityReport, MapItem, ReportType, SavedItem } from '../types';
 import { FALLBACK_CATEGORIES } from './mapService';

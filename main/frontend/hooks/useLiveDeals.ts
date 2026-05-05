@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, orderBy, onSnapshot, limit } from 'firebase/firestore';
 // Importa `db` desde donde tengas inicializado tu Firebase en el frontend.
 // Según tu api.ts, parece que lo tienes junto a él. Ajusta la ruta si es necesario:
-import { db } from '../api/supabase'; 
+import { db } from '../services/firebase';
 
 export interface LiveDeal {
   id: string;

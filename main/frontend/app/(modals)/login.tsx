@@ -24,6 +24,7 @@ export default function LoginModal() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const styles = useMemo(() => StyleSheet.create({
     container: {
@@ -160,16 +161,19 @@ export default function LoginModal() {
 
   async function handleLogin() {
     if (!email || !password) {
-      Alert.alert('Error', 'Por favor rellena todos los campos');
+      setErrorMsg('Por favor rellena todos los campos');
       return;
     }
-
+    setErrorMsg(null);
     setLoading(true);
     try {
       await signInWithEmail(email, password);
       router.replace('/(tabs)');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Error al iniciar sesión');
+      const msg = error?.code === 'auth/invalid-credential' || error?.code === 'auth/user-not-found'
+        ? 'Email o contraseña incorrectos'
+        : error.message || 'Error al iniciar sesión';
+      setErrorMsg(msg);
     } finally {
       setLoading(false);
     }
@@ -236,6 +240,12 @@ export default function LoginModal() {
                 <Text style={styles.primaryButtonText}>Iniciar sesión</Text>
               )}
             </TouchableOpacity>
+
+            {errorMsg && (
+              <Text style={{ color: '#EF4444', textAlign: 'center', fontFamily: typography.body, marginTop: -8 }}>
+                {errorMsg}
+              </Text>
+            )}
 
             <View style={styles.divider}>
               <View style={styles.line} />

@@ -17,6 +17,7 @@ resource "null_resource" "docker_build_push" {
       filesha256("${path.module}/../../../main/frontend/Dockerfile"),
       filesha256("${path.module}/../../../main/frontend/package.json"),
     ]))
+    code_hash   = sha256(join("\n", [for f in sort(fileset("${path.module}/../../../main/frontend", "**/*.{ts,tsx}")) : filesha256("${path.module}/../../../main/frontend/${f}")]))
     backend_url = var.backend_url
   }
 
