@@ -23,6 +23,13 @@ class ReviewItem(BaseModel):
     rating: int = 0
     text: str = ""
     relative_time: str = ""
+    source: Optional[Literal["google", "yelp", "tripadvisor"]] = None
+
+
+class ReviewSourceCounts(BaseModel):
+    google: int = 0
+    yelp: int = 0
+    tripadvisor: int = 0
 
 
 class PlaceResult(BaseModel):
@@ -47,6 +54,7 @@ class PlaceResult(BaseModel):
     verdict: str = ""
     tags: List[str] = Field(default_factory=list)
     reviews: List[ReviewItem] = Field(default_factory=list)
+    reviewSources: ReviewSourceCounts = Field(default_factory=ReviewSourceCounts)
     liveData: Optional[Dict[str, Any]] = None
 
 

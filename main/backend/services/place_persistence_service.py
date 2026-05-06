@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from typing import Iterable
 
 from database import get_db
@@ -36,7 +37,6 @@ def _canonical_place_row(item: dict, *, fallback_category: str | None = None) ->
         "price_level": metadata.get("price_level"),
         "lat": lat,
         "lng": lng,
-        "location": f"POINT({lng} {lat})",
         "opening_hours": opening_hours if isinstance(opening_hours, str) else None,
         "metadata": metadata,
         "is_verified": False,
@@ -51,22 +51,23 @@ async def upsert_provider_places(items: Iterable[dict], *, fallback_category: st
     async with get_db() as db:
         await db.executemany(
             """INSERT INTO places
-               (external_id, source, category_id, subcategory, amenity, name, address,
-                photo_url, rating, price_level, lat, lng, location, opening_hours, metadata, is_verified)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,ST_GeomFromText($13,4326),$14,$15,$16)
+               (id, external_id, source, category_id, subcategory, amenity, name, address,
+                photo_url, rating, price_level, lat, lng, opening_hours, metadata, is_verified)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT (source, external_id) DO UPDATE SET
-                 name=EXCLUDED.name, address=EXCLUDED.address, photo_url=EXCLUDED.photo_url,
-                 rating=EXCLUDED.rating, price_level=EXCLUDED.price_level,
-                 lat=EXCLUDED.lat, lng=EXCLUDED.lng, location=EXCLUDED.location,
-                 opening_hours=EXCLUDED.opening_hours, metadata=EXCLUDED.metadata""",
+                 name=excluded.name, address=excluded.address, photo_url=excluded.photo_url,
+                 rating=excluded.rating, price_level=excluded.price_level,
+                 lat=excluded.lat, lng=excluded.lng,
+                 opening_hours=excluded.opening_hours, metadata=excluded.metadata""",
             [
                 (
-                    r["external_id"], r["source"], r["category_id"], r["subcategory"], r["amenity"],
+                    str(uuid.uuid4()), r["external_id"], r["source"], r["category_id"], r["subcategory"], r["amenity"],
                     r["name"], r["address"], r["photo_url"], r["rating"], r["price_level"],
-                    r["lat"], r["lng"], r["location"], r["opening_hours"],
+                    r["lat"], r["lng"], r["opening_hours"],
                     json.dumps(r["metadata"]), r["is_verified"],
                 )
                 for r in rows
             ],
         )
+        await db.commit()
     return len(rows)

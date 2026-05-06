@@ -26,7 +26,8 @@ export interface MapPreferences {
   defaultRadiusM: number;
   showRealTimeEvents: boolean;
   theme: 'system' | 'light' | 'dark';
-  language: 'system' | 'es' | 'en' | 'fr';
+  language: 'system' | 'es' | 'en' | 'fr' | 'pt' | 'de';
+  searchMode: 'radius' | 'city';
 }
 
 interface AppState {
@@ -54,7 +55,7 @@ interface AppStateContextValue extends AppState {
   // Map setters
   setMapRegion: (r: MapRegion | null) => void;
   setSelectedCategory: (c: string | null) => void;
-  setNearbyItems: (items: MapItem[]) => void;
+  setNearbyItems: (items: MapItem[] | ((prev: MapItem[]) => MapItem[])) => void;
   setMapPreferences: (prefs: Partial<MapPreferences>) => void;
   /** true once the initial storage load has completed */
   isHydrated: boolean;
@@ -78,10 +79,11 @@ const DEFAULT_STATE: AppState = {
     showRealTimeEvents: true,
     theme: 'system',
     language: 'system',
+    searchMode: 'radius',
   },
 };
 
-const STORAGE_KEY = '@gado/app_state';
+const STORAGE_KEY = '@whim/app_state';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -105,6 +107,7 @@ export function AppStateProvider({
           const parsed = JSON.parse(raw) as Partial<AppState>;
           // Don't persist nearbyItems (they're transient)
           delete parsed.nearbyItems;
+          delete parsed.results;
           
           // Ensure mapPreferences is never null
           if (parsed.mapPreferences === null) {
@@ -130,7 +133,7 @@ export function AppStateProvider({
   // Persist when state changes (skip transient fields)
   useEffect(() => {
     if (!isHydrated) return;
-    const { nearbyItems, ...persistable } = state;
+    const { nearbyItems, results, ...persistable } = state;
     storage.setItem(STORAGE_KEY, JSON.stringify(persistable));
   }, [state, isHydrated]);
 
@@ -194,9 +197,11 @@ export function AppStateProvider({
   const setSelectedCategory = useCallback((selectedCategory: string | null) => {
     setState((s) => ({ ...s, selectedCategory }));
   }, []);
-
-  const setNearbyItems = useCallback((nearbyItems: MapItem[]) => {
-    setState((s) => ({ ...s, nearbyItems }));
+  const setNearbyItems = useCallback((nearbyItems: MapItem[] | ((prev: MapItem[]) => MapItem[])) => {
+    setState((s) => ({
+      ...s,
+      nearbyItems: typeof nearbyItems === 'function' ? nearbyItems(Array.isArray(s.nearbyItems) ? s.nearbyItems : []) : nearbyItems,
+    }));
   }, []);
 
   const setMapPreferences = useCallback((prefs: Partial<MapPreferences>) => {

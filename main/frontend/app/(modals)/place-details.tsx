@@ -1,19 +1,30 @@
+import { useTranslation } from "react-i18next";
 import { Ionicons } from '../../components/SafeIonicons';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState, useMemo } from 'react';
-import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAppState } from '../../hooks/useAppState';
-import { useAuth } from '../../hooks/useAuth';
-import { checkBookmark, toggleBookmark, getVotes, VoteData, getPlaceLiveData, LiveDataResult } from '../../services/api';
-import { formatDistance } from '../../utils/format';
-import VoteButtons from '../../components/VoteButtons';
+import LiveCommentsSection from '../../components/LiveCommentsSection';
 import LiveDataAddon from '../../components/LiveDataAddon';
 import ReviewList from '../../components/ReviewList';
+import VoteButtons from '../../components/VoteButtons';
+import { useAppState } from '../../hooks/useAppState';
+import { useAuth } from '../../hooks/useAuth';
+import { fetchPlaceExtra, getPlaceData, toggleBookmark } from '../../services/api';
+import { formatDistance } from '../../utils/format';
 import { useTheme } from '../../utils/theme';
 
 const CATEGORY_STYLES: Record<string, { color: string; icon: string; label: string }> = {
-  food:       { color: '#FF6B35', icon: '🍴', label: 'Comida y bebida' },
+  food:       { color: '#FF6B35', icon: '🍴', label: 'Comida' },
   restaurant: { color: '#FF6B35', icon: '🍽️', label: 'Restaurante' },
   nightlife:  { color: '#3B82F6', icon: '🌙', label: 'Ocio nocturno' },
   shopping:   { color: '#10B981', icon: '🛒', label: 'Compras' },
@@ -25,199 +36,149 @@ const CATEGORY_STYLES: Record<string, { color: string; icon: string; label: stri
   education:  { color: '#8B5CF6', icon: '📚', label: 'Educación' },
   event:      { color: '#EC4899', icon: '🎉', label: 'Evento' },
   market:     { color: '#F97316', icon: '🏪', label: 'Mercado' },
-  music:      { color: '#A855F7', icon: '🎵', label: 'Música en vivo' },
-  report:     { color: '#EF4444', icon: '📢', label: 'Reporte' },
-  cinema:     { color: '#EF4444', icon: '🎬', label: 'Cine' },
+  music:      { color: '#A855F7', icon: '🎵', label: 'Música' },
+  report:     { color: '#EF4444', icon: '📢', label: 'Aviso' },
 };
 
 const DEFAULT_STYLE = { color: '#9E9E9E', icon: '📍', label: 'Lugar' };
 
 export default function PlaceDetailsModal() {
-  const { colors, radii, shadows, typography } = useTheme();
-  const { id, place_data } = useLocalSearchParams<{ id: string; type: string; place_data?: string }>();
-  const { nearbyItems } = useAppState();
+  const { t } = useTranslation();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { colors, typography, shadows, radii } = useTheme();
+  const router = useRouter();
   const { user } = useAuth();
+  const { nearbyItems } = useAppState();
+  const bookmarkedIds: string[] = []; // Default fallback since it's missing from AppState
+
+  const [loadingExtra, setLoadingExtra] = useState(true);
+  const [placeTake, setPlaceTake] = useState<any>(null);
+  const [liveData, setLiveData] = useState<any>(null);
+  const [voteData, setVoteData] = useState<any>(null);
+  const [parsedPlaceData, setParsedPlaceData] = useState<any>(null);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [loadingBookmark, setLoadingBookmark] = useState(false);
-  const [voteData, setVoteData] = useState<VoteData | undefined>();
-  const [liveData, setLiveData] = useState<LiveDataResult | null>(null);
-
-  // Parse place_data param if provided (from search results)
-  const parsedPlaceData = useMemo(() => {
-    if (!place_data) return null;
-    try {
-      const r = JSON.parse(place_data);
-      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://restaurant-api-gcfbpra65a-ew.a.run.app';
-      const photoUrl = r.metadata?.photo_url;
-      return {
-        item_id: r.id,
-        item_type: r.item_type ?? 'place',
-        title: r.name,
-        category_id: r.category_id ?? 'food',
-        lat: r.lat,
-        lng: r.lng,
-        distance_m: 0,
-        metadata: {
-          ...r.metadata,
-          photo_url: photoUrl?.startsWith('/') ? `${backendUrl}${photoUrl}` : photoUrl,
-          rating: r.metadata?.rating,
-          address: r.address ?? r.metadata?.address,
-          google_reviews: r.google_reviews ?? r.metadata?.google_reviews ?? [],
-        },
-      };
-    } catch { return null; }
-  }, [place_data]);
 
   const dynamicStyles = useMemo(() => StyleSheet.create({
-    safe: {
-      flex: 1,
-      backgroundColor: colors.shell,
-    },
+    safe: { flex: 1, backgroundColor: colors.shell },
     circleButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       backgroundColor: colors.surface,
       alignItems: 'center',
       justifyContent: 'center',
       ...shadows.soft,
+      borderWidth: 1,
+      borderColor: colors.stroke,
     },
     title: {
-      fontSize: 24,
+      fontSize: 28,
       fontWeight: '800',
       color: colors.ink,
-      marginBottom: 8,
       fontFamily: typography.heading,
+      marginBottom: 8,
     },
     metaValue: {
       fontSize: 14,
+      fontWeight: '600',
       color: colors.inkMuted,
-      fontWeight: '500',
       fontFamily: typography.body,
     },
     infoText: {
-      fontSize: 14,
-      color: colors.inkMuted,
-      flex: 1,
+      fontSize: 15,
+      color: colors.ink,
       fontFamily: typography.body,
-    },
-    voteContainer: {
-      marginTop: 20,
-      paddingTop: 20,
-      borderTopWidth: 1,
-      borderTopColor: colors.stroke,
+      flex: 1,
     },
     description: {
-      fontSize: 14,
+      fontSize: 15,
+      lineHeight: 22,
       color: colors.inkMuted,
-      lineHeight: 20,
-      marginTop: 8,
-      marginBottom: 12,
       fontFamily: typography.body,
+      marginVertical: 12,
+    },
+    voteContainer: {
+      marginVertical: 20,
+      padding: 16,
+      backgroundColor: colors.bg,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.stroke,
     },
     statBadge: {
-      backgroundColor: colors.chip,
       paddingHorizontal: 10,
       paddingVertical: 6,
-      borderRadius: radii.md,
+      borderRadius: 8,
+      backgroundColor: colors.chip,
+      alignSelf: 'flex-start',
     },
     statText: {
-      fontSize: 13,
-      fontWeight: '600',
+      fontSize: 12,
+      fontWeight: '700',
       color: colors.ink,
-      fontFamily: typography.heading,
+      fontFamily: typography.mono,
     },
     emptyText: {
-      marginTop: 12,
       fontSize: 16,
       color: colors.inkMuted,
+      marginTop: 12,
       fontFamily: typography.body,
     },
-  }), [colors, radii, shadows, typography]);
-
-  // Subcategories / categories that have a live-data addon
-  const LIVE_DATA_SUBCATS = new Set(['gas_station', 'gasolinera', 'fuel', 'ev_charging', 'ev_charging_auto', 'pharmacy']);
-  const LIVE_DATA_CATS    = new Set(['cinema', 'nature', 'sport']);
+  }), [colors, typography, shadows]);
 
   useEffect(() => {
-    if (id) {
-      if (user) checkBookmarkStatus();
-      fetchVoteData();
+    async function loadData() {
+      setLoadingExtra(true);
+      try {
+        let currentItem = nearbyItems.find(i => i.item_id === id);
+        if (!currentItem) {
+          const baseData = await getPlaceData(id);
+          if (baseData) {
+            setParsedPlaceData(baseData);
+            currentItem = baseData;
+          }
+        }
+        
+        // Now fetch enrichment with full metadata context
+        const extraPayload = currentItem ? {
+          lat: currentItem.lat,
+          lng: currentItem.lng,
+          name: currentItem.title,
+          ...currentItem.metadata
+        } : {};
+        const extra = await fetchPlaceExtra(id, extraPayload);
+        if (extra) {
+          setPlaceTake(extra.take);
+          setLiveData(extra.live);
+          setVoteData(extra.vote);
+        }
+      } catch (err) {
+        console.error('Error fetching details:', err);
+      } finally {
+        setLoadingExtra(false);
+      }
     }
-  }, [user, id]);
-
-  useEffect(() => {
-    setLiveData(null);
-    const foundItem = nearbyItems.find((i) => i.item_id === id);
-    if (!foundItem) return;
-
-    if (foundItem.metadata?.liveData && (foundItem.metadata.liveData as any).type !== 'none') {
-      setLiveData(foundItem.metadata.liveData as LiveDataResult);
-      return;
-    }
-
-    const sub = (foundItem.metadata?.subcategory as string | undefined) ?? '';
-    const cat = foundItem.category_id ?? '';
-    if (LIVE_DATA_SUBCATS.has(sub) || LIVE_DATA_CATS.has(cat)) {
-      fetchLiveData(foundItem, sub, cat);
-    }
+    loadData();
   }, [id, nearbyItems]);
 
-  async function fetchLiveData(foundItem: typeof nearbyItems[0], sub: string, cat: string) {
-    try {
-      const lat = foundItem.lat;
-      const lng = foundItem.lng;
-      if (lat == null || lng == null) return;
-      const result = await getPlaceLiveData({
-        placeId: id,
-        lat,
-        lng,
-        category: cat || undefined,
-        subcategory: sub || undefined,
-        website: foundItem.metadata?.website as string | undefined,
-        name: foundItem.title,
-        city: foundItem.metadata?.city as string | undefined,
-      });
-      setLiveData(result.type !== 'none' ? result : null);
-    } catch {
-      // silently ignore — addon is non-critical
-      setLiveData(null);
-    }
-  }
-
-  async function fetchVoteData() {
-    try {
-      const data = await getVotes(id);
-      if (data) setVoteData(data);
-    } catch (error) {
-      console.error('Error fetching votes:', error);
-    }
-  }
-
-  async function checkBookmarkStatus() {
-    try {
-      const bookmarked = await checkBookmark(id);
-      setIsBookmarked(bookmarked);
-    } catch (error) {
-      console.error('Error checking bookmark status:', error);
-    }
-  }
+  useEffect(() => {
+    setIsBookmarked((bookmarkedIds ?? []).includes(id));
+  }, [bookmarkedIds, id]);
 
   async function handleToggleBookmark() {
     if (!user) {
-      Alert.alert('Inicia sesión', 'Debes iniciar sesión para guardar lugares');
+      Alert.alert(t('auth.signIn'), t('placeDetails.bookmarkSignInHint') || 'Debes iniciar sesión para guardar lugares');
       return;
     }
-
     if (!item) return;
-
     setLoadingBookmark(true);
     try {
       await toggleBookmark(id, item.item_type, isBookmarked);
       setIsBookmarked(!isBookmarked);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error al actualizar favorito';
-      Alert.alert('Error', message);
+      const message = err instanceof Error ? err.message : t('common.error');
+      Alert.alert(t('common.error'), message);
     } finally {
       setLoadingBookmark(false);
     }
@@ -225,33 +186,42 @@ export default function PlaceDetailsModal() {
 
   const item = nearbyItems.find((i) => i.item_id === id) ?? parsedPlaceData;
   const catStyle = CATEGORY_STYLES[item?.category_id ?? ''] ?? DEFAULT_STYLE;
-
   const photoUrl = item?.metadata?.photo_url as string | undefined;
   const rating = item?.metadata?.rating as number | undefined;
   const address = item?.metadata?.address as string | undefined;
   const subcategory = item?.metadata?.subcategory as string | undefined;
-  const distance = item?.distance_m && item.distance_m > 0
-    ? formatDistance(item.distance_m)
-    : '';
-
-  // Event-specific
+  const distance = item?.distance_m && item.distance_m > 0 ? formatDistance(item.distance_m) : '';
   const startsAt = item?.metadata?.starts_at as string | undefined;
   const endsAt = item?.metadata?.ends_at as string | undefined;
   const priceInfo = item?.metadata?.price_info as string | undefined;
-
-  // Report-specific
   const reportType = item?.metadata?.report_type as string | undefined;
   const confidence = item?.metadata?.confidence as number | undefined;
   const confirmations = item?.metadata?.confirmations as number | undefined;
   const expiresAt = item?.metadata?.expires_at as string | undefined;
   const description = item?.metadata?.description as string | undefined;
 
-  if (!item) {
+  const renderBoldText = (text: string, baseStyle: any) => {
+    if (!text) return null;
+    const parts = text.split(/\*\*(.*?)\*\*/g);
+    return (
+      <Text style={baseStyle}>
+        {parts.map((part, index) =>
+          index % 2 === 1 ? (
+            <Text key={index} style={{ fontWeight: '700' }}>{part}</Text>
+          ) : (
+            <Text key={index}>{part}</Text>
+          )
+        )}
+      </Text>
+    );
+  };
+
+  if (!item && !loadingExtra) {
     return (
       <SafeAreaView style={[dynamicStyles.safe, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ marginTop: 20, color: colors.ink }}>Lugar no encontrado</Text>
+        <Text style={{ marginTop: 20, color: colors.ink }}>{t('placeDetails.notFound')}</Text>
         <TouchableOpacity style={{ marginTop: 40, padding: 12 }} onPress={() => router.back()}>
-          <Text style={{ color: colors.brand }}>Cerrar</Text>
+          <Text style={{ color: colors.brand }}>{t('common.close')}</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -260,26 +230,22 @@ export default function PlaceDetailsModal() {
   return (
     <SafeAreaView style={dynamicStyles.safe}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {/* Close button */}
         <View style={styles.headerButtons}>
           <TouchableOpacity
             style={dynamicStyles.circleButton}
             onPress={() => router.back()}
             activeOpacity={0.7}
-            accessibilityLabel="Cerrar"
-            accessibilityRole="button"
+            accessibilityLabel={t('common.close')}
           >
             <Ionicons name="close" size={24} color={colors.ink} />
           </TouchableOpacity>
-
           {item && (
             <TouchableOpacity
               style={dynamicStyles.circleButton}
               onPress={handleToggleBookmark}
               activeOpacity={0.7}
               disabled={loadingBookmark}
-              accessibilityLabel="Guardar"
-              accessibilityRole="button"
+              accessibilityLabel={t('common.save')}
             >
               <Ionicons
                 name={isBookmarked ? "heart" : "heart-outline"}
@@ -292,12 +258,10 @@ export default function PlaceDetailsModal() {
 
         {!item ? (
           <View style={styles.emptyState}>
-            <Ionicons name="alert-circle-outline" size={48} color={colors.stroke} />
-            <Text style={dynamicStyles.emptyText}>No se encontró este lugar</Text>
+            <ActivityIndicator size="large" color={colors.brand} />
           </View>
         ) : (
           <>
-            {/* Photo */}
             {photoUrl ? (
               <Image source={{ uri: photoUrl }} style={styles.photo} resizeMode="cover" />
             ) : (
@@ -306,15 +270,12 @@ export default function PlaceDetailsModal() {
               </View>
             )}
 
-            {/* Category badge */}
             <View style={[styles.badge, { backgroundColor: catStyle.color }]}>
-              <Text style={styles.badgeText}>{catStyle.icon} {catStyle.label}</Text>
+              <Text style={styles.badgeText}>{catStyle.icon} {t(`category.${item.category_id}`) || catStyle.label}</Text>
             </View>
 
-            {/* Title */}
             <Text style={dynamicStyles.title}>{item.title}</Text>
 
-            {/* Meta row */}
             <View style={styles.metaRow}>
               {rating != null && (
                 <View style={styles.metaItem}>
@@ -335,7 +296,6 @@ export default function PlaceDetailsModal() {
               ) : null}
             </View>
 
-            {/* Address */}
             {address ? (
               <View style={styles.infoRow}>
                 <Ionicons name="location-outline" size={18} color={colors.inkMuted} />
@@ -343,25 +303,68 @@ export default function PlaceDetailsModal() {
               </View>
             ) : null}
 
-            {/* Universal Voting */}
             {(item.item_type === 'place' || item.item_type === 'event') && (
               <View style={dynamicStyles.voteContainer}>
                 <VoteButtons
                   itemId={id}
                   itemType={item.item_type as 'place' | 'event'}
                   initial={voteData}
-                  title="Was this place worth it?"
+                  title={t('vote.worthIt')}
                 />
               </View>
             )}
 
-            {/* Unified Reviews Section */}
-            <ReviewList reviews={item.metadata?.google_reviews as any[] || []} />
+            {item.item_type === 'place' && (loadingExtra || placeTake) && (
+              <View style={styles.takeCard}>
+                <Text style={styles.sectionEyebrow}>{t('placeDetails.whimTake')}</Text>
+                {loadingExtra && !placeTake ? (
+                  <View style={styles.takeLoading}>
+                    <ActivityIndicator size="small" color={colors.brand} />
+                    <Text style={styles.takeLoadingText}>{t('placeDetails.analyzing')}</Text>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={styles.takeVerdict}>{placeTake?.verdict || placeTake?.why}</Text>
+                    {(placeTake?.pros || []).length > 0 && (
+                      <>
+                        <Text style={styles.takeBlockTitle}>{t('placeDetails.theBest')}</Text>
+                        {placeTake?.pros.map((pro: string) => (
+                          <View key={pro} style={styles.takeRow}>
+                            <Ionicons name="thumbs-up-outline" size={16} color={colors.success} />
+                            {renderBoldText(pro, styles.takeText)}
+                          </View>
+                        ))}
+                      </>
+                    )}
+                    {(placeTake?.cons || []).length > 0 && (
+                      <>
+                        <Text style={[styles.takeBlockTitle, styles.takeBlockTitleWarn]}>{t('placeDetails.watchOut')}</Text>
+                        {placeTake?.cons.map((con: string) => (
+                          <View key={con} style={styles.takeRow}>
+                            <Ionicons name="warning-outline" size={16} color={colors.warning} />
+                            {renderBoldText(con, styles.takeText)}
+                          </View>
+                        ))}
+                      </>
+                    )}
+                  </>
+                )}
+              </View>
+            )}
 
-            {/* Live data addon (fuel prices, pharmacy duty, cinema showtimes, EV) */}
+            <ReviewList reviews={(placeTake?.reviews as any[] | undefined) || item.metadata?.google_reviews as any[] || []} />
+
+            {item.item_type === 'place' && (
+              <LiveCommentsSection
+                placeId={id}
+                placeName={item.title}
+                lat={item.lat}
+                lng={item.lng}
+              />
+            )}
+
             {liveData && <LiveDataAddon data={liveData} />}
 
-            {/* Event info */}
             {item.item_type === 'event' && startsAt && (
               <View style={styles.infoRow}>
                 <Ionicons name="calendar-outline" size={18} color={colors.inkMuted} />
@@ -388,7 +391,6 @@ export default function PlaceDetailsModal() {
               </View>
             )}
 
-            {/* Report info */}
             {item.item_type === 'report' && (
               <>
                 {reportType && (
@@ -409,7 +411,7 @@ export default function PlaceDetailsModal() {
                   {confidence != null && (
                     <View style={[dynamicStyles.statBadge, { backgroundColor: colors.brand + '15' }]}>
                       <Text style={[dynamicStyles.statText, { color: colors.brand }]}>
-                        {Math.round(confidence * 100)}% confianza
+                        {Math.round(confidence * 100)}% {t('reportDetails.confidenceLevel')}
                       </Text>
                     </View>
                   )}
@@ -434,80 +436,27 @@ export default function PlaceDetailsModal() {
 }
 
 const styles = StyleSheet.create({
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 16,
-    marginBottom: 12,
-  },
-  photo: {
-    width: '100%',
-    height: 200,
-    borderRadius: 16,
-    marginBottom: 16,
-  },
-  photoPlaceholder: {
-    width: '100%',
-    height: 160,
-    borderRadius: 16,
-    marginBottom: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  photoPlaceholderIcon: {
-    fontSize: 48,
-  },
-  badge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  metaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 16,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metaStar: {
-    fontSize: 14,
-    color: '#FFCC00',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
-  },
-  reportStats: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
-  },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 100,
-  },
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 24, paddingBottom: 40 },
+  headerButtons: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 12 },
+  photo: { width: '100%', height: 200, borderRadius: 16, marginBottom: 16 },
+  photoPlaceholder: { width: '100%', height: 160, borderRadius: 16, marginBottom: 16, alignItems: 'center', justifyContent: 'center' },
+  photoPlaceholderIcon: { fontSize: 48 },
+  badge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, marginBottom: 12 },
+  badgeText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16 },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaStar: { fontSize: 14, color: '#FFCC00' },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  reportStats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  takeCard: { marginTop: 20, padding: 16, borderRadius: 16, backgroundColor: '#171A2A', gap: 10 },
+  sectionEyebrow: { fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: '#7C6CF2' },
+  takeVerdict: { fontSize: 16, lineHeight: 24, fontWeight: '700', color: '#F2F0EA' },
+  takeBlockTitle: { marginTop: 4, fontSize: 13, fontWeight: '700', color: '#A7F3D0' },
+  takeBlockTitleWarn: { color: '#FDE68A' },
+  takeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  takeText: { flex: 1, fontSize: 14, lineHeight: 20, color: '#D6D9E6' },
+  takeLoading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  takeLoadingText: { fontSize: 14, color: '#A8AEC7' },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 100 },
 });

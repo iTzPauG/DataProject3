@@ -11,8 +11,8 @@ resource "google_cloud_run_v2_service" "api" {
     service_account = google_service_account.cloud_run.email
 
     annotations = {
-      "build-id"                                  = var.build_id
-      "run.googleapis.com/cloudsql-instances"     = var.cloud_sql_connection
+      "build-id"                              = var.build_id
+      "run.googleapis.com/cloudsql-instances" = var.cloud_sql_connection
     }
 
     containers {
@@ -20,6 +20,11 @@ resource "google_cloud_run_v2_service" "api" {
 
       ports {
         container_port = 8080
+      }
+
+      volume_mounts {
+        name       = "cloudsql"
+        mount_path = "/cloudsql"
       }
 
       env {
@@ -35,12 +40,23 @@ resource "google_cloud_run_v2_service" "api" {
         name  = "BRAIN_PROVIDER"
         value = "gemini"
       }
+      env {
+        name  = "GOOGLE_CLOUD_PROJECT"
+        value = var.project_id
+      }
+      env {
+        name  = "GOOGLE_CLOUD_LOCATION"
+        value = "global"
+      }
+      env {
+        name  = "GOOGLE_GENAI_USE_VERTEXAI"
+        value = "true"
+      }
 
       dynamic "env" {
         for_each = {
           "GOOGLE_MAPS_API_KEY"  = "google-maps-api-key"
           "GOOGLE_GENAI_API_KEY" = "google-genai-api-key"
-          "GEOAPIFY_API_KEY"     = "geoapify-api-key"
           "TRIPADVISOR_API_KEY"  = "tripadvisor-api-key"
           "YELP_API_KEY"         = "yelp-api-key"
           "HERE_API_KEY"         = "here-api-key"
@@ -63,6 +79,14 @@ resource "google_cloud_run_v2_service" "api" {
           cpu    = "1"
           memory = "512Mi"
         }
+      }
+    }
+
+    volumes {
+      name = "cloudsql"
+
+      cloud_sql_instance {
+        instances = [var.cloud_sql_connection]
       }
     }
 

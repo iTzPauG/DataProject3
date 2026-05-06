@@ -1,10 +1,6 @@
-import { Ionicons } from '../../components/SafeIonicons';
 import { router } from 'expo-router';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,14 +9,25 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
-import GADOIcon from '../../components/GADOIcon';
-import { ExploreCategory, getExploreCategories } from '../../services/api';
+import { useFlowState } from '../../hooks/useFlowState';
 import { useTheme } from '../../utils/theme';
+
+const FOOD_SUBCATEGORIES = [
+  { id: 'pizza', label: 'Pizza', emoji: '🍕' },
+  { id: 'sushi', label: 'Sushi', emoji: '🍱' },
+  { id: 'tapas', label: 'Tapas', emoji: '🥘' },
+  { id: 'burgers', label: 'Hamburguesas', emoji: '🍔' },
+  { id: 'asian', label: 'Asiática', emoji: '🍜' },
+  { id: 'italian', label: 'Italiana', emoji: '🍝' },
+  { id: 'mexican', label: 'Mexicana', emoji: '🌮' },
+  { id: 'healthy', label: 'Saludable', emoji: '🥗' },
+  { id: 'vegan', label: 'Vegano', emoji: '🌱' },
+  { id: 'kebab', label: 'Kebab', emoji: '🥙' },
+];
 
 export default function ExploreTab() {
   const { colors, typography, radii, shadows } = useTheme();
-  const [categories, setCategories] = useState<ExploreCategory[]>([]);
-  const [loadingCategories, setLoadingCategories] = useState(true);
+  const { reset, setParentCategory, setCategory } = useFlowState();
 
   const dynamicStyles = useMemo(() => StyleSheet.create({
     safe: {
@@ -33,57 +40,50 @@ export default function ExploreTab() {
       color: colors.ink,
       fontFamily: typography.heading,
     },
-    seeAllText: {
+    sectionSubtitle: {
       fontSize: 14,
-      color: colors.brand,
-      fontWeight: '600',
-      fontFamily: typography.heading,
-    },
-    eventsPromo: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginHorizontal: 18,
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 16,
-      marginBottom: 8,
-      gap: 14,
-      ...shadows.soft,
-    },
-    eventsPromoIcon: {
-      width: 56,
-      height: 56,
-      borderRadius: 16,
-      backgroundColor: colors.chip,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-    },
-    eventsPromoTitle: {
-      fontSize: 15,
-      fontWeight: '700',
-      color: colors.ink,
-      marginBottom: 4,
-      fontFamily: typography.heading,
-    },
-    eventsPromoSub: {
-      fontSize: 12,
       color: colors.inkMuted,
+      lineHeight: 20,
       fontFamily: typography.body,
-      lineHeight: 16,
+      marginTop: 4,
     },
     title: {
-      fontSize: 28,
+      fontSize: 32,
       fontWeight: '800',
       color: colors.ink,
-      marginBottom: 4,
+      marginBottom: 8,
       fontFamily: typography.heading,
+      textAlign: 'center',
     },
     subtitle: {
-      fontSize: 15,
+      fontSize: 16,
       color: colors.inkMuted,
-      lineHeight: 22,
+      lineHeight: 24,
       fontFamily: typography.body,
+      textAlign: 'center',
+    },
+    foodCard: {
+      backgroundColor: colors.surface,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: colors.stroke,
+      padding: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 140,
+      width: '48%', // Para 2 columnas
+      ...shadows.soft,
+    },
+    foodCardEmoji: {
+      fontSize: 32,
+      marginBottom: 8,
+    },
+    foodCardLabel: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: colors.ink,
+      fontFamily: typography.heading,
+      textAlign: 'center',
     },
     card: {
       backgroundColor: colors.surface,
@@ -118,125 +118,42 @@ export default function ExploreTab() {
     },
   }), [colors, typography, radii, shadows]);
 
-  useEffect(() => {
-    getExploreCategories()
-      .then(setCategories)
-      .catch(() => {})
-      .finally(() => setLoadingCategories(false));
-  }, []);
-
-  function handleCategoryPress(category: ExploreCategory) {
-    if (category.active === false) {
-      Alert.alert('Próximamente', 'Esta funcionalidad estará disponible pronto');
-      return;
-    }
-    if (category.id === 'report') {
-      router.push('/(tabs)/report');
-      return;
-    }
-    const eventCategories = new Set(['event', 'market', 'music']);
-    if (eventCategories.has(category.id)) {
-      router.push({
-        pathname: '/(flow)/explore-list',
-        params: { categoryId: category.id, itemType: 'event', title: category.label },
-      });
-      return;
-    }
-    
-    router.push({ pathname: '/(flow)/category', params: { categoryId: category.id } });
+  function handleFoodSubcatPress(subcatId: string) {
+    reset();
+    setParentCategory('food');
+    setCategory(subcatId);
+    router.push('/(flow)/mood');
   }
 
   return (
     <AnimatedTabScene>
     <SafeAreaView style={dynamicStyles.safe} edges={['top']}>
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
-          <Text style={dynamicStyles.title}>Explorar</Text>
-          <Text style={dynamicStyles.subtitle}>Descubre lo mejor de tu ciudad</Text>
+          <Text style={dynamicStyles.title}>🍽️ ¿Qué te apetece comer?</Text>
+          <Text style={dynamicStyles.subtitle}>Descubre los mejores lugares para comer en tu ciudad</Text>
         </View>
 
-        {/* Category grid */}
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Upcoming Events Section */}
-          <View style={styles.sectionHeader}>
-            <Text style={dynamicStyles.sectionTitle}>Próximos Eventos</Text>
-            <TouchableOpacity
-              onPress={() =>
-                router.push({
-                  pathname: '/(flow)/explore-list',
-                  params: { categoryId: 'event', itemType: 'event', title: 'Eventos' },
-                })
-              }
-            >
-              <Text style={dynamicStyles.seeAllText}>Ver todos</Text>
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity
-            style={dynamicStyles.eventsPromo}
-            activeOpacity={0.8}
-            onPress={() =>
-              router.push({
-                pathname: '/(flow)/explore-list',
-                params: { categoryId: 'event', itemType: 'event', title: 'Eventos' },
-              })
-            }
-            accessibilityLabel="Ver eventos cercanos"
-            accessibilityRole="button"
-          >
-            <View style={dynamicStyles.eventsPromoIcon}>
-              <GADOIcon name="event" category="event" size={28} color={colors.brand} accessibilityLabel="Icono de eventos" />
-            </View>
-            <View style={styles.eventsPromoText}>
-              <Text style={dynamicStyles.eventsPromoTitle}>Descubre eventos cercanos</Text>
-              <Text style={dynamicStyles.eventsPromoSub}>
-                Mercados, conciertos y más en tu ciudad
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.inkMuted} />
-          </TouchableOpacity>
-
-          <View style={styles.sectionHeader}>
-            <Text style={dynamicStyles.sectionTitle}>Categorías</Text>
-          </View>
-          {loadingCategories ? (
-            <ActivityIndicator
-              size="large"
-              color={colors.brand}
-              style={{ marginTop: 32 }}
-            />
-          ) : (
-          <View style={styles.grid}>
-            {categories.map((cat) => (
+          {/* Food type selection grid */}
+          <View style={styles.foodGrid}>
+            {FOOD_SUBCATEGORIES.map((sub) => (
               <TouchableOpacity
-                key={cat.id}
-                style={styles.cardWrapper}
+                key={sub.id}
+                style={dynamicStyles.foodCard}
                 activeOpacity={0.7}
-                onPress={() => handleCategoryPress(cat)}
-                accessibilityLabel={`Categoría ${cat.label}`}
+                onPress={() => handleFoodSubcatPress(sub.id)}
+                accessibilityLabel={sub.label}
                 accessibilityRole="button"
               >
-                <View style={[dynamicStyles.card, { borderRadius: radii.lg }, cat.active === false && styles.cardInactive]}>
-                  <View style={dynamicStyles.cardIcon}>
-                    <GADOIcon name={cat.id} category={cat.id} size={28} color={colors.brand} accessibilityLabel={`Icono ${cat.label}`} />
-                  </View>
-                  <Text style={dynamicStyles.cardLabel}>{cat.label}</Text>
-                  {cat.description ? (
-                    <Text style={dynamicStyles.cardDescription}>{cat.description}</Text>
-                  ) : null}
-                  {cat.active === false && (
-                    <View style={[styles.comingSoonBadge, { borderRadius: radii.sm }]}>
-                      <Text style={styles.comingSoonText}>Pronto</Text>
-                    </View>
-                  )}
-                </View>
+                <Text style={dynamicStyles.foodCardEmoji}>{sub.emoji}</Text>
+                <Text style={dynamicStyles.foodCardLabel}>{sub.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
-          )}
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -253,9 +170,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 12,
   },
-  eventsPromoText: {
-    flex: 1,
-  },
   container: {
     flex: 1,
     maxWidth: 560,
@@ -264,11 +178,25 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 12,
+    paddingTop: 40,
+    paddingBottom: 40,
+    alignItems: 'center',
   },
   scrollContent: {
     paddingBottom: 24,
+  },
+  foodChipsScroll: {
+    paddingHorizontal: 18,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  foodGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 18,
+    paddingTop: 20,
+    paddingBottom: 24,
+    gap: 16,
   },
   grid: {
     flexDirection: 'row',

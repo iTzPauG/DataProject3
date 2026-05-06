@@ -117,11 +117,11 @@ export const UniversalHeader: React.FC<UniversalHeaderProps> = ({
           ) : (
             <View style={styles.logoContainer}>
               <Image
-                source={require('../assets/LOGO.png')}
-                style={styles.logo}
+                source={require('../assets/whim-logo-new.png')}
+                style={[styles.logo, { tintColor: '#FFFFFF' }]}
                 resizeMode="contain"
               />
-              <Text style={styles.logoText}>GADO</Text>
+              <Text style={styles.logoText}>WHIM</Text>
             </View>
           )}
         </View>
@@ -131,4 +131,3 @@ export const UniversalHeader: React.FC<UniversalHeaderProps> = ({
     </View>
   );
 };
-

@@ -11,7 +11,6 @@ from fastapi.responses import StreamingResponse
 from services.brain_service import ask_brain, ask_brain_stream
 from database import get_db
 from services.cache_service import cache_get, cache_set
-from services.geoapify_service import search_geoapify_places
 from services.google_places_service import search_places as search_google_places
 from services.nominatim_service import geocode
 from services.overpass_service import search_overpass
@@ -37,38 +36,48 @@ async def _search_local(
     async with get_db() as db:
         places_sql = (
             "SELECT id,name,lat,lng,address,category_id,photo_url,price_level,rating,source,opening_hours,amenity "
-            "FROM places WHERE name ILIKE $1"
+            "FROM places WHERE name LIKE ?"
         )
         events_sql = (
             "SELECT id,title,lat,lng,address,category_id,photo_url,starts_at,ends_at,price_info,status "
-            "FROM events WHERE title ILIKE $1"
+            "FROM events WHERE title LIKE ?"
         )
 
         if category:
-            places_coro = db.fetch(places_sql + " AND category_id=$2 LIMIT 30", q, category)
-            events_coro = db.fetch(events_sql + " AND category_id=$2 LIMIT 20", q, category)
+            places_coro = db.execute(places_sql + " AND category_id=? LIMIT 30", (q, category))
+            events_coro = db.execute(events_sql + " AND category_id=? LIMIT 20", (q, category))
         else:
-            places_coro = db.fetch(places_sql + " LIMIT 30", q)
-            events_coro = db.fetch(events_sql + " LIMIT 20", q)
+            places_coro = db.execute(places_sql + " LIMIT 30", (q,))
+            events_coro = db.execute(events_sql + " LIMIT 20", (q,))
 
         async def _empty():
             return []
 
         reports_coro = (
-            db.fetch(
+            db.execute(
                 "SELECT id,title,lat,lng,report_type,confidence,confirmations,denials,expires_at,description,photo_urls,is_active "
-                "FROM community_reports WHERE title ILIKE $1 LIMIT 20",
-                q,
+                "FROM community_reports WHERE title LIKE ? LIMIT 20",
+                (q,),
             )
             if category in (None, "report")
             else _empty()
         )
 
         try:
-            places_rows, events_rows, reports_rows = await asyncio.gather(
+            places_cur, events_cur, reports_cur = await asyncio.gather(
                 places_coro, events_coro, reports_coro
             )
-        except Exception:
+            if category in (None, "report"):
+                places_rows, events_rows, reports_rows = await asyncio.gather(
+                    places_cur.fetchall(), events_cur.fetchall(), reports_cur.fetchall()
+                )
+            else:
+                places_rows, events_rows = await asyncio.gather(
+                    places_cur.fetchall(), events_cur.fetchall()
+                )
+                reports_rows = []
+        except Exception as e:
+            logger.error(f"Error searching local: {e}")
             return []
 
     places = [dict(r) for r in places_rows]
@@ -219,24 +228,15 @@ async def universal_search(
             query=final_query if len(final_query) > 2 else None,
             limit=30,
         ),
-        search_geoapify_places(
-            lat=lat,
-            lng=lng,
-            radius_m=radius_m,
-            query=final_query,
-            category=final_category,
-            limit=30,
-        ),
         _search_local(final_query, final_category, radius_m, lat, lng),
         return_exceptions=True
     )
 
     google_results = results_gathered[0] if not isinstance(results_gathered[0], Exception) else []
     osm_results = results_gathered[1] if not isinstance(results_gathered[1], Exception) else []
-    geo_results = results_gathered[2] if not isinstance(results_gathered[2], Exception) else []
-    local_results = results_gathered[3] if not isinstance(results_gathered[3], Exception) else []
+    local_results = results_gathered[2] if not isinstance(results_gathered[2], Exception) else []
 
-    all_providers = [*google_results, *geo_results, *osm_results]
+    all_providers = [*google_results, *osm_results]
     if all_providers:
         background_tasks.add_task(
             upsert_provider_places,
@@ -247,7 +247,6 @@ async def universal_search(
     # Google results first (have real photos + ratings), then others
     combined = [
         *google_results,
-        *geo_results,
         *osm_results,
         *local_results,
     ]
@@ -309,9 +308,16 @@ async def live_search(
     """Streaming de resultados de búsqueda conforme llegan de cada proveedor."""
     async def stream_results():
         tasks = [
-            search_google_places(q, lat, lng, radius_m, category, bool(category), 20),
+            search_google_places(
+                query=q,
+                lat=lat,
+                lng=lng,
+                radius_m=radius_m,
+                category=category,
+                strict_category=bool(category),
+                limit=20,
+            ),
             search_overpass(lat, lng, radius_m, category, q if len(q) > 2 else None, 30),
-            search_geoapify_places(lat, lng, radius_m, q, category, 30),
             _search_local(q, category, radius_m, lat, lng)
         ]
         

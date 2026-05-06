@@ -6,7 +6,25 @@ from dotenv import load_dotenv
 
 
 def _load_env_files() -> None:
-    """Load backend/root env files deterministically instead of relying on cwd."""
+    """Load .env files only when explicitly enabled for local development."""
+    raw_flag = os.getenv("ENABLE_DOTENV")
+    if raw_flag is None:
+        # Default to enabled in local/dev runtimes so API keys in repo-root .env work out
+        # of the box. Managed runtimes typically inject environment variables directly.
+        managed_runtime = any(
+            os.getenv(var)
+            for var in (
+                "K_SERVICE",                   # Cloud Run
+                "RAILWAY_ENVIRONMENT_NAME",    # Railway
+                "GAE_ENV",                     # App Engine
+            )
+        )
+        enabled = not managed_runtime
+    else:
+        enabled = (raw_flag or "").strip().lower() in ("1", "true", "yes", "on")
+    if not enabled:
+        return
+
     backend_dir = Path(__file__).resolve().parent
     repo_root = backend_dir.parent.parent
 
@@ -29,11 +47,15 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH", "")
 
 # External APIs
-GEOAPIFY_API_KEY = os.getenv("GEOAPIFY_API_KEY", "mock")
 HERE_API_KEY = os.getenv("HERE_API_KEY", "mock")
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
+# Strip protects against accidental newline/space in Secret Manager values.
+YELP_API_KEY = os.getenv("YELP_API_KEY", "").strip()
+TRIPADVISOR_API_KEY = os.getenv("TRIPADVISOR_API_KEY", "").strip()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GOOGLE_GENAI_API_KEY = os.getenv("GOOGLE_GENAI_API_KEY") or GEMINI_API_KEY
+GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "")
+GOOGLE_CLOUD_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 BRAIN_PROVIDER = os.getenv("BRAIN_PROVIDER", "gemini")

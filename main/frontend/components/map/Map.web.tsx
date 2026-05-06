@@ -1,9 +1,9 @@
-/**
- * Map.web.tsx — Leaflet-based map for Expo Web.
+﻿/**
+ * Map.web.tsx â€” Leaflet-based map for Expo Web.
  *
  * Supports two rendering modes:
- *   1. MapItem[] (Phase 2+) — category-colored icon markers
- *   2. Restaurant[] (legacy recommendation flow) — photo-circle markers with sentiment ring
+ *   1. MapItem[] (Phase 2+) â€” category-colored icon markers
+ *   2. Restaurant[] (legacy recommendation flow) â€” photo-circle markers with sentiment ring
  */
 import L from 'leaflet';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -13,39 +13,26 @@ import { VoteData } from '../../services/api';
 import { Restaurant } from '../../types/restaurant';
 import { MapItem } from '../../types/map';
 import { formatDistance } from '../../utils/format';
+import type { MapProps } from './types';
 
-export interface MapProps {
-  // New: generic map items (Phase 2+)
-  items?: MapItem[];
-  selectedId: string | null;
-  onSelectItem?: (id: string) => void;
-  onRegionChange?: (lat: number, lng: number, latDelta: number, lngDelta: number) => void;
-  region?: { lat: number; lng: number; latDelta: number; lngDelta: number };
-  // Format
-  mapType?: 'standard' | 'satellite' | 'hybrid' | 'terrain' | 'minimal';
-  minimalist?: boolean;
-  gadoOverlay?: boolean;
-  showZoomControls?: boolean;
-  // Legacy: restaurant flow
-  restaurants?: Restaurant[];
-  onSelectRestaurant?: (id: string) => void;
-  votesMap?: Record<string, VoteData>;
-}
+// â”€â”€â”€ Category config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//
+// Markers are identified by colour + the title's first-letter monogram
+// (rendered in the HTML template below).  No emoji icon â€” the old colored
+// glyph approach was the single biggest "AI slop" tell on the map.
 
-// ─── Category config ──────────────────────────────────────────────────────────
-
-const CATEGORY_STYLES: Record<string, { color: string; icon: string }> = {
-  restaurant: { color: '#FF6B35', icon: '🍽️' },
-  event:      { color: '#8B5CF6', icon: '📅' },
-  nightlife:  { color: '#3B82F6', icon: '🌙' },
-  cinema:     { color: '#EF4444', icon: '🎬' },
-  market:     { color: '#10B981', icon: '🛍️' },
-  report:     { color: '#F59E0B', icon: '📢' },
+const CATEGORY_COLORS: Record<string, string> = {
+  restaurant: '#C97A5C',   // terracotta
+  event:      '#D2A257',   // warm amber
+  nightlife:  '#8A7ED6',   // muted violet
+  cinema:     '#9C7BB0',   // lilac
+  market:     '#C98E6A',   // clay
+  report:     '#B5A050',   // mustard
 };
 
-const DEFAULT_STYLE = { color: '#9E9E9E', icon: '📍' };
+const DEFAULT_COLOR = '#7F8392'; // slate
 
-// ─── Category marker icon ─────────────────────────────────────────────────────
+// â”€â”€â”€ Category marker icon â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function createCategoryIcon(
   item: MapItem,
@@ -53,23 +40,11 @@ function createCategoryIcon(
   minimalist: boolean,
   gadoOverlay: boolean,
 ): L.DivIcon {
-  // Use icon/color from backend if available, otherwise fallback to category styles
-  const backendIcon = item.icon;
-  const backendColor = item.color;
-  
-  // If backend provides icon/color, use them; otherwise fall back to category styles
-  let icon: string;
-  let color: string;
-  
-  if (backendIcon || backendColor) {
-    icon = backendIcon ?? '📍';
-    color = backendColor ?? '#9E9E9E';
-  } else {
-    const style = CATEGORY_STYLES[item.category_id] ?? DEFAULT_STYLE;
-    icon = style.icon;
-    color = style.color;
-  }
-  
+  const color =
+    item.color ??
+    CATEGORY_COLORS[item.category_id] ??
+    DEFAULT_COLOR;
+
   const style = { color }; // For backward compatibility
   const highlightLive = gadoOverlay && (item.item_type === 'report' || item.item_type === 'event');
   const size = selected ? 48 : highlightLive ? 44 : 38;
@@ -140,7 +115,7 @@ function createCategoryIcon(
   });
 }
 
-// ─── Sentiment color (legacy) ─────────────────────────────────────────────────
+// â”€â”€â”€ Sentiment color (legacy) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function sentimentColor(votes?: VoteData): string {
   if (!votes || (votes.likes === 0 && votes.dislikes === 0)) return '#9E9E9E';
@@ -200,7 +175,7 @@ function createPhotoIcon(photoUrl: string, selected: boolean, color: string, rat
   });
 }
 
-// ─── User location hook ─────────────────────────────────────────────────────
+// â”€â”€â”€ User location hook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function useUserLocation(): [number, number] | null {
   const [pos, setPos] = useState<[number, number] | null>(null);
@@ -218,7 +193,7 @@ function useUserLocation(): [number, number] | null {
   return pos;
 }
 
-// ─── Map camera + events ────────────────────────────────────────────────────
+// â”€â”€â”€ Map camera + events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function MapController({
   restaurants,
@@ -327,7 +302,7 @@ function MapLayoutFixer({
   return null;
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Captures the Leaflet map instance into a MutableRefObject so we can call
 // zoomIn/zoomOut from outside the MapContainer context.
@@ -459,6 +434,8 @@ export default function Map({
         // @ts-ignore
         style={{ width: '100%', height: '100%' }}
         zoomControl={false}
+        attributionControl={false}
+        wheelPxPerZoomLevel={60}
       >
         <TileLayer attribution={attribution} url={tileUrl} />
         {overlayTileUrl ? (
@@ -491,13 +468,10 @@ export default function Map({
           />
         )}
 
-        {/* Category item markers */}
+                {/* Category item markers */}
         {(items ?? []).map((item, i) => {
-          // Use backend color if available, otherwise fall back to category styles
-          const backendColor = item.color;
-          const catStyle = backendColor
-            ? { color: backendColor, icon: item.icon ?? '📍' } 
-            : (CATEGORY_STYLES[item.category_id] ?? DEFAULT_STYLE);
+          const markerColor = item.color ?? CATEGORY_COLORS[item.category_id] ?? DEFAULT_COLOR;
+          const markerMonogram = (item.title?.[0] ?? item.category_id?.[0] ?? '?').toUpperCase();
           const distance = item.distance_m > 0 ? formatDistance(item.distance_m) : '';
           const liveLabel = gadoOverlay && item.item_type !== 'place'
             ? ` · ${item.item_type === 'report' ? 'EN VIVO' : 'evento'}`
@@ -511,7 +485,7 @@ export default function Map({
             >
               <Popup>
                 <strong>
-                  <span style={{ color: catStyle.color }}>{catStyle.icon}</span>{' '}
+                  <span style={{ color: markerColor }}>{markerMonogram}</span>{' '}
                   {item.title}
                 </strong>
                 {distance ? (
@@ -523,7 +497,7 @@ export default function Map({
                 {liveLabel ? (
                   <>
                     <br />
-                    <span style={{ fontSize: '12px', color: catStyle.color, fontWeight: 700 }}>
+                    <span style={{ fontSize: '12px', color: markerColor, fontWeight: 700 }}>
                       {liveLabel.trim()}
                     </span>
                   </>
@@ -531,7 +505,7 @@ export default function Map({
                 {item.metadata?.rating != null ? (
                   <>
                     {' '}
-                    <span style={{ color: '#FFCC00' }}>★</span>{' '}
+                    <span style={{ color: '#FFCC00' }}>&#9733;</span>{' '}
                     {(item.metadata.rating as number).toFixed(1)}
                   </>
                 ) : null}
@@ -545,7 +519,7 @@ export default function Map({
           const distance = r.distanceM > 0 ? formatDistance(r.distanceM) : '';
           const votes = votesMap?.[r.id];
           const voteLabel = votes
-            ? `👍 ${votes.likes}  👎 ${votes.dislikes}`
+            ? `+${votes.likes}  −${votes.dislikes}`
             : '';
           return (
             <Marker
@@ -582,7 +556,7 @@ export default function Map({
           </TouchableOpacity>
           <View style={styles.zoomDivider} />
           <TouchableOpacity style={styles.zoomBtn} onPress={() => leafletMapRef.current?.zoomOut()} activeOpacity={0.75}>
-            <Text style={styles.zoomBtnText}>−</Text>
+            <Text style={styles.zoomBtnText}>-</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -627,3 +601,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.1)',
   },
 });
+
+
+

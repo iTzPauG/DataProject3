@@ -3,10 +3,12 @@ import { auth } from './supabase';
 import { storage } from '../utils/storage';
 import { Category, CommunityReport, MapItem, ReportType, SavedItem } from '../types';
 import { FALLBACK_CATEGORIES } from './mapService';
+import i18n from '../utils/i18n';
 
 // Derive the backend URL with autodetection for Railway production
 const getBaseUrl = () => {
-  const envUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+  const rawEnvUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+  const envUrl = rawEnvUrl?.trim().replace(/^['"]+|['"]+$/g, '');
   
   // If we have a valid environment URL and it's not localhost (or we ARE on localhost), use it
   if (envUrl && (!envUrl.includes('localhost') || (typeof window !== 'undefined' && window.location.hostname === 'localhost'))) {
@@ -16,10 +18,16 @@ const getBaseUrl = () => {
   // Autodetection for Railway: If we are on X.up.railway.app, the backend is likely on backend-production-XXXX.up.railway.app
   // Or more simply, if BASE_URL is missing in production web, we can try to use a relative path or a known pattern.
   if (typeof window !== 'undefined' && window.location.hostname.includes('railway.app')) {
-    // For GADO, we know the production backend URL pattern
+    // For WHIM, we know the production backend URL pattern
     return 'https://backend-production-bac63.up.railway.app';
   }
 
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host && host !== 'localhost' && host !== '127.0.0.1') {
+      return `http://${host}:8000`;
+    }
+  }
   return 'http://localhost:8000';
 };
 
@@ -36,12 +44,59 @@ function buildUrl(path: string, params?: Record<string, string | undefined>): st
   return qs ? `${base}?${qs}` : base;
 }
 
+async function parseJsonResponse<T>(res: Response, context: string): Promise<T> {
+  const raw = await res.text();
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    const preview = raw.replace(/\s+/g, ' ').slice(0, 120);
+    throw new Error(
+      `${context} returned non-JSON. Check EXPO_PUBLIC_BACKEND_URL (${BASE_URL}). Response: ${preview}`
+    );
+  }
+}
+
 // Valencia city centre — fallback when geolocation is unavailable or denied
 const VALENCIA_LAT = 39.4699;
 const VALENCIA_LNG = -0.3763;
 
-export function getCurrentLocation(): Promise<{ lat: number; lng: number }> {
+interface LocationOptions {
+  enableHighAccuracy?: boolean;
+  timeoutMs?: number;
+  maximumAgeMs?: number;
+}
+
+const DEFAULT_LOCATION_OPTIONS: Required<LocationOptions> = {
+  enableHighAccuracy: true,
+  timeoutMs: 10000,
+  maximumAgeMs: 0,
+};
+
+const EXPLORE_LOCATION_OPTIONS: Required<LocationOptions> = {
+  enableHighAccuracy: false,
+  timeoutMs: 3500,
+  maximumAgeMs: 3 * 60 * 1000,
+};
+
+let lastKnownLocation: { lat: number; lng: number; timestamp: number } | null = null;
+
+export function getCurrentLocation(options: LocationOptions = {}): Promise<{ lat: number; lng: number }> {
+  const finalOptions = {
+    ...DEFAULT_LOCATION_OPTIONS,
+    ...options,
+  };
+
   return new Promise((resolve) => {
+    const now = Date.now();
+    if (
+      lastKnownLocation &&
+      finalOptions.maximumAgeMs > 0 &&
+      now - lastKnownLocation.timestamp <= finalOptions.maximumAgeMs
+    ) {
+      resolve({ lat: lastKnownLocation.lat, lng: lastKnownLocation.lng });
+      return;
+    }
+
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       console.warn('[LOCATION] Geolocation not supported, using fallback.');
       resolve({ lat: VALENCIA_LAT, lng: VALENCIA_LNG });
@@ -50,16 +105,21 @@ export function getCurrentLocation(): Promise<{ lat: number; lng: number }> {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         console.log('[LOCATION] Got current position:', pos.coords.latitude, pos.coords.longitude);
+        lastKnownLocation = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          timestamp: Date.now(),
+        };
         resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       },
       (err) => {
         console.warn('[LOCATION] Geolocation error, using fallback:', err.message);
         resolve({ lat: VALENCIA_LAT, lng: VALENCIA_LNG });
       },
-      { 
-        enableHighAccuracy: true,
-        timeout: 10000, 
-        maximumAge: 0 // Force fresh location for reports
+      {
+        enableHighAccuracy: finalOptions.enableHighAccuracy,
+        timeout: finalOptions.timeoutMs,
+        maximumAge: finalOptions.maximumAgeMs,
       }
     );
   });
@@ -141,7 +201,8 @@ const FLOW_FALLBACKS: Record<string, CategoryFlowResponse> = {
     category: { id: 'food', label: 'Comida y bebida', icon: '🍴', color: '#FF6B35', sort_order: 1, is_active: true, requires_price: true, search_mode: 'guided_ranked', mood_title: '¿Cuál es el plan?', mood_subtitle: 'Elige el ambiente perfecto' },
     subcategories: [
       { id: 'pizza', label: 'Pizza', emoji: '🍕' },
-      { id: 'hamburger', label: 'Hamburguesas', emoji: '🍔' },
+      { id: 'burgers', label: 'Hamburguesas', emoji: '🍔' },
+      { id: 'tapas', label: 'Tapas', emoji: '🥘' },
       { id: 'sushi', label: 'Sushi', emoji: '🍣' },
       { id: 'paella', label: 'Paella', emoji: '🥘' },
       { id: 'tacos', label: 'Tacos', emoji: '🌮' },
@@ -166,229 +227,6 @@ const FLOW_FALLBACKS: Record<string, CategoryFlowResponse> = {
       { id: 'comfort_food', label: 'Antojo', emoji: '🍲' },
     ],
   },
-  nightlife: {
-    category: { id: 'nightlife', label: 'Ocio nocturno', icon: '🌙', color: '#3B82F6', sort_order: 2, is_active: true, requires_price: true, search_mode: 'guided_ranked', mood_title: '¿Qué rollo buscas?', mood_subtitle: 'Elige el ambiente de la noche' },
-    subcategories: [
-      { id: 'bar', label: 'Bar de copas', emoji: '🍻' },
-      { id: 'club', label: 'Discoteca', emoji: '🕺' },
-      { id: 'cocktail', label: 'Coctelería', emoji: '🍸' },
-      { id: 'lounge', label: 'Lounge / Chill', emoji: '🛋️' },
-      { id: 'rooftop', label: 'Terraza / Rooftop', emoji: '🌃' },
-      { id: 'wine_bar', label: 'Vinoteca', emoji: '🍷' },
-      { id: 'karaoke', label: 'Karaoke', emoji: '🎤' },
-      { id: 'live_music', label: 'Música en vivo', emoji: '🎸' },
-      { id: 'pub', label: 'Irish Pub', emoji: '🍺' },
-    ],
-    moods: [
-      { id: 'chill', label: 'Tranquilo', emoji: '🍷' },
-      { id: 'party', label: 'Fiesta total', emoji: '💃' },
-      { id: 'intimate', label: 'Íntimo / Cita', emoji: '🥂' },
-      { id: 'friends', label: 'Con amigos', emoji: '🍻' },
-      { id: 'live_show', label: 'Espectáculo', emoji: '💃' },
-      { id: 'afterwork', label: 'After work', emoji: '👔' },
-    ],
-  },
-  shopping: {
-    category: { id: 'shopping', label: 'Compras', icon: '🛒', color: '#10B981', sort_order: 3, is_active: true, requires_price: true, search_mode: 'guided_ranked', mood_title: '¿Cómo quieres comprar?', mood_subtitle: 'Elige tu estilo de compras' },
-    subcategories: [
-      { id: 'clothes', label: 'Moda y ropa', emoji: '👗' },
-      { id: 'electronics', label: 'Electrónica', emoji: '💻' },
-      { id: 'supermarket', label: 'Supermercado', emoji: '🛒' },
-      { id: 'mall', label: 'Centro Comercial', emoji: '🏬' },
-      { id: 'vintage', label: 'Vintage / Segunda mano', emoji: '🕰️' },
-      { id: 'bookstore', label: 'Librería', emoji: '📚' },
-      { id: 'deco', label: 'Decoración / Hogar', emoji: '🏠' },
-      { id: 'sports_gear', label: 'Deportes', emoji: '⚽' },
-      { id: 'gifts', label: 'Regalos / Souvenirs', emoji: '🎁' },
-    ],
-    moods: [
-      { id: 'quick', label: 'Compra rápida', emoji: '⏱️' },
-      { id: 'window', label: 'Solo mirar', emoji: '👀' },
-      { id: 'treat_myself', label: 'Darse un capricho', emoji: '🎁' },
-      { id: 'sale', label: 'Ofertas / Outlet', emoji: '🏷️' },
-      { id: 'luxury', label: 'Lujo / Premium', emoji: '💎' },
-      { id: 'local_brands', label: 'Marcas locales', emoji: '🏪' },
-    ],
-  },
-  health: {
-    category: { id: 'health', label: 'Salud y farmacia', icon: '💊', color: '#EF4444', sort_order: 4, is_active: true, requires_price: false, search_mode: 'guided_ranked', mood_title: '¿Cuál es la urgencia?', mood_subtitle: 'Elige tu situación actual' },
-    subcategories: [
-      { id: 'pharmacy', label: 'Farmacia', emoji: '💊' },
-      { id: 'hospital', label: 'Hospital / Urgencias', emoji: '🏥' },
-      { id: 'clinic', label: 'Clínica / Médico', emoji: '⚕️' },
-      { id: 'dentist', label: 'Dentista', emoji: '🦷' },
-      { id: 'optician', label: 'Óptica', emoji: '👓' },
-      { id: 'physiotherapy', label: 'Fisioterapia', emoji: '💆' },
-      { id: 'mental_health', label: 'Salud mental', emoji: '🧠' },
-      { id: 'vet', label: 'Veterinario', emoji: '🩺' },
-    ],
-    moods: [
-      { id: 'urgent', label: 'Urgencia', emoji: '🚨' },
-      { id: 'checkup', label: 'Cita rutinaria', emoji: '📅' },
-      { id: 'specialist', label: 'Especialista', emoji: '👨‍⚕️' },
-      { id: 'night_service', label: 'Guardia 24h', emoji: '🌙' },
-    ],
-  },
-  nature: {
-    category: { id: 'nature', label: 'Naturaleza', icon: '🌿', color: '#22C55E', sort_order: 5, is_active: true, requires_price: false, search_mode: 'guided_ranked', mood_title: '¿Qué plan tienes?', mood_subtitle: 'Elige qué quieres hacer' },
-    subcategories: [
-      { id: 'park', label: 'Parque urbano', emoji: '🌲' },
-      { id: 'beach', label: 'Playa', emoji: '🏖️' },
-      { id: 'hiking', label: 'Senderismo / Ruta', emoji: '🥾' },
-      { id: 'garden', label: 'Jardín botánico', emoji: '🌺' },
-      { id: 'viewpoint', label: 'Mirador', emoji: '🏔️' },
-      { id: 'lake', label: 'Lago / Río', emoji: '🏞️' },
-      { id: 'picnic', label: 'Zona de picnic', emoji: '🧺' },
-    ],
-    moods: [
-      { id: 'relax', label: 'Paz y relax', emoji: '🧘' },
-      { id: 'active', label: 'Aventura / Deporte', emoji: '🏃' },
-      { id: 'family', label: 'Plan con niños', emoji: '👶' },
-      { id: 'photo_spot', label: 'Buenas vistas', emoji: '📸' },
-      { id: 'dog_friendly', label: 'Con mi perro', emoji: '🐕' },
-      { id: 'sunset', label: 'Ver el atardecer', emoji: '🌅' },
-    ],
-  },
-  culture: {
-    category: { id: 'culture', label: 'Cultura y ocio', icon: '🎭', color: '#F59E0B', sort_order: 6, is_active: true, requires_price: true, search_mode: 'guided_ranked', mood_title: '¿Cuál es tu objetivo?', mood_subtitle: 'Elige qué buscas de esta visita' },
-    subcategories: [
-      { id: 'museum', label: 'Museo', emoji: '🏛️' },
-      { id: 'gallery', label: 'Galería de arte', emoji: '🖼️' },
-      { id: 'theater', label: 'Teatro / Musicales', emoji: '🎭' },
-      { id: 'library', label: 'Biblioteca', emoji: '📚' },
-      { id: 'historic_site', label: 'Sitio histórico', emoji: '🏰' },
-      { id: 'cultural_center', label: 'Centro cultural', emoji: '🎪' },
-    ],
-    moods: [
-      { id: 'learn', label: 'Para aprender', emoji: '🧠' },
-      { id: 'interactive', label: 'Plan interactivo', emoji: '🎨' },
-      { id: 'classic', label: 'Visita clásica', emoji: '🏛️' },
-      { id: 'entertainment', label: 'Solo diversión', emoji: '🍿' },
-      { id: 'free', label: 'Gratis', emoji: '🆓' },
-      { id: 'guided_tour', label: 'Con guía', emoji: '🎙️' },
-    ],
-  },
-  sport: {
-    category: { id: 'sport', label: 'Deporte', icon: '⚽', color: '#0EA5E9', sort_order: 9, is_active: true, requires_price: false, search_mode: 'guided_ranked', mood_title: '¿Cómo quieres entrenar?', mood_subtitle: 'Elige la intensidad o compañía' },
-    subcategories: [
-      { id: 'gym', label: 'Gimnasio', emoji: '🏋️' },
-      { id: 'padel', label: 'Pádel / Tenis', emoji: '🏓' },
-      { id: 'football', label: 'Fútbol / Basket', emoji: '⚽' },
-      { id: 'pool', label: 'Piscina', emoji: '🏊' },
-      { id: 'yoga', label: 'Yoga / Pilates', emoji: '🧘' },
-      { id: 'climbing', label: 'Rocodromo', emoji: '🧗' },
-      { id: 'running', label: 'Rutas running', emoji: '🏃' },
-    ],
-    moods: [
-      { id: 'classes', label: 'Clases dirigidas', emoji: '🏋️' },
-      { id: 'casual', label: 'Pasar el rato', emoji: '😆' },
-      { id: 'competition', label: 'Competición', emoji: '🏆' },
-      { id: 'outdoor', label: 'Al aire libre', emoji: '🌳' },
-      { id: 'beginner', label: 'Principiante', emoji: '🌱' },
-    ],
-  },
-  education: {
-    category: { id: 'education', label: 'Educación', icon: '📚', color: '#8B5CF6', sort_order: 10, is_active: true, requires_price: false, search_mode: 'guided_ranked', mood_title: '¿Qué necesitas?', mood_subtitle: 'Elige tu prioridad' },
-    subcategories: [
-      { id: 'library', label: 'Biblioteca', emoji: '📚' },
-      { id: 'study_cafe', label: 'Café para estudiar', emoji: '☕' },
-      { id: 'university', label: 'Universidad', emoji: '🎓' },
-      { id: 'language_school', label: 'Idiomas', emoji: '🗣️' },
-      { id: 'academy', label: 'Academia', emoji: '📖' },
-    ],
-    moods: [
-      { id: 'quiet', label: 'Silencio total', emoji: '🤫' },
-      { id: 'group', label: 'Trabajo en grupo', emoji: '👥' },
-      { id: 'wifi', label: 'WiFi rápido', emoji: '📶' },
-      { id: 'long_hours', label: 'Muchas horas', emoji: '🕑' },
-    ],
-  },
-  cinema: {
-    category: { id: 'cinema', label: 'Cine', icon: '🎬', color: '#EF4444', sort_order: 11, is_active: true, requires_price: true, search_mode: 'guided_ranked', mood_title: '¿Cuál es la ocasión?', mood_subtitle: 'Elige con quién vas' },
-    subcategories: [
-      { id: 'blockbuster', label: 'Estrenos / Multiplex', emoji: '🍿' },
-      { id: 'indie', label: 'Cine de autor / Indie', emoji: '📽️' },
-      { id: 'imax', label: 'Experiencia IMAX / 3D', emoji: '🎬' },
-      { id: 'vos', label: 'Versión original (VOSE)', emoji: '🇬🇧' },
-      { id: 'summer_cinema', label: 'Cine de verano', emoji: '🌙' },
-    ],
-    moods: [
-      { id: 'action', label: 'Acción / Sci-Fi', emoji: '💥' },
-      { id: 'comedy', label: 'Comedia / Familiar', emoji: '😂' },
-      { id: 'drama', label: 'Drama / Thriller', emoji: '🎭' },
-      { id: 'kids', label: 'Plan infantil', emoji: '👦' },
-      { id: 'date_night', label: 'Cita romántica', emoji: '❤️' },
-      { id: 'horror', label: 'Miedo / Terror', emoji: '👻' },
-    ],
-  },
-  wellness: {
-    category: { id: 'wellness', label: 'Bienestar', icon: '💆', color: '#F472B6', sort_order: 12, is_active: true, requires_price: true, search_mode: 'guided_ranked', mood_title: '¿Qué tipo de bienestar?', mood_subtitle: 'Elige tu experiencia de relax' },
-    subcategories: [
-      { id: 'spa', label: 'Spa / Circuito', emoji: '🧖' },
-      { id: 'massage', label: 'Masajes', emoji: '💆' },
-      { id: 'meditation', label: 'Retiro / Meditación', emoji: '🧘' },
-      { id: 'hot_springs', label: 'Termas naturales', emoji: '♨️' },
-      { id: 'beauty', label: 'Estética / Belleza', emoji: '💅' },
-    ],
-    moods: [
-      { id: 'disconnect', label: 'Desconexión total', emoji: '🧘' },
-      { id: 'couples', label: 'Relax en pareja', emoji: '💑' },
-      { id: 'detox', label: 'Cuerpo sano', emoji: '🍃' },
-      { id: 'luxury', label: 'Lujo asiático', emoji: '💎' },
-    ],
-  },
-  coworking: {
-    category: { id: 'coworking', label: 'Coworking', icon: '💻', color: '#3B82F6', sort_order: 13, is_active: true, requires_price: true, search_mode: 'guided_ranked', mood_title: '¿Qué tipo de espacio?', mood_subtitle: 'Elige donde trabajar', skip_price_subcategories: ['library', 'cafe_workspace'] },
-    subcategories: [
-      { id: 'open_space', label: 'Hot desk / Open space', emoji: '🏢' },
-      { id: 'private_office', label: 'Oficina privada', emoji: '🚪' },
-      { id: 'meeting_room', label: 'Sala de reuniones', emoji: '📊' },
-      { id: 'cafe_workspace', label: 'Cafetería con WiFi', emoji: '☕' },
-      { id: 'library', label: 'Biblioteca pública', emoji: '📚' },
-    ],
-    moods: [
-      { id: 'focus', label: 'Concentración', emoji: '🤫' },
-      { id: 'networking', label: 'Hacer contactos', emoji: '🤝' },
-      { id: 'cheap', label: 'Económico', emoji: '💰' },
-      { id: 'premium', label: 'Ambiente premium', emoji: '⭐' },
-      { id: 'twentyfour_h', label: 'Horario 24h', emoji: '🕑' },
-    ],
-  },
-  pets: {
-    category: { id: 'pets', label: 'Mascotas', icon: '🐾', color: '#10B981', sort_order: 14, is_active: true, requires_price: false, search_mode: 'guided_ranked', mood_title: '¿Qué necesita tu mascota?', mood_subtitle: 'Elige el servicio' },
-    subcategories: [
-      { id: 'vet', label: 'Veterinario / Urgencias', emoji: '🩺' },
-      { id: 'pet_shop', label: 'Tienda de mascotas', emoji: '🐾' },
-      { id: 'dog_park', label: 'Parque de perros', emoji: '🐕' },
-      { id: 'grooming', label: 'Peluquería canina', emoji: '✂️' },
-      { id: 'pet_hotel', label: 'Residencia / Hotel', emoji: '🏨' },
-    ],
-    moods: [
-      { id: 'urgent', label: 'Es una urgencia', emoji: '🚨' },
-      { id: 'routine_care', label: 'Cuidado regular', emoji: '📅' },
-      { id: 'training', label: 'Educación / Adiestramiento', emoji: '🐕‍🦺' },
-      { id: 'fun', label: 'Juego y socializar', emoji: '🎾' },
-    ],
-  },
-  automotive: {
-    category: { id: 'automotive', label: 'Vehículo', icon: '🚗', color: '#6366F1', sort_order: 15, is_active: true, requires_price: false, search_mode: 'guided_ranked', mood_title: '¿Qué necesita tu vehículo?', mood_subtitle: 'Elige el servicio' },
-    subcategories: [
-      { id: 'gas_station', label: 'Gasolinera', emoji: '⛽' },
-      { id: 'ev_charging', label: 'Carga eléctrica', emoji: '🔌' },
-      { id: 'mechanic', label: 'Taller mecánico', emoji: '🔧' },
-      { id: 'car_wash', label: 'Lavado / Detailing', emoji: '🚿' },
-      { id: 'parking', label: 'Parking', emoji: '🅿️' },
-      { id: 'tires', label: 'Neumáticos / Ruedas', emoji: '🛞' },
-      { id: 'itv', label: 'Centro ITV', emoji: '📋' },
-      { id: 'car_rental', label: 'Alquiler coches', emoji: '🚗' },
-    ],
-    moods: [
-      { id: 'breakdown', label: 'Avería / Emergencia', emoji: '🚨' },
-      { id: 'maintenance', label: 'Mantenimiento', emoji: '📅' },
-      { id: 'quick_stop', label: 'Parada rápida', emoji: '💰' },
-      { id: 'roadtrip', label: 'Antes de viajar', emoji: '📍' },
-    ],
-  },
 };
 
 const ANON_FP_KEY = 'anon_fingerprint';
@@ -405,6 +243,12 @@ function sanitize(raw: Record<string, unknown>): Restaurant {
   const id = String(raw.id ?? raw.place_id ?? '');
   const clamp = (n: number, lo: number, hi: number) =>
     Math.max(lo, Math.min(hi, n));
+  const reviewSourcesRaw =
+    typeof raw.reviewSources === 'object' && raw.reviewSources !== null
+      ? raw.reviewSources as Record<string, unknown>
+      : typeof raw.review_sources === 'object' && raw.review_sources !== null
+        ? raw.review_sources as Record<string, unknown>
+        : null;
   const rawPhotoUrl = String(
     raw.photoUrl ??
     raw.photo_url ??
@@ -440,8 +284,19 @@ function sanitize(raw: Record<string, unknown>): Restaurant {
           rating: Number(review.rating ?? 0),
           text: String(review.text ?? ''),
           relative_time: String(review.relative_time ?? ''),
+          source:
+            review.source === 'google' || review.source === 'yelp' || review.source === 'tripadvisor'
+              ? review.source as 'google' | 'yelp' | 'tripadvisor'
+              : undefined,
         }))
       : [],
+    reviewSources: reviewSourcesRaw
+      ? {
+          google: Math.max(0, Math.round(Number(reviewSourcesRaw.google ?? 0))),
+          yelp: Math.max(0, Math.round(Number(reviewSourcesRaw.yelp ?? 0))),
+          tripadvisor: Math.max(0, Math.round(Number(reviewSourcesRaw.tripadvisor ?? 0))),
+        }
+      : undefined,
     liveData:           typeof raw.liveData === 'object' && raw.liveData !== null ? raw.liveData as Record<string, any> : undefined,
   };
 }
@@ -471,10 +326,11 @@ export async function castVote(
   vote: 1 | -1,
 ): Promise<VoteResponse> {
   const token = await auth.currentUser?.getIdToken() ?? null;
-  const res = await fetch(`${BASE_URL}/vote`, {
+  const res = await fetch(`${BASE_URL}/votes`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Accept-Language': i18n.language || 'es',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({ item_id: itemId, item_type: itemType, vote }),
@@ -499,11 +355,20 @@ export async function getVotesBatch(
   try {
       const res = await fetch(`${BASE_URL}/votes/batch`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept-Language': i18n.language || 'es'
+        },
         body: JSON.stringify({ ids }),
       });
       if (!res.ok) return {};
-      const data = await res.json();
+      const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          throw new Error(`Invalid JSON from poll: ${text.slice(0, 100)}`);
+        }
       return data.votes ?? {};
   } catch {
       return {};
@@ -514,7 +379,9 @@ export async function getVotes(
   itemId: string,
 ): Promise<VoteData | null> {
   try {
-      const res = await fetch(`${BASE_URL}/votes/${itemId}`);
+      const res = await fetch(`${BASE_URL}/votes/${itemId}`, {
+        headers: { 'Accept-Language': i18n.language || 'es' }
+      });
       if (!res.ok) return null;
       return await res.json();
   } catch {
@@ -600,7 +467,10 @@ export async function searchUniversalPlaces(params: {
 
   try {
     const res = await fetch(searchUrl, {
-      headers: { Accept: 'application/json' },
+      headers: { 
+        Accept: 'application/json',
+        'Accept-Language': i18n.language || 'es'
+      },
       signal: AbortSignal.timeout(12000),
     });
     if (!res.ok) return [];
@@ -628,13 +498,17 @@ export async function recommendRestaurants(
   input: RecommendInput
 ): Promise<{ top: Restaurant[] }> {
   const { parentCategory, subcategory, mood, priceLevel, fast = false, language = 'es' } = input;
-  const { lat, lng } = await getCurrentLocation();
+  const { lat, lng } = await getCurrentLocation(EXPLORE_LOCATION_OPTIONS);
 
   const recommendUrl = buildUrl('/recommend', { fast: fast ? 'true' : undefined });
 
   const res = await fetch(recommendUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'Accept-Language': i18n.language || 'es'
+    },
     body: JSON.stringify({
       parent_category: parentCategory,
       subcategory,
@@ -652,7 +526,7 @@ export async function recommendRestaurants(
     throw new Error(`Backend error ${res.status}: ${detail}`);
   }
 
-  const data = await res.json();
+  const data = await parseJsonResponse<{ top?: Array<Record<string, unknown>> }>(res, 'recommend');
   const top: Restaurant[] = (data.top ?? []).map(
     (r: Record<string, unknown>) => sanitize(r)
   );
@@ -672,20 +546,24 @@ export interface StreamCallbacks {
   onError?: (error: Error) => void;
 }
 
-const POLL_INTERVAL_MS = 500;
-const STAGGER_DELAY_MS = 350; // delay between rendering each result within a batch
+const POLL_INTERVAL_MS = 250;
+const STAGGER_DELAY_MS = 50; // keep progressive rendering but avoid artificial slowness
 
 export async function recommendRestaurantsStream(
   input: RecommendStreamInput,
   callbacks: StreamCallbacks,
 ): Promise<void> {
   const { parentCategory, subcategory, mood, priceLevel, language = 'es' } = input;
-  const { lat, lng } = await getCurrentLocation();
+  const { lat, lng } = await getCurrentLocation(EXPLORE_LOCATION_OPTIONS);
 
   // Step 1: Start the job
-  const startRes = await fetch(`${BASE_URL}/recommend/start`, {
+  const startRes = await fetch(buildUrl('/recommend/start'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'Accept-Language': i18n.language || 'es'
+    },
     body: JSON.stringify({
       parent_category: parentCategory,
       subcategory,
@@ -703,7 +581,11 @@ export async function recommendRestaurantsStream(
     throw new Error(`Start error ${startRes.status}: ${detail}`);
   }
 
-  const { job_id } = await startRes.json();
+  const startData = await parseJsonResponse<{ job_id?: string }>(startRes, 'recommend/start');
+  const job_id = startData.job_id;
+  if (!job_id) {
+    throw new Error('recommend/start did not return job_id');
+  }
 
   // Step 2: Poll for results every POLL_INTERVAL_MS
   let cursor = 0;
@@ -712,11 +594,21 @@ export async function recommendRestaurantsStream(
   return new Promise<void>((resolve, reject) => {
     const poll = async () => {
       try {
-        const res = await fetch(`${BASE_URL}/recommend/poll/${job_id}?after=${cursor}`);
+        const res = await fetch(buildUrl(`/recommend/poll/${job_id}`, { after: String(cursor) }), {
+          headers: {
+            Accept: 'application/json',
+            'Accept-Language': i18n.language || 'es'
+          }
+        });
         if (!res.ok) {
           throw new Error(`Poll error ${res.status}`);
         }
-        const data = await res.json();
+        const data = await parseJsonResponse<{
+          results?: Array<Record<string, unknown>>;
+          total?: number;
+          done?: boolean;
+          cursor?: number;
+        }>(res, 'recommend/poll');
 
         // Fire meta once we know the total
         if (!metaFired && data.total != null) {
@@ -724,13 +616,15 @@ export async function recommendRestaurantsStream(
           callbacks.onMeta?.({ total: data.total });
         }
 
-        cursor = data.cursor;
+        cursor = typeof data.cursor === 'number' ? data.cursor : cursor;
+        const pollResults = Array.isArray(data.results) ? data.results : [];
+        const pollDone = data.done === true;
 
-        if (data.results.length > 0) {
+        if (pollResults.length > 0) {
           // Stagger delivery of results to break React batching.
           // Each result gets its own setTimeout so React renders each individually.
-          const results = data.results;
-          const isDone = data.done;
+          const results = pollResults;
+          const isDone = pollDone;
 
           for (let i = 0; i < results.length; i++) {
             setTimeout(() => {
@@ -746,10 +640,10 @@ export async function recommendRestaurantsStream(
 
           // Schedule next poll AFTER all staggered deliveries finish
           if (!isDone) {
-            const nextPollDelay = Math.max(POLL_INTERVAL_MS, results.length * STAGGER_DELAY_MS + 100);
+            const nextPollDelay = Math.max(POLL_INTERVAL_MS, results.length * STAGGER_DELAY_MS + 50);
             setTimeout(poll, nextPollDelay);
           }
-        } else if (data.done) {
+        } else if (pollDone) {
           callbacks.onDone?.(cursor);
           resolve();
         } else {
@@ -763,7 +657,7 @@ export async function recommendRestaurantsStream(
     };
 
     // First poll quickly — meta should be available almost immediately
-    setTimeout(poll, 400);
+    setTimeout(poll, 150);
   });
 }
 
@@ -772,6 +666,7 @@ export async function getCategoryFlow(categoryId: string): Promise<CategoryFlowR
 
   try {
     const res = await fetch(`${BASE_URL}/categories/flow/${categoryId}`, {
+      headers: { 'Accept-Language': i18n.language || 'es' },
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) throw new Error('Failed to fetch category flow');
@@ -793,6 +688,7 @@ export async function getCategoryFlow(categoryId: string): Promise<CategoryFlowR
 export async function getExploreCategories(): Promise<ExploreCategory[]> {
   try {
     const res = await fetch(`${BASE_URL}/categories`, {
+      headers: { 'Accept-Language': i18n.language || 'es' },
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) throw new Error('Failed to fetch categories');
@@ -805,7 +701,9 @@ export async function getExploreCategories(): Promise<ExploreCategory[]> {
 
 export async function getReportTypes(): Promise<ReportType[]> {
   try {
-    const res = await fetch(`${BASE_URL}/reports/types`);
+    const res = await fetch(`${BASE_URL}/reports/types`, {
+      headers: { 'Accept-Language': i18n.language || 'es' }
+    });
     if (!res.ok) throw new Error('Failed to fetch report types');
     const data = await res.json();
     return data.types && data.types.length > 0 ? data.types : DEFAULT_REPORT_TYPES;
@@ -855,6 +753,7 @@ export async function createReport(input: CreateReportInput): Promise<{ report: 
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Accept-Language': i18n.language || 'es',
       ...(session ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
     },
     body: JSON.stringify(payload),
@@ -886,6 +785,7 @@ export async function toggleBookmark(
 
   const headers = {
     'Content-Type': 'application/json',
+    'Accept-Language': i18n.language || 'es',
     'Authorization': `Bearer ${session.access_token}`,
   };
 
@@ -913,6 +813,7 @@ export async function getBookmarks(): Promise<SavedItem[]> {
 
     const res = await fetch(`${BASE_URL}/bookmarks`, {
       headers: {
+        'Accept-Language': i18n.language || 'es',
         'Authorization': `Bearer ${session.access_token}`,
       },
     });
@@ -931,7 +832,10 @@ export async function checkBookmark(itemId: string): Promise<boolean> {
     if (!session) return false;
 
     const res = await fetch(`${BASE_URL}/bookmarks/${itemId}/check`, {
-      headers: { 'Authorization': `Bearer ${session.access_token}` },
+      headers: { 
+        'Accept-Language': i18n.language || 'es',
+        'Authorization': `Bearer ${session.access_token}` 
+      },
     });
     if (!res.ok) return false;
     const data = await res.json();
@@ -949,6 +853,7 @@ export async function getMyReports(): Promise<CommunityReport[]> {
 
     const res = await fetch(`${BASE_URL}/reports/me`, {
       headers: {
+        'Accept-Language': i18n.language || 'es',
         'Authorization': `Bearer ${session.access_token}`,
       },
     });
@@ -1036,11 +941,76 @@ export async function getPlaceLiveData(params: {
       city: params.city,
     });
 
-    const res = await fetch(liveDataUrl, { headers: { Accept: 'application/json' } });
+    const res = await fetch(liveDataUrl, { 
+      headers: { 
+        Accept: 'application/json',
+        'Accept-Language': i18n.language || 'es'
+      } 
+    });
     if (!res.ok) return { type: 'none' };
     return await res.json();
   } catch {
     return { type: 'none' };
+  }
+}
+
+export async function getPlaceTake(params: {
+  placeId: string;
+  lat: number;
+  lng: number;
+  category?: string;
+  subcategory?: string;
+  language?: string;
+  name?: string;
+  address?: string;
+  photoUrl?: string;
+  rating?: number;
+  priceLevel?: number;
+  reviewsCount?: number;
+}): Promise<Restaurant | null> {
+  try {
+    const takeUrl = buildUrl(`/places/${params.placeId}/take`, {
+      lat: params.lat.toString(),
+      lng: params.lng.toString(),
+      category: params.category,
+      subcategory: params.subcategory,
+      language: params.language,
+      name: params.name,
+      address: params.address,
+      photo_url: params.photoUrl,
+      rating: params.rating != null ? String(params.rating) : undefined,
+      price_level: params.priceLevel != null ? String(params.priceLevel) : undefined,
+      user_rating_count: params.reviewsCount != null ? String(params.reviewsCount) : undefined,
+    });
+    const res = await fetch(takeUrl, { 
+      headers: { 
+        Accept: 'application/json',
+        'Accept-Language': i18n.language || 'es'
+      } 
+    });
+    if (!res.ok) return null;
+    return sanitize(await res.json());
+  } catch {
+    return null;
+  }
+}
+
+export async function askBrain(message: string, context?: Record<string, unknown>): Promise<{ response: string }> {
+  try {
+    const token = await auth.currentUser?.getIdToken() ?? null;
+    const res = await fetch(`${BASE_URL}/brain`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept-Language': i18n.language || 'es',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ message, context }),
+    });
+    if (!res.ok) throw new Error('Failed to ask brain');
+    return await res.json();
+  } catch {
+    return { response: 'Error al consultar el cerebro.' };
   }
 }
 
@@ -1062,7 +1032,10 @@ export async function fetchNearbyItems(
         const mapItemsUrl = `${BASE_URL}/map/items?${qsParts.join('&')}`;
 
         const res = await fetch(mapItemsUrl, {
-            headers: { 'Accept': 'application/json' }
+            headers: { 
+              'Accept': 'application/json',
+              'Accept-Language': i18n.language || 'es'
+            }
         });
         if (!res.ok) return [];
         const data = await res.json();
@@ -1070,4 +1043,43 @@ export async function fetchNearbyItems(
     } catch {
         return [];
     }
+}
+
+export async function fetchPlaceExtra(placeId: string, metadata?: any): Promise<{ take: any; live: any; vote: VoteData | null }> {
+  try {
+    const url = new URL(`${BASE_URL}/places/${placeId}/take`);
+    if (metadata) {
+      Object.entries(metadata).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) url.searchParams.append(k, String(v));
+      });
+    }
+
+    const [takeRes, liveRes, voteRes] = await Promise.all([
+      fetch(url.toString()).catch(() => null),
+      fetch(`${BASE_URL}/places/${placeId}/live-data`).catch(() => null),
+      fetch(`${BASE_URL}/votes/${placeId}`).catch(() => null),
+    ]);
+    const take = takeRes?.ok ? await takeRes.json() : null;
+    const live = liveRes?.ok ? await liveRes.json() : null;
+    const vote = voteRes?.ok ? await voteRes.json() : null;
+    return { take, live, vote };
+  } catch (err) {
+    console.error('fetchPlaceExtra failed', err);
+    return { take: null, live: null, vote: null };
+  }
+}
+
+export async function getPlaceData(placeId: string): Promise<MapItem | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/search/universal?q=${encodeURIComponent(placeId)}&lat=39.4699&lng=-0.3763&radius_m=50000`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const found = (data.results ?? []).find((r: any) => r.id === placeId);
+    if (!found) return null;
+    
+    // Ensure it's enriched before returning
+    return normalizeSearchResult(found);
+  } catch {
+    return null;
+  }
 }

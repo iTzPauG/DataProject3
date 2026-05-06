@@ -74,25 +74,31 @@ module "cloud_sql" {
   depends_on = [module.apis]
 }
 
+
+module "registry" {
+  source     = "./modules/registry"
+  project_id = var.project_id
+  region     = var.region
+  depends_on = [module.apis]
+}
+
 module "cloud_run" {
   source               = "./modules/cloud_run"
   region               = var.region
-  image                = data.terraform_remote_state.shared.outputs.registry_image
-  build_id             = data.terraform_remote_state.shared.outputs.registry_build_id
+  project_id           = var.project_id
+  workspace            = terraform.workspace
+  image                = module.registry.image
+  build_id             = module.registry.build_id
   cloud_sql_connection = module.cloud_sql.connection_name
   depends_on           = [module.apis, module.cloud_sql]
 }
 
 module "iam" {
-  source       = "./modules/iam"
-  region       = var.region
-  project_id   = var.project_id
-  service_name = module.cloud_run.service_name
-}
-
-module "bigquery_tables" {
-  source     = "./modules/bigquery_tables"
-  project_id = var.project_id
+  source                = "./modules/iam"
+  region                = var.region
+  project_id            = var.project_id
+  service_name          = module.cloud_run.service_name
+  service_account_email = module.cloud_run.service_account_email
 }
 
 module "registry_frontend" {
@@ -112,6 +118,7 @@ module "registry_frontend" {
 module "cloud_run_frontend" {
   source                       = "./modules/cloud_run_frontend"
   region                       = var.region
+  workspace                    = terraform.workspace
   image                        = module.registry_frontend.image
   build_id                     = module.registry_frontend.build_id
   project_id                   = var.project_id

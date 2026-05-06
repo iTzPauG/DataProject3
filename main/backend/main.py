@@ -1,22 +1,40 @@
 """Plan Recommendation API — FastAPI application entry point."""
 
 import logging
+import time
+import json
+import traceback
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from config import ALLOWED_ORIGINS
+from database import init_db, using_postgres
 from routers import health, recommend, votes, places, events, reports, categories, bookmarks, search, brain, photos, preferences, compare, deals, reservations, interactions, internal, auth
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Plan Recommendation API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize configured database backend.
+    try:
+        backend = "postgres" if using_postgres() else "sqlite"
+        logger.info("Initializing %s database backend...", backend)
+        await init_db()
+        with open("startup.log", "a") as f:
+            f.write(f"DB init successful ({backend})\n")
+    except Exception as e:
+        logger.error(f"Failed to init DB: {e}")
+        with open("startup.log", "a") as f:
+            f.write(f"DB init failed: {e}\n{traceback.format_exc()}\n")
+    yield
+    # Clean up if needed
 
+app = FastAPI(title="Plan Recommendation API", lifespan=lifespan)
 
-import time
-import json
-import traceback
 
 class CatchAllMiddleware:
     """SIMPLE ASGI MIDDLEWARE: Catch exceptions without buffering the response."""

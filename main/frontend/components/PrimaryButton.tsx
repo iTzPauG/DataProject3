@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Text,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '../utils/theme';
 
 interface Props {
@@ -25,6 +26,11 @@ export default function PrimaryButton({
   const { colors, radii, shadows, typography } = useTheme();
   const isDisabled = disabled || loading;
   const isPrimary = variant === 'primary';
+
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  };
 
   const styles = useMemo(() => StyleSheet.create({
     button: {
@@ -74,7 +80,7 @@ export default function PrimaryButton({
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       disabled={isDisabled}
       style={({ pressed }) => [
         styles.button,

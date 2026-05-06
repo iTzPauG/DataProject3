@@ -1,9 +1,3 @@
-/**
- * NearbySheet — collapsible bottom panel listing nearby map items.
- *
- * Simple implementation using Animated + PanResponder.
- * Two states: collapsed (peek header) and expanded (scrollable list).
- */
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -17,36 +11,14 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useTranslation } from "react-i18next";
+import { BlurView } from 'expo-blur';
 import { useDeviceType } from '../hooks/useDeviceType';
 import { MapItem } from '../types/map';
 import { formatDistance } from '../utils/format';
 import { useTheme } from '../utils/theme';
-
-// ─── Category config ──────────────────────────────────────────────────────────
-
-const CATEGORY_STYLES: Record<string, { color: string; icon: string }> = {
-  // Place categories matching FALLBACK_CATEGORIES in mapService
-  food:       { color: '#FF6B35', icon: '🍴' },
-  restaurant: { color: '#FF6B35', icon: '🍽️' },
-  nightlife:  { color: '#3B82F6', icon: '🌙' },
-  shopping:   { color: '#10B981', icon: '🛒' },
-  health:     { color: '#EF4444', icon: '💊' },
-  nature:     { color: '#22C55E', icon: '🌿' },
-  culture:    { color: '#F59E0B', icon: '🎭' },
-  services:   { color: '#94A3B8', icon: '🛠️' },
-  sport:      { color: '#0EA5E9', icon: '⚽' },
-  education:  { color: '#8B5CF6', icon: '📚' },
-  event:      { color: '#EC4899', icon: '🎉' },
-  market:     { color: '#F97316', icon: '🏪' },
-  music:      { color: '#A855F7', icon: '🎵' },
-  report:     { color: '#EF4444', icon: '📢' },
-  // Legacy / extra
-  cinema:     { color: '#EF4444', icon: '🎬' },
-};
-
-const DEFAULT_STYLE = { color: '#9E9E9E', icon: '📍' };
-
-// ─── Constants ────────────────────────────────────────────────────────────────
+import CategoryMonogram from './CategoryMonogram';
+import Icon from './Icon';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const COLLAPSED_HEIGHT = 100;
@@ -60,8 +32,6 @@ interface Props {
   hasSearched?: boolean;
 }
 
-// ─── Item row ─────────────────────────────────────────────────────────────────
-
 function NearbyItem({
   item,
   selected,
@@ -73,8 +43,8 @@ function NearbyItem({
   onPress: () => void;
   onNavigate: () => void;
 }) {
-  const { colors, radii, typography } = useTheme();
-  const catStyle = CATEGORY_STYLES[item.category_id] ?? DEFAULT_STYLE;
+  const { t } = useTranslation();
+  const { colors, typography, space } = useTheme();
   const rating = item.metadata?.rating as number | undefined;
   const distance = item.distance_m > 0 ? formatDistance(item.distance_m) : '';
 
@@ -82,30 +52,25 @@ function NearbyItem({
     itemRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 10,
-      paddingHorizontal: 8,
-      borderRadius: radii.md,
-      marginBottom: 4,
+      paddingVertical: space.md,
+      paddingHorizontal: space.md,
+      marginBottom: 1,
+      backgroundColor: selected ? 'rgba(255, 255, 255, 0.05)' : 'transparent',
+      borderBottomWidth: 1,
+      borderBottomColor: 'rgba(255, 255, 255, 0.05)',
     },
-    itemRowSelected: {
-      backgroundColor: colors.brand + '15',
-    },
-    itemIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+    itemIconBox: {
+      width: 48,
+      height: 48,
       alignItems: 'center',
       justifyContent: 'center',
-      marginRight: 12,
-    },
-    itemIconText: {
-      fontSize: 18,
+      marginRight: space.md,
     },
     itemContent: {
       flex: 1,
     },
     itemTitle: {
-      fontSize: 14,
+      fontSize: 15,
       fontWeight: '600',
       fontFamily: typography.heading,
       color: colors.ink,
@@ -114,27 +79,44 @@ function NearbyItem({
     itemMeta: {
       flexDirection: 'row',
       alignItems: 'center',
+      gap: 6,
     },
     itemRating: {
       fontSize: 12,
-      fontWeight: '600',
-      color: '#FFCC00',
+      fontWeight: '700',
+      color: colors.accent,
+      fontFamily: typography.mono,
     },
     itemDistance: {
       fontSize: 12,
       fontFamily: typography.body,
       color: colors.inkMuted,
+      fontWeight: '500',
     },
-  }), [colors, radii, typography]);
+    navBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.ink,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 8,
+    }
+  }), [colors, typography, selected, space]);
 
   return (
     <TouchableOpacity
-      style={[styles.itemRow, selected && styles.itemRowSelected]}
+      style={styles.itemRow}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={[styles.itemIcon, { backgroundColor: catStyle.color }]}>
-        <Text style={styles.itemIconText}>{catStyle.icon}</Text>
+      <View style={styles.itemIconBox}>
+        <CategoryMonogram 
+          categoryId={item.category_id} 
+          label={item.title} 
+          size={44} 
+          variant={selected ? 'filled' : 'ring'}
+        />
       </View>
       <View style={styles.itemContent}>
         <Text style={styles.itemTitle} numberOfLines={1}>
@@ -154,25 +136,23 @@ function NearbyItem({
       {selected && (
         <TouchableOpacity
           onPress={onNavigate}
-          style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: colors.brand, borderRadius: 8 }}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={styles.navBtn}
+          activeOpacity={0.8}
         >
-          <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Ver →</Text>
+          <Icon name="arrow-right" size={16} color={colors.shell} strokeWidth={2.5} />
         </TouchableOpacity>
       )}
     </TouchableOpacity>
   );
 }
 
-// ─── Sheet ────────────────────────────────────────────────────────────────────
-
 export default function NearbySheet({ items, selectedId, onSelectItem, loading, hasSearched }: Props) {
-  const { colors, radii, shadows, typography } = useTheme();
+  const { t } = useTranslation();
+  const { colors, radii, shadows, typography, space } = useTheme();
   const { isDesktop } = useDeviceType();
   const [expanded, setExpanded] = useState(false);
   const animHeight = useRef(new Animated.Value(COLLAPSED_HEIGHT)).current;
 
-  // Auto-expand when an item is selected
   React.useEffect(() => {
     if (selectedId) {
       setExpanded(true);
@@ -186,36 +166,40 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
       bottom: 0,
       left: 0,
       right: 0,
-      backgroundColor: colors.surface,
-      borderTopLeftRadius: radii.xl,
-      borderTopRightRadius: radii.xl,
+      borderTopLeftRadius: 32,
+      borderTopRightRadius: 32,
       overflow: 'hidden',
-      ...shadows.soft,
+    },
+    blurView: {
+      flex: 1,
+      backgroundColor: 'rgba(24, 26, 35, 0.85)',
+      borderTopWidth: 1,
+      borderTopColor: 'rgba(255, 255, 255, 0.05)',
     },
     header: {
       alignItems: 'center',
-      paddingTop: 8,
-      paddingBottom: 12,
-      paddingHorizontal: 16,
+      paddingTop: space.sm,
+      paddingBottom: space.md,
+      paddingHorizontal: space.lg,
     },
     handle: {
-      width: 36,
+      width: 40,
       height: 4,
-      backgroundColor: colors.stroke,
+      backgroundColor: colors.strokeStrong,
       borderRadius: 2,
-      marginBottom: 8,
+      marginBottom: space.sm,
     },
     headerText: {
-      fontSize: 15,
+      fontSize: 14,
       fontWeight: '700',
       fontFamily: typography.heading,
       color: colors.ink,
+      letterSpacing: -0.1,
     },
     list: {
-      paddingHorizontal: 12,
-      paddingBottom: 20,
+      paddingBottom: 40,
     },
-  }), [colors, radii, shadows, typography]);
+  }), [colors, radii, shadows, typography, space]);
 
   const toggle = useCallback(() => {
     const toExpanded = !expanded;
@@ -233,7 +217,6 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
       onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 5,
       onPanResponderRelease: (_, g) => {
         if (g.dy < -30) {
-          // Swipe up
           setExpanded(true);
           Animated.spring(animHeight, {
             toValue: EXPANDED_HEIGHT,
@@ -241,7 +224,6 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
             friction: 10,
           }).start();
         } else if (g.dy > 30) {
-          // Swipe down
           setExpanded(false);
           Animated.spring(animHeight, {
             toValue: COLLAPSED_HEIGHT,
@@ -268,8 +250,8 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
     [selectedId, onSelectItem],
   );
 
-  const desktopWidth = 360;
-  const desktopLeft = 24;
+  const desktopWidth = 600;
+  const desktopLeft = 40;
 
   if (!selectedId && !hasSearched && (!items || items.length === 0) && !loading) return null;
 
@@ -282,40 +264,38 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
           width: desktopWidth,
           left: desktopLeft,
           bottom: 24,
-          borderRadius: 20,
-          maxHeight: SCREEN_HEIGHT - 200,
+          borderRadius: 24,
+          maxHeight: SCREEN_HEIGHT - 240,
         },
       ]}
     >
-      {/* Drag handle */}
-      <View {...panResponder.panHandlers}>
-        <TouchableOpacity 
-          style={styles.header} 
-          onPress={toggle} 
-          activeOpacity={0.9}
-          hitSlop={{ top: 20, bottom: 20, left: 40, right: 40 }}
-        >
-          <View style={styles.handle} />
-          <Text style={styles.headerText}>
-            {loading
-              ? 'Buscando...'
-              : (items && items.length > 0)
-                ? `${items.length} cerca de ti`
-                : (hasSearched ? 'Sin resultados' : '')}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <BlurView intensity={80} tint="dark" style={styles.blurView}>
+        <View {...panResponder.panHandlers}>
+          <TouchableOpacity 
+            style={styles.header} 
+            onPress={toggle} 
+            activeOpacity={0.9}
+          >
+            <View style={styles.handle} />
+            <Text style={styles.headerText}>
+              {loading
+                ? t('common.loading')
+                : (items && items.length > 0)
+                  ? t('explore.showingPlaces', { count: items.length })
+                  : (hasSearched ? t('flow.noResults') : '')}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-      {/* List */}
-      <FlatList
-        data={items}
-        keyExtractor={(item) => item.item_id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        scrollEnabled={expanded}
-      />
+        <FlatList
+          data={items}
+          keyExtractor={(item) => item.item_id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          scrollEnabled={expanded}
+        />
+      </BlurView>
     </Animated.View>
   );
 }
-

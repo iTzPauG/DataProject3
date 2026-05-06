@@ -3,6 +3,7 @@ resource "google_project_service" "required" {
     "iam.googleapis.com",
     "artifactregistry.googleapis.com",
     "run.googleapis.com",
+    "aiplatform.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "firestore.googleapis.com",
     "bigquery.googleapis.com",

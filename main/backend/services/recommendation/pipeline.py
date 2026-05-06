@@ -1,16 +1,14 @@
 """
-Recommendation pipeline — optimised for speed.
+Recommendation pipeline v2 - velocidad, resiliencia y calidad.
 
-2 LLM calls total (down from 4 + N):
-  A  search_places()      → Google Places API, up to 20 candidates + haversine + inline reviews
-  B  pre_filter()         → drop low-rated / wrong-price / too-far; rank by rating × log(reviews)
-  C  merge_reviews()      → use inline reviews from search (no extra API calls needed)
+Optimised flow (batch mode ~3-5s, stream first result ~3s):
+  A  search_places()      → Google Places API, 20 candidates + inline reviews + reviewSummary
+  B  pre_filter()         → drop low-rated / wrong-price / too-far; rank by rating x log(reviews)
+  C' smart_fetch()        → ONLY deep-fetch places missing reviews (skip if search gave them)
   D  resolve_mood()       → DETERMINISTIC mood → structured prefs (no LLM)
-  E  analyze_reviews()    → ONE LLM call: quality scores + signals for all candidates
-  F  contextual_rank()    → formula-based ranking with distance + quality, top 10
-  G  enrich_batch()       → ONE LLM call: brutally honest pros/cons/verdict for all top results
+  E  parallel LLM+live    → 2 LLM batches (3+2) + live data ALL IN PARALLEL
+  F  fallback             → if LLM fails, use reviewSummary directly (never empty results)
 """
-
 import asyncio
 import json
 import logging
@@ -18,14 +16,18 @@ import math
 import os
 import re
 import time
+from typing import Optional
 from typing import AsyncGenerator
 
+from google.auth import default as google_auth_default
 from google import genai
 from google.genai import types
 
 from .tools import fetch_all_reviews, haversine, search_places
 from .category_flow import get_flow_definition
 from services.live_data_service import get_live_data
+from services.cache_service import cache_get, cache_set
+from services.google_places_service import get_place_details as get_google_place_details
 
 MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
@@ -39,26 +41,59 @@ for _noisy in ("httpcore", "httpx", "urllib3", "google.auth"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 MAX_DISTANCE_KM = 8.0
-PREFILTER_CANDIDATES = 15
-TOP_RESULTS = 10
+PREFILTER_CANDIDATES = 20
+TOP_RESULTS = 5
 MIN_RESULTS = 5
+STREAM_INITIAL_BATCH_SIZE = 1
+STREAM_BATCH_SIZE = 2
+LLM_BATCH_SPLIT = 3  # split top 5 into batches of 3+2 for parallel LLM
+LLM_MAX_GOOGLE_REVIEWS = 4
+LLM_MAX_YELP_REVIEWS = 3
+LLM_MAX_TRIPADVISOR_REVIEWS = 3
+LLM_MAX_TOTAL_REVIEWS = 10
 
-# ── Shared Gemini client ─────────────────────────────────────────────────────
+# ────────── Shared Gemini client ──────────
 _genai_client: genai.Client | None = None
+_vertex_project_id: str | None = None
+
+
+def _resolve_vertex_project() -> str:
+    global _vertex_project_id
+    if _vertex_project_id:
+        return _vertex_project_id
+    project = os.getenv("GOOGLE_CLOUD_PROJECT", "").strip()
+    if project:
+        _vertex_project_id = project
+        return _vertex_project_id
+    try:
+        _, detected_project = google_auth_default()
+    except Exception as exc:
+        log.warning("[LLM] Could not resolve Google Cloud project from ADC: %s", exc)
+        detected_project = None
+    _vertex_project_id = (detected_project or "").strip()
+    return _vertex_project_id
 
 
 def _get_client() -> genai.Client:
     global _genai_client
     if _genai_client is None:
-        api_key = os.getenv("GOOGLE_GENAI_API_KEY") or os.getenv("GEMINI_API_KEY")
-        _genai_client = genai.Client(api_key=api_key)
+        project = _resolve_vertex_project()
+        if not project:
+            raise RuntimeError("Vertex AI requires GOOGLE_CLOUD_PROJECT or ADC project discovery.")
+        location = os.getenv("GOOGLE_CLOUD_LOCATION", "global").strip() or "global"
+        _genai_client = genai.Client(
+            vertexai=True,
+            project=project,
+            location=location,
+            http_options=types.HttpOptions(apiVersion="v1"),
+        )
     return _genai_client
 
 
 _llm_timings: list[dict] = []
 
 
-async def _llm(name: str, instruction: str, prompt: str, *, json_mode: bool = True) -> str:
+async def _llm_gemini(name: str, instruction: str, prompt: str, *, json_mode: bool = True) -> str:
     """Direct google-genai call with optional JSON-forced output."""
     log.info("[LLM:%s] → %d chars de prompt", name, len(prompt))
     t0 = time.perf_counter()
@@ -84,7 +119,7 @@ async def _llm(name: str, instruction: str, prompt: str, *, json_mode: bool = Tr
     total_tok    = getattr(usage, "total_token_count",      "?")
 
     log.info(
-        "[LLM:%s] ← %.2fs | tokens in=%s out=%s total=%s | respuesta %d chars",
+        "[LLM:%s] — %.2fs | tokens in=%s out=%s total=%s | respuesta %d chars",
         name, elapsed, prompt_tok, response_tok, total_tok, len(final),
     )
     _llm_timings.append({
@@ -92,6 +127,15 @@ async def _llm(name: str, instruction: str, prompt: str, *, json_mode: bool = Tr
         "tokens_in": prompt_tok, "tokens_out": response_tok, "tokens_total": total_tok,
     })
     return final
+
+
+async def _llm(name: str, instruction: str, prompt: str, *, json_mode: bool = True) -> str:
+    """LLM call with automatic fallback → Gemini first, empty string on failure."""
+    try:
+        return await _llm_gemini(name, instruction, prompt, json_mode=json_mode)
+    except Exception as e:
+        log.warning("[LLM:%s] Gemini failed: %s — triggering fallback enrichment", name, e)
+        return ""
 
 
 def _parse_json(text: str):
@@ -113,7 +157,7 @@ def _parse_json(text: str):
     return json.loads(text)
 
 
-# ── Category label helper ────────────────────────────────────────────────────
+# ────────── Category label helper ──────────
 
 def _category_label(parent_category: str) -> str:
     """Human-readable label for the category, used in LLM prompts."""
@@ -147,52 +191,163 @@ def _infer_city(address: str | None) -> str | None:
     return None
 
 
-# ── Step B — pre_filter (Python) ─────────────────────────────────────────────
+# ────────── Step B → semantic_filter (Python + Vector) ──────────
 
-def _pre_filter(candidates: list[dict], price_level: int | None, n: int = PREFILTER_CANDIDATES) -> list[dict]:
-    """Drop low-rated / price-mismatched places, rank by Google's own signal."""
+from services.vector_service import generate_embeddings, cosine_similarity, COMPLEX_QUERY_MIN_LEN
+
+async def _semantic_filter(candidates: list[dict], mood: str, price_level: int | None, n: int = PREFILTER_CANDIDATES) -> list[dict]:
+    """Drop low-rated places, rank by Google's own signal + price match, and optionally Semantic Search (Embeddings)."""
+    if not candidates:
+        return []
+
     dropped = []
     kept = []
     far_candidates = []
+    
+    # 1. Standard filtering
     for r in candidates:
-        rating = r.get("rating", 0) or 0
+        rating = float(r.get("rating", 0) or 0)
         price_diff = 0
-        if price_level is not None and r.get("price_level") is not None:
-            price_diff = abs(r.get("price_level", price_level) - price_level)
+        raw_price = r.get("price_level")
+        price_known = isinstance(raw_price, (int, float)) and int(raw_price) > 0
+        pl = int(raw_price) if price_known else None
+        if price_level is not None and pl is not None:
+            price_diff = abs(pl - price_level)
+
+        r["_price_known"] = price_known
+        r["_price_diff"] = price_diff
         distance_km = r.get("distance_m", 0) / 1000.0
-        if rating < 3.0:
-            dropped.append(f"{r['name']} (rating {rating} < 3.0)")
-        elif price_level is not None and price_diff > 1:
-            dropped.append(f"{r['name']} (price_level {r.get('price_level')} vs requested {price_level})")
+
+        if rating > 0 and rating < 3.5:
+            dropped.append(f"{r.get('name', 'Unknown')} (rating {rating} < 3.5)")
         elif distance_km > MAX_DISTANCE_KM:
             far_candidates.append(r)
         else:
             kept.append(r)
 
-    def _sort_key(r: dict):
-        return (
-            (r.get("rating") or 0.0) * math.log10((r.get("total_ratings") or 0) + 1),
-            -(r.get("distance_m") or 0),
+    # Fallbacks if we dropped too many
+    if not kept and far_candidates:
+        kept = far_candidates
+    elif not kept and dropped:
+        kept = candidates
+
+    # 1.5 Budget filter strategy:
+    # Prefer exact/near matches when possible, but keep unknown-price candidates
+    # as fallback so we don't end up with empty lists in areas with sparse price data.
+    if price_level is not None and kept:
+        exact_price = [r for r in kept if r.get("_price_known") and r.get("_price_diff", 99) == 0]
+        near_price = [r for r in kept if r.get("_price_known") and r.get("_price_diff", 99) == 1]
+        far_price = [r for r in kept if r.get("_price_known") and r.get("_price_diff", 99) >= 2]
+        unknown_price = [r for r in kept if not r.get("_price_known")]
+
+        budget_candidates: list[dict] = []
+        budget_candidates.extend(exact_price)
+        if len(budget_candidates) < MIN_RESULTS:
+            budget_candidates.extend(near_price)
+        if len(budget_candidates) < MIN_RESULTS:
+            budget_candidates.extend(unknown_price)
+        if len(budget_candidates) < MIN_RESULTS:
+            budget_candidates.extend(far_price)
+
+        log.info(
+            "[B] budget filter lvl=%s -> exact=%d near=%d unknown=%d far=%d final=%d",
+            price_level,
+            len(exact_price),
+            len(near_price),
+            len(unknown_price),
+            len(far_price),
+            len(budget_candidates),
         )
+        kept = budget_candidates
+
+    # 2. Vector Semantic Similarity (if mood is a natural language query)
+    is_complex_query = bool(mood and len(mood) > COMPLEX_QUERY_MIN_LEN)
+    
+    if is_complex_query and kept:
+        log.info(f"[B] Complex query detected: '{mood}'. Running semantic embedding search...")
+        
+        # Prepare context strings for each place
+        texts_to_embed = [mood]
+        for r in kept:
+            # Create a rich text representation of the place
+            name = r.get("name", "")
+            tags = " ".join(r.get("metadata", {}).get("types", []))
+            summary = r.get("review_summary", "") or r.get("metadata", {}).get("review_summary", "")
+            context = f"Lugar: {name}. Etiquetas: {tags}. Resumen: {summary}"
+            texts_to_embed.append(context)
+            
+        # Generate embeddings in one batch
+        embeddings = await generate_embeddings(texts_to_embed)
+        
+        if embeddings and embeddings[0]:
+            query_emb = embeddings[0]
+            for i, r in enumerate(kept):
+                place_emb = embeddings[i + 1] if (i + 1) < len(embeddings) else []
+                sim = cosine_similarity(query_emb, place_emb)
+                r["_semantic_score"] = sim
+                log.debug(f"[B] Semantic score for {r.get('name')}: {sim:.3f}")
+        else:
+            log.warning("[B] Embeddings failed, falling back to standard ranking.")
+            is_complex_query = False
+
+    # 3. Final Sorting
+    mood_id = (mood or "").strip().lower()
+
+    def _sort_key(r: dict):
+        rate = float(r.get("rating") or 0.0)
+        count = int(r.get("total_ratings") or 0)
+        dist = int(r.get("distance_m", 0) or 0)
+        pdiff = r.get("_price_diff", 0)
+        price_known = bool(r.get("_price_known"))
+        types = set(r.get("types") or [])
+        meta = r.get("metadata", {})
+        if isinstance(meta, dict):
+            types.update(meta.get("types", []) or [])
+        
+        base_score = rate * math.log10(max(10, count))
+        dist_penalty = (dist / 1000.0) * 0.5
+        if price_level is None:
+            price_penalty = 0.0
+        else:
+            if not price_known:
+                # Unknown price: allow, but lower priority than known matching places.
+                price_penalty = 7.0
+            elif pdiff == 0:
+                price_penalty = 0.0
+            elif pdiff == 1:
+                price_penalty = 9.0
+            else:
+                # Big mismatch with requested budget.
+                price_penalty = 22.0
+
+        mood_boost = 0.0
+        if mood_id in {"quick", "express", "urgent", "quick_stop"}:
+            dist_penalty = (dist / 1000.0) * 1.1
+            if any(t in types for t in ("meal_takeaway", "meal_delivery", "fast_food_restaurant")):
+                mood_boost += 4.0
+        
+        semantic_boost = 0.0
+        if is_complex_query:
+            # If semantic score exists, it's between -1 and 1 (usually 0 to 1).
+            # We scale it heavily so it overrides the base score for strong matches.
+            sim = r.get("_semantic_score", 0.0)
+            semantic_boost = sim * 20.0 
+            
+        return base_score - dist_penalty - price_penalty + semantic_boost + mood_boost
 
     if dropped:
         log.debug("[B] dropped %d candidates: %s", len(dropped), " | ".join(dropped))
 
     kept.sort(key=_sort_key, reverse=True)
-    far_candidates.sort(key=_sort_key, reverse=True)
-    if len(kept) < n and far_candidates:
-        kept.extend(far_candidates[: max(0, n - len(kept))])
-
     result = kept[:n]
     log.info(
-        "[B] pre_filter: %d → %d candidates  |  kept: %s",
-        len(candidates), len(result),
-        ", ".join(f"{r['name']} ({r.get('rating')}★, {r.get('distance_m', 0):.0f}m)" for r in result),
+        "[B] semantic_filter: %d → %d candidates",
+        len(candidates), len(result)
     )
     return result
 
 
-# ── Step D — resolve_mood (DETERMINISTIC — no LLM) ──────────────────────────
+# ────────── Step D → resolve_mood (DETERMINISTIC → no LLM) ──────────
 
 _MOOD_MAP: dict[str, dict] = {
     "quick":        {"prefer_quiet": False, "prefer_fast": True,  "prefer_formal": False, "prefer_outdoor": False, "vibe_keywords": ["quick", "casual", "efficient"]},
@@ -280,294 +435,455 @@ _NEUTRAL_MOOD = {"prefer_quiet": False, "prefer_fast": False, "prefer_formal": F
 
 
 def _resolve_mood(mood: str) -> dict:
-    """Instant mood resolution — no LLM needed."""
+    """Instant mood resolution → no LLM needed."""
     result = _MOOD_MAP.get(mood, _NEUTRAL_MOOD)
     log.info("[D] resolve_mood('%s') → %s", mood, result)
     return result
 
 
-# ── Step E — analyze reviews (SINGLE LLM call) ────────────────────────────
+# ────────── Step E → analyze reviews (SINGLE LLM call) ──────────
 
 def _review_confidence(r: dict) -> float:
     total = r.get("total_ratings", 0) or 0
     rating_confidence = min(1.0, math.log10(total + 1) / math.log10(20000))
-    text_count = len(r.get("google_reviews", []))
+    text_count = len(_all_reviews(r))
     text_bonus = min(0.15, text_count * 0.03)
     return min(1.0, rating_confidence + text_bonus)
 
 
-def _enrich_fallback(r: dict, signals: dict[str, dict]) -> dict:
+def _clean_review_text(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "")).strip()
+
+
+def _review_snippet(text: str, limit: int = 140) -> str:
+    cleaned = _clean_review_text(text)
+    if len(cleaned) <= limit:
+        return cleaned
+    truncated = cleaned[:limit].rsplit(" ", 1)[0].strip()
+    return (truncated or cleaned[:limit]).rstrip(" ,.;:") + "..."
+
+
+def _all_reviews(r: dict) -> list[dict]:
+    reviews: list[dict] = []
+    for key, source in (
+        ("google_reviews", "google"),
+        ("yelp_reviews", "yelp"),
+        ("tripadvisor_reviews", "tripadvisor"),
+    ):
+        source_reviews = r.get(key) or []
+        if not isinstance(source_reviews, list):
+            continue
+        for review in source_reviews:
+            if isinstance(review, dict) and _clean_review_text(str(review.get("text") or "")):
+                review_with_source = dict(review)
+                if not review_with_source.get("source"):
+                    review_with_source["source"] = source
+                reviews.append(review_with_source)
+    return reviews
+
+
+def _pick_reviews_for_llm(source_reviews: list[dict], source: str, limit: int) -> list[dict]:
+    if limit <= 0:
+        return []
+    picked: list[dict] = []
+    for review in source_reviews:
+        if not isinstance(review, dict):
+            continue
+        text = _clean_review_text(str(review.get("text") or ""))
+        if not text:
+            continue
+        normalized = dict(review)
+        normalized["source"] = str(normalized.get("source") or source)
+        picked.append(normalized)
+
+    # Prioritize reviews with stronger signal (extreme ratings + richer text).
+    picked.sort(
+        key=lambda review: (
+            -abs(int(review.get("rating") or 0) - 3),
+            -len(_clean_review_text(str(review.get("text") or ""))),
+        )
+    )
+    return picked[:limit]
+
+
+def _reviews_for_llm(r: dict) -> list[dict]:
+    selected: list[dict] = []
+    selected.extend(_pick_reviews_for_llm(r.get("google_reviews") or [], "google", LLM_MAX_GOOGLE_REVIEWS))
+    selected.extend(_pick_reviews_for_llm(r.get("yelp_reviews") or [], "yelp", LLM_MAX_YELP_REVIEWS))
+    selected.extend(_pick_reviews_for_llm(r.get("tripadvisor_reviews") or [], "tripadvisor", LLM_MAX_TRIPADVISOR_REVIEWS))
+    return selected[:LLM_MAX_TOTAL_REVIEWS]
+
+
+def _review_source_counts(r: dict) -> dict[str, int]:
+    counts: dict[str, int] = {"google": 0, "yelp": 0, "tripadvisor": 0}
+    
+    # Google count is usually total_ratings
+    counts["google"] = int(r.get("total_ratings") or len(r.get("google_reviews") or []))
+    
+    # Yelp count
+    if "yelp_review_count" in r and r["yelp_review_count"] > 0:
+        counts["yelp"] = r["yelp_review_count"]
+    else:
+        counts["yelp"] = len(r.get("yelp_reviews") or [])
+        
+    # TripAdvisor count
+    if "tripadvisor_review_count" in r and r["tripadvisor_review_count"] > 0:
+        counts["tripadvisor"] = r["tripadvisor_review_count"]
+    else:
+        counts["tripadvisor"] = len(r.get("tripadvisor_reviews") or [])
+        
+    return counts
+
+
+def _review_mentions_issue(text: str) -> bool:
+    lowered = _clean_review_text(text).lower()
+    issue_terms = (
+        "pero",
+        "aunque",
+        "espera",
+        "cola",
+        "lento",
+        "lenta",
+        "ruido",
+        "ruidoso",
+        "caro",
+        "cara",
+        "frio",
+        "fría",
+        "mal",
+        "fatal",
+        "peor",
+        "sucio",
+        "sucia",
+        "pequeño",
+        "pequeno",
+        "apretado",
+        "agobio",
+        "segunda opinión",
+        "segunda opinion",
+        "dolor",
+        "problema",
+        "queja",
+    )
+    return any(term in lowered for term in issue_terms)
+
+
+_POSITIVE_THEMES: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("staff", ("trato", "amable", "atencion", "atención", "personal", "encantador", "cercano", "majo"), "El trato sale repetidamente como cercano y agradable."),
+    ("professional", ("profesional", "profesionales", "explican", "confianza", "serio", "seriedad"), "Las reseñas transmiten profesionalidad y bastante confianza."),
+    ("quality", ("rico", "buen", "buena", "increible", "increíble", "calidad", "resultado", "perfecto", "maravilla"), "La calidad final convence y la experiencia deja buen sabor de boca."),
+    ("space", ("bonito", "precioso", "hermoso", "verde", "amplio", "grande", "arquitectura"), "El sitio destaca por el entorno y por lo agradable que resulta estar allí."),
+    ("value", ("precio", "barato", "merece", "gratis", "económico", "economico"), "La relación entre lo que ofrece y lo que cuesta sale bien parada."),
+    ("fast", ("rapido", "rápido", "agil", "ágil", "puntual", "sin espera"), "La experiencia parece ágil y sin demasiada fricción."),
+)
+
+_NEGATIVE_THEMES: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("wait", ("espera", "cola", "tardar", "lento", "lenta", "demora", "retraso"), "La pega más repetida es la espera o la lentitud."),
+    ("noise", ("ruido", "ruidoso", "ruidosa", "bullicio", "agobio"), "Puede hacerse ruidoso o agobiante en momentos de mucha afluencia."),
+    ("price", ("caro", "cara", "carisimo", "carísima", "sobreprecio", "overpriced"), "Varias reseñas dejan la sensación de precio alto para lo que ofrece."),
+    ("cleanliness", ("sucio", "sucia", "suciedad", "baño", "bano", "olor"), "Hay senales de limpieza o mantenimiento que no terminan de convencer."),
+    ("trust", ("segunda opinión", "segunda opinion", "diagnostico", "diagnóstico", "cobrarte", "timar", "innecesaria"), "Aparecen dudas serias sobre el criterio o la confianza que transmite."),
+    ("result", ("dolor", "mal", "fatal", "peor", "problema", "decepcion", "decepción"), "El resultado final no siempre está a la altura de lo prometido."),
+    ("crowding", ("lleno", "petado", "apretado", "mesas juntas", "masificado"), "Cuando se llena, la comodidad baja bastante."),
+)
+
+_PRACTICAL_CAUTIONS: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("walk", ("largo", "larga", "enorme", "grande", "punta a punta", "recorrer", "caminar"), "Es de esos sitios para ir con tiempo; si vas con prisa, se te puede quedar corto."),
+    ("booking", ("reserva", "reservar", "book", "busy", "siempre lleno"), "Pinta a sitio de ir con margen o con reserva si no quieres jugártela."),
+    ("timing", ("fin de semana", "finde", "hora punta", "mucha gente", "afluencia"), "En hora punta puede perder parte de la gracia, así que conviene elegir bien cuándo ir."),
+)
+
+
+def _theme_hits(text: str, themes: tuple[tuple[str, tuple[str, ...], str], ...]) -> set[str]:
+    lowered = _clean_review_text(text).lower()
+    hits: set[str] = set()
+    for theme_id, keywords, _label in themes:
+        if any(keyword in lowered for keyword in keywords):
+            hits.add(theme_id)
+    return hits
+
+
+def _top_theme_labels(
+    reviews: list[dict],
+    themes: tuple[tuple[str, tuple[str, ...], str], ...],
+    *,
+    limit: int,
+    min_hits: int = 1,
+) -> list[str]:
+    counts: dict[str, int] = {}
+    labels: dict[str, str] = {}
+    for review in reviews:
+        text = str(review.get("text") or "")
+        for theme_id in _theme_hits(text, themes):
+            counts[theme_id] = counts.get(theme_id, 0) + 1
+    for theme_id, _keywords, label in themes:
+        labels[theme_id] = label
+    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    results: list[str] = []
+    for theme_id, count in ranked:
+        if count < min_hits:
+            continue
+        results.append(labels[theme_id])
+        if len(results) == limit:
+            break
+    return results
+
+
+def _generic_positive_summary(reviews: list[dict]) -> str:
+    if not reviews:
+        return "Lo que mejor aguanta es la valoración general, pero con poca reseña útil para concretar mucho más."
+    avg = sum(int(review.get("rating") or 0) for review in reviews) / max(len(reviews), 1)
+    if avg >= 4.5:
+        return "La gente sale bastante convencida y el tono general de las reseñas es claramente bueno."
+    return "El tono general tira a positivo y no parece un sitio que decepcione de entrada."
+
+
+def _generic_negative_summary(total_reviews: int) -> str:
+    if total_reviews < 3:
+        return "Hay poca reseña útil para sacar una pega firme sin inventar."
+    return "No aparece una crítica repetida de verdad; hay buena nota, pero la muestra no da para vender perfección."
+
+
+def _practical_caution_from_reviews(reviews: list[dict]) -> str:
+    labels = _top_theme_labels(reviews, _PRACTICAL_CAUTIONS, limit=1, min_hits=1)
+    if labels:
+        return labels[0]
+    return ""
+
+
+def _fallback_review_signals(r: dict) -> tuple[list[str], list[str], str, str, str]:
+    reviews = _all_reviews(r)
+    positives = [rev for rev in reviews if int(rev.get("rating") or 0) >= 4]
+    negatives = [rev for rev in reviews if int(rev.get("rating") or 0) <= 2]
+    mixed = [rev for rev in reviews if rev not in negatives and _review_mentions_issue(str(rev.get("text") or ""))]
+
+    pros = _top_theme_labels(positives, _POSITIVE_THEMES, limit=2, min_hits=1)
+    if not pros and positives:
+        pros = [_generic_positive_summary(positives)]
+
+    strong_cons = _top_theme_labels(negatives + mixed, _NEGATIVE_THEMES, limit=2, min_hits=1)
+    practical_caution = _practical_caution_from_reviews(reviews)
+    cons = strong_cons[:]
+    if not cons:
+        if practical_caution:
+            cons = [practical_caution]
+        else:
+            cons = [_generic_negative_summary(len(reviews))]
+
+    best_quote = ""
+    if positives:
+        best_quote = _review_snippet(str(max(positives, key=lambda rev: len(_clean_review_text(str(rev.get("text") or "")))).get("text") or ""), 180)
+    elif reviews:
+        best_quote = _review_snippet(str(reviews[0].get("text") or ""), 180)
+
+    total = int(r.get("total_ratings") or 0)
+    rating = float(r.get("rating") or 0.0)
+    summary = _clean_review_text(str(r.get("review_summary") or ""))
+
+    if total < 20:
+        if pros and strong_cons:
+            verdict = "Hay senales interesantes, pero la muestra es corta: aquí conviene leer tanto lo bueno como las pegas antes de fiarse."
+        elif pros:
+            verdict = "Apunta bien, pero con tan pocas reseñas no sería serio venderlo como apuesta segura."
+        elif strong_cons:
+            verdict = "Con tan poca muestra ya aparecen alertas; no basta para condenarlo del todo, pero sí para ir con cuidado."
+        else:
+            verdict = "Sin suficiente información textual para opinar con honestidad."
+    elif pros and strong_cons:
+        verdict = (
+            f"Tiene buena nota ({rating:.1f}/5), pero las reseñas dejan claro que aquí hay cosas que gustan mucho y otras que generan dudas reales."
+        )
+    elif pros:
+        verdict = "El consenso sale bien parado, aunque conviene leerlo sin adornos: gusta por razones concretas, no porque sí."
+    elif strong_cons:
+        verdict = "Las críticas pesan más que la nota media; aquí hay senales claras para entrar con cuidado."
+    elif summary:
+        verdict = summary
+    elif total >= 50:
+        verdict = f"Tiene volumen y buena nota ({total} reseñas, {rating:.1f}/5), pero falta texto útil para sacar un take más afilado sin inventar."
+    else:
+        verdict = "Sin suficiente información textual para opinar con honestidad."
+
+    why_parts = []
+    if pros:
+        why_parts.append(pros[0])
+    if strong_cons:
+        why_parts.append(cons[0])
+    why = " ".join(why_parts).strip()
+
+    return pros[:2], cons[:2], verdict, why, best_quote
+
+
+def _enrich_fallback(r: dict, signals: dict[str, dict] | None = None) -> dict:
+    """Build a result when LLM is unavailable → uses reviewSummary as verdict."""
     pid = r["place_id"]
-    sig = signals.get(pid, {})
+    sig = (signals or {}).get(pid, {})
     total = r.get("total_ratings") or 0
+    summary = r.get("review_summary", "")
+    rating = float(r.get("rating") or 0.0)
+    fallback_pros, fallback_cons, fallback_verdict, fallback_why, fallback_quote = _fallback_review_signals(r)
+
+    verdict = fallback_verdict
+
     return {
-        "id": pid, 
-        "name": r.get("name"), 
-        "priceLevel": int(r.get("price_level") or 2), 
-        "rating": float(r.get("rating") or 0.0),
-        "reviewsCount": int(total), 
-        "address": r.get("address", "") or "", 
+        "id": pid,
+        "name": r.get("name"),
+        "priceLevel": int(r.get("price_level") or 2),
+        "rating": rating,
+        "reviewsCount": int(total),
+        "address": r.get("address", "") or "",
         "phone": r.get("phone", "") or "",
-        "photoUrl": r.get("photo_url", "") or "", 
-        "tagline": r.get("name", "") or "", 
-        "why": "",
-        "pros": sig.get("green_flags", [])[:2] or ["Sin suficientes datos."],
-        "cons": sig.get("red_flags", [])[:2] or (["Pocas reseñas."] if total < 50 else ["Sin quejas destacadas."]),
-        "verdict": "Sin suficiente informacion." if total < 50 else "Lugar popular.",
-        "tags": sig.get("atmosphere_tags", [])[:4], 
-        "reviews": r.get("google_reviews", [])[:15],
-        "review_count": int(total), 
-        "lat": float(r.get("lat") or 0.0), 
+        "photoUrl": r.get("photo_url", "") or "",
+        "tagline": r.get("name", "") or "",
+        "why": fallback_why or (summary[:120] if summary else ""),
+        "pros": sig.get("green_flags", [])[:2] or fallback_pros or (
+            [f"Valoracion de {rating:.1f} estrellas."] if rating >= 4.0 else ["Sin suficientes datos."]
+        ),
+        "cons": sig.get("red_flags", [])[:2] or fallback_cons or (
+            ["Pocas resenas disponibles."] if total < 50 else ["Sin quejas destacadas en las reseñas disponibles."]
+        ),
+        "verdict": verdict,
+        "tags": sig.get("atmosphere_tags", [])[:4],
+        "reviews": _all_reviews(r)[:15],
+        "reviewSources": _review_source_counts(r),
+        "review_count": int(total),
+        "lat": float(r.get("lat") or 0.0),
         "lng": float(r.get("lng") or 0.0),
-        "bestReviewQuote": r.get("best_review_quote") or "",
-        "reviewQualityScore": float(r.get("review_quality_score") or 0.5),
+        "bestReviewQuote": r.get("best_review_quote") or fallback_quote,
+        "reviewQualityScore": float(r.get("review_quality_score") or _review_confidence(r)),
         "distanceM": int(r.get("distance_m") or 0),
     }
 
 
-# ── Orchestrator ──────────────────────────────────────────────────────────────
+# ────────── AI context builder (Step 6 → data quality) ──────────
 
-async def recommend(parent_category: str, subcategory: str | None, mood: str, price_level: int | None, lat: float, lng: float, fast_mode: bool = False, language: str = "es") -> list[dict]:
-    t_total = time.perf_counter()
-    _llm_timings.clear()
-    resolved_sub = subcategory or parent_category
+def _build_ai_context(r: dict) -> dict:
+    """Build context for LLM with data quality indicator."""
+    total = r.get("total_ratings", 0) or 0
+    return {
+        "id": r["place_id"],
+        "name": r["name"],
+        # Keep cross-platform evidence but cap size to reduce LLM latency.
+        "reviews": _reviews_for_llm(r),
+        "review_summary_support": r.get("review_summary", ""),
+        "rating": r.get("rating", 0),
+        "total_ratings": total,
+        "data_quality": "high" if total > 100 else "medium" if total > 20 else "low",
+        "address": r.get("address", ""),
+    }
+
+
+# ────────── LLM batch helper ──────────
+
+_LANG_MAP = {"es": "Spanish", "en": "English", "fr": "French"}
+
+
+def _requested_budget_label(price_level: int | None) -> str:
+    labels = {1: "low", 2: "medium", 3: "high"}
+    return labels.get(price_level or 0, "unspecified")
+
+
+def _build_llm_prompts(
+    places: list[dict],
+    mood: str,
+    language: str,
+    parent_category: str,
+    subcategory: str | None = None,
+    price_level: int | None = None,
+) -> tuple[str, str]:
+    """Build instruction + prompt for a batch of places."""
     label = _category_label(parent_category)
-    log.info("=" * 60)
-    log.info("REQUEST category='%s' (%s) mood='%s' lang=%s", parent_category, label, mood, language)
-    
-    # PHASE 1: Parallel Search + Predictive Review Fetching
-    t_step = time.perf_counter()
-    raw = await search_places(parent_category, resolved_sub, lat, lng, price_level, language=language)
-    candidates = raw.get("restaurants", [])
-    log.info("[PERF] Step A (Search): %.2fs", time.perf_counter() - t_step)
-    
-    if not candidates: return []
-    
-    # PHASE 2: Fast Filter & Pre-Ranking (Python only)
-    t_step = time.perf_counter()
-    candidates = _pre_filter(candidates, price_level)
-    log.info("[PERF] Step B (Pre-filter): %.2fs", time.perf_counter() - t_step)
+    target_lang = _LANG_MAP.get(language, "Spanish")
+    requested_type = (subcategory or parent_category or "food").replace("_", " ").strip()
+    requested_budget = _requested_budget_label(price_level)
+    ai_payload = [_build_ai_context(r) for r in places]
 
-    # PHASE 3: Deep Fetch (Parallel) for ONLY the top 5 candidates
-    t_step = time.perf_counter()
-    top_winners = candidates[:5]
-    
-    async def _deep_fetch_safe(r: dict) -> dict:
-        try:
-            data = await fetch_all_reviews(r["place_id"], r["name"], r["lat"], r["lng"], language=language)
-            return {**r, **data}
-        except Exception as e:
-            log.warning("[G] Deep fetch failed for %s: %s", r.get("name"), e)
-            return r
+    instruction = f"""You are WHIM, a brutally honest guide for {label} in Valencia, Spain.
+TASK: For each place, read the real individual reviews first and produce a compact, honest take.
 
-    results = await asyncio.gather(*[_deep_fetch_safe(r) for r in top_winners], return_exceptions=True)
-    top_winners = [r for r in results if isinstance(r, dict)]
-    log.info("[PERF] Step C (Deep Fetch Top %d): %.2fs", len(top_winners), time.perf_counter() - t_step)
-
-    # PHASE 4: Single LLM Call (Analyze + Translate + Enrich)
-    t_step = time.perf_counter()
-    
-    lang_map = {"es": "Spanish", "en": "English", "fr": "French"}
-    target_lang = lang_map.get(language, "Spanish")
-    
-    ai_payload = []
-    for r in top_winners:
-        ai_payload.append({
-            "id": r["place_id"],
-            "name": r["name"],
-            "reviews": r.get("google_reviews", [])[:15],
-            "summary": r.get("review_summary", "")
-        })
-
-    instruction = f"""You are GADO, a brutally honest guide for {label} in Valencia, Spain.
-TASK: For each place, perform these 3 steps in ONE go:
-1. ANALYSIS: Detect quality, vibe, and red flags from reviews.
-2. TRANSLATION: Translate the provided 'reviews' (author, text) into {target_lang}.
-3. ENRICHMENT: Write tagline, pros, cons, and verdict in {target_lang}.
+SOURCE PRIORITY:
+1. Use 'reviews' as the PRIMARY source of truth.
+2. Use 'review_summary_support' only to confirm broad consensus or when the individual review text is too thin.
 
 RULES:
-- Be honest. If there are negatives, you MUST include them in 'cons'.
-- Tone: Local, direct, insightful.
-- Output: A JSON array of objects.
-"""
+- Synthesize repeated patterns; do not copy long quotes into verdict, pros, or cons.
+- Be direct, sober, and useful. No marketing tone, no filler, no generic praise.
+- Las reviews pueden venir de Google, Yelp y TripAdvisor. Analizalas juntas.
+- Si detectas contradicciones entre fuentes, se prudente y no exageres.
+- The user asked for this filter set: type='{requested_type}', mood='{mood}', budget='{requested_budget}'.
+- The field 'why' MUST explicitly explain why this place fits those exact filters.
+- Include negatives when they appear in the reviews. Do not smooth them out.
+- If there is no clear negative pattern, use a practical caution only if the reviews support it. Otherwise say there is not enough negative signal.
+- For places with data_quality='low', be explicit about limited evidence and do not invent qualities.
+- Return up to 2 pros and up to 2 cons, each as short natural-language summaries.
+- All text in {target_lang}.
+- Output MUST be valid JSON only."""
 
     prompt = f"""Language: {target_lang}. Vibe requested: {mood}.
-For each place in this list, return:
-- id: same as place_id
-- translated_reviews: array containing ALL provided reviews (do not drop any, even if they seem similar) with 'author', 'text' (translated), 'rating', 'relative_time'
-- tagline: 5-8 word summary in {target_lang}
-- why: 1-2 sentences in {target_lang} matching user mood
-- pros: 2-3 specific points in {target_lang}
-- cons: 1-2 specific negatives in {target_lang}
-- verdict: Final honest take in {target_lang}
-- tags: 3-5 descriptive tags in {target_lang}
+Requested food type: {requested_type}.
+Requested budget level: {requested_budget}.
+For each place return exactly this JSON structure:
+[
+  {{
+    "id": "place_id",
+    "tagline": "5-8 word summary",
+    "why": "Short rationale grounded in review evidence",
+    "pros": ["Short summary of a repeated positive pattern", "Optional second positive pattern"],
+    "cons": ["Short summary of a repeated negative pattern or practical caution", "Optional second warning"],
+    "verdict": "One short, direct, evidence-based conclusion",
+    "tags": ["tag1", "tag2", "tag3"],
+    "best_quote": "optional short quote from a review",
+    "quality_score": 0.8
+  }}
+]
 
 PLACES:
-{json.dumps(ai_payload, ensure_ascii=False)}
-"""
+{json.dumps(ai_payload, ensure_ascii=False)}"""
 
+    return instruction, prompt
+
+
+async def _llm_batch(
+    places: list[dict],
+    mood: str,
+    language: str,
+    parent_category: str,
+    subcategory: str | None = None,
+    price_level: int | None = None,
+) -> dict[str, dict]:
+    """Run LLM enrichment for a batch of places. Returns {place_id: ai_data}."""
+    if not places:
+        return {}
+    instruction, prompt = _build_llm_prompts(
+        places,
+        mood,
+        language,
+        parent_category,
+        subcategory,
+        price_level,
+    )
+    raw_ai = await _llm(name=f"batch_{len(places)}", instruction=instruction, prompt=prompt)
+    if not raw_ai:
+        return {}
     try:
-        raw_ai = await _llm(name="combined_ai", instruction=instruction, prompt=prompt)
         ai_results = _parse_json(raw_ai)
-        
-        # Ensure ai_results is a list
         if isinstance(ai_results, dict):
             ai_results = [ai_results]
         elif not isinstance(ai_results, list):
-            ai_results = []
-            
-        ai_map = {item.get("id"): item for item in ai_results if isinstance(item, dict) and "id" in item}
-        
-        final_results = []
-        for r in top_winners:
-            ai_data = ai_map.get(r["place_id"], {})
-            
-            # Safety: Ensure reviews is always a list before slicing
-            translated = ai_data.get("translated_reviews")
-            if not isinstance(translated, list):
-                translated = r.get("google_reviews")
-            if not isinstance(translated, list):
-                translated = []
-                
-            # Safety: Map reviews to match schema exactly
-            safe_reviews = []
-            for rev in translated[:15]:
-                if not isinstance(rev, dict): continue
-                safe_reviews.append({
-                    "author": str(rev.get("author", "Anonymous")),
-                    "rating": int(rev.get("rating") or 0),
-                    "text": str(rev.get("text") or ""),
-                    "relative_time": str(rev.get("relative_time") or "n/a"),
-                })
-
-            final_results.append({
-                "id": r["place_id"],
-                "name": str(r.get("name") or ""),
-                "address": r.get("address", "") or "",
-                "website": r.get("website"),
-                "city": r.get("city") or _infer_city(r.get("address")),
-                "rating": float(r.get("rating") or 0.0),
-                "priceLevel": int(r.get("price_level") or 2),
-                "photoUrl": r.get("photo_url", "") or "",
-                "lat": float(r.get("lat") or 0.0),
-                "lng": float(r.get("lng") or 0.0),
-                "distanceM": int(r.get("distance_m") or 0),
-                "tagline": ai_data.get("tagline") or str(r.get("name") or ""),
-                "why": ai_data.get("why") or "",
-                "pros": ai_data.get("pros") or [],
-                "cons": ai_data.get("cons") or [],
-                "verdict": ai_data.get("verdict") or "",
-                "reviews": safe_reviews,
-                "reviewsCount": int(r.get("total_ratings") or 0),
-                "review_count": int(r.get("total_ratings") or 0),
-                "bestReviewQuote": ai_data.get("best_quote") or r.get("best_review_quote") or "",
-                "reviewQualityScore": float(ai_data.get("quality_score") or r.get("review_quality_score") or 0.5),
-                "tags": ai_data.get("tags") or [],
-            })
-            
-        log.info("[PERF] Step E+G (Combined AI): %.2fs", time.perf_counter() - t_step)
-        
-        # PHASE 5: Fetch Live Data (Parallel)
-        t_step = time.perf_counter()
-        live_data_tasks = [
-            get_live_data(
-                category=parent_category,
-                subcategory=subcategory,
-                lat=r.get("lat") or lat,
-                lng=r.get("lng") or lng,
-                website=r.get("website"),
-                name=r.get("name"),
-                city=r.get("city"),
-            )
-            for r in final_results
-        ]
-        live_data_results = await asyncio.gather(*live_data_tasks, return_exceptions=True)
-        for i, r in enumerate(final_results):
-            ld = live_data_results[i]
-            r["liveData"] = ld if isinstance(ld, dict) else {"type": "none"}
-        log.info("[PERF] Step H (Live Data): %.2fs", time.perf_counter() - t_step)
-
-        total_time = time.perf_counter() - t_total
-        log.info("=" * 60)
-        log.info("[PERF] TURBO PIPELINE DONE in %.2fs", total_time)
-        log.info("=" * 60)
-        return final_results
-
-    except Exception as exc:
-        log.error("[AI] Combined call failed or mapping error: %s", exc)
-        fallback_results = [_enrich_fallback(r, {}) for r in top_winners]
-        # Fetch live data for fallbacks too
-        live_data_tasks = [
-            get_live_data(
-                category=parent_category,
-                subcategory=subcategory,
-                lat=r.get("lat") or lat,
-                lng=r.get("lng") or lng,
-                website=r.get("website"),
-                name=r.get("name"),
-                city=r.get("city"),
-            )
-            for r in fallback_results
-        ]
-        live_data_results = await asyncio.gather(*live_data_tasks, return_exceptions=True)
-        for i, r in enumerate(fallback_results):
-            ld = live_data_results[i]
-            r["liveData"] = ld if isinstance(ld, dict) else {"type": "none"}
-        return fallback_results
+            return {}
+        return {item["id"]: item for item in ai_results if isinstance(item, dict) and "id" in item}
+    except Exception as e:
+        log.warning("[LLM] Failed to parse batch response: %s", e)
+        return {}
 
 
-# ── Single-place LLM enrichment (for streaming) ─────────────────────────────
-
-async def _llm_enrich_single(r: dict, mood: str, language: str, parent_category: str) -> dict:
-    """Enrich a single candidate with LLM — smaller prompt, faster response."""
-    label = _category_label(parent_category)
-    lang_map = {"es": "Spanish", "en": "English", "fr": "French"}
-    target_lang = lang_map.get(language, "Spanish")
-
-    ai_payload = {
-        "id": r["place_id"],
-        "name": r["name"],
-        "reviews": r.get("google_reviews", [])[:15],
-        "summary": r.get("review_summary", ""),
-    }
-
-    instruction = f"""You are GADO, a brutally honest guide for {label}.
-Analyze this ONE place. Be honest about negatives. Output JSON."""
-
-    prompt = f"""Language: {target_lang}. Vibe: {mood}.
-Return a JSON object with:
-- id, translated_reviews (array containing ALL provided reviews, do not drop any, with author/text (translated)/rating/relative_time),
-  tagline, why, pros (2-3), cons (1-2), verdict, tags (3-5).
-All text in {target_lang}.
-
-PLACE:
-{json.dumps(ai_payload, ensure_ascii=False)}"""
-
-    # Try once, retry once on quota/rate error — always return dict, never raise.
-    for attempt in range(2):
-        try:
-            raw_ai = await _llm(name="enrich_single", instruction=instruction, prompt=prompt)
-            parsed = _parse_json(raw_ai)
-            if parsed:
-                return parsed
-            log.warning("[STREAM] LLM returned empty JSON for %s (attempt %d)", r.get("name"), attempt + 1)
-        except Exception as e:
-            err = str(e)
-            log.warning("[STREAM] LLM enrich failed for %s (attempt %d): %s", r.get("name"), attempt + 1, err)
-            if attempt == 0 and ("429" in err or "quota" in err.lower() or "exhausted" in err.lower()):
-                await asyncio.sleep(3)  # brief backoff before single retry
-            else:
-                break  # non-quota error → give up immediately
-
-    log.error("[STREAM] LLM enrich gave up for %s — returning empty", r.get("name"))
-    return {}  # result is still shown, just without verdicts
-
+# ────────── Result builder ──────────
 
 def _build_result(r: dict, ai_data: dict, live_data: dict) -> dict:
     """Build a final result dict from a candidate + AI data + live data."""
-    translated = ai_data.get("translated_reviews")
-    if not isinstance(translated, list):
-        translated = r.get("google_reviews")
+    fallback_pros, fallback_cons, fallback_verdict, fallback_why, fallback_quote = _fallback_review_signals(r)
+    
+    translated = _all_reviews(r)
     if not isinstance(translated, list):
         translated = []
 
@@ -575,12 +891,28 @@ def _build_result(r: dict, ai_data: dict, live_data: dict) -> dict:
     for rev in translated[:15]:
         if not isinstance(rev, dict):
             continue
-        safe_reviews.append({
+        safe_review = {
             "author": str(rev.get("author", "Anonymous")),
             "rating": int(rev.get("rating") or 0),
             "text": str(rev.get("text") or ""),
             "relative_time": str(rev.get("relative_time") or "n/a"),
-        })
+        }
+        source = str(rev.get("source") or "").strip().lower()
+        if source in ("google", "yelp", "tripadvisor"):
+            safe_review["source"] = source
+        safe_reviews.append(safe_review)
+
+    pros = ai_data.get("pros")
+    if not pros:
+        pros = fallback_pros or ([f"Valoracion de {float(r.get('rating') or 0.0):.1f} estrellas."] if float(r.get('rating') or 0.0) >= 4.0 else ["Sin suficientes datos sobre puntos fuertes."])
+
+    cons = ai_data.get("cons")
+    if not cons:
+        cons = fallback_cons or (["Pocas resenas disponibles."] if int(r.get("total_ratings") or 0) < 50 else ["No hay suficiente señal negativa en las reseñas para sacar una pega firme."])
+
+    verdict = ai_data.get("verdict")
+    if not verdict:
+        verdict = fallback_verdict
 
     return {
         "id": r["place_id"],
@@ -595,21 +927,299 @@ def _build_result(r: dict, ai_data: dict, live_data: dict) -> dict:
         "lng": float(r.get("lng") or 0.0),
         "distanceM": int(r.get("distance_m") or 0),
         "tagline": ai_data.get("tagline") or str(r.get("name") or ""),
-        "why": ai_data.get("why") or "",
-        "pros": ai_data.get("pros") or [],
-        "cons": ai_data.get("cons") or [],
-        "verdict": ai_data.get("verdict") or "",
+        "why": ai_data.get("why") or fallback_why,
+        "pros": pros,
+        "cons": cons,
+        "verdict": verdict,
         "reviews": safe_reviews,
+        "reviewSources": _review_source_counts(r),
         "reviewsCount": int(r.get("total_ratings") or 0),
         "review_count": int(r.get("total_ratings") or 0),
-        "bestReviewQuote": ai_data.get("best_quote") or r.get("best_review_quote") or "",
-        "reviewQualityScore": float(ai_data.get("quality_score") or r.get("review_quality_score") or 0.5),
+        "bestReviewQuote": ai_data.get("best_quote") or r.get("best_review_quote") or fallback_quote,
+        "reviewQualityScore": float(ai_data.get("quality_score") or r.get("review_quality_score") or _review_confidence(r)),
         "tags": ai_data.get("tags") or [],
         "liveData": live_data if isinstance(live_data, dict) else {"type": "none"},
     }
 
 
-# ── Streaming pipeline ──────────────────────────────────────────────────────
+def _merge_fetched_data(base: dict, fetched: dict) -> dict:
+    """Merge smart-fetch payload without degrading existing candidate quality."""
+    merged = dict(base)
+
+    for key in ("google_reviews", "yelp_reviews", "tripadvisor_reviews"):
+        value = fetched.get(key)
+        if isinstance(value, list) and value:
+            merged[key] = value
+
+    for key in ("review_summary", "photo_url", "phone", "website", "yelp_review_count", "tripadvisor_review_count"):
+        value = fetched.get(key)
+        if value:
+            merged[key] = value
+
+    rating = fetched.get("rating")
+    if isinstance(rating, (int, float)) and float(rating) > 0:
+        merged["rating"] = float(rating)
+
+    total_ratings = fetched.get("total_ratings")
+    if isinstance(total_ratings, (int, float)) and int(total_ratings) > 0:
+        merged["total_ratings"] = int(total_ratings)
+
+    return merged
+
+
+# ────────── Orchestrator ──────────
+
+async def recommend(parent_category: str, subcategory: str | None, mood: str, price_level: int | None, lat: float, lng: float, fast_mode: bool = False, language: str = "es") -> list[dict]:
+    t_total = time.perf_counter()
+    _llm_timings.clear()
+    resolved_sub = subcategory or parent_category
+    label = _category_label(parent_category)
+    log.info("=" * 60)
+    log.info("REQUEST category='%s' (%s) mood='%s' lang=%s", parent_category, label, mood, language)
+
+    # ────────── PHASE 1: Search ──────────
+    t_step = time.perf_counter()
+    raw = await search_places(parent_category, resolved_sub, mood, lat, lng, price_level, language=language)
+    candidates = raw.get("restaurants", [])
+    log.info("[PERF] Step A (Search): %.2fs → %d results", time.perf_counter() - t_step, len(candidates))
+
+    if not candidates:
+        return []
+
+    # ────────── PHASE 2: Pre-filter ──────────
+    t_step = time.perf_counter()
+    candidates = await _semantic_filter(candidates, mood, price_level)
+    top_winners = candidates[:TOP_RESULTS]
+    log.info("[PERF] Step B (Pre-filter): %.2fs → top %d", time.perf_counter() - t_step, len(top_winners))
+
+    # ────────── PHASE 3: Smart fetch → ONLY places missing reviews ──────────
+    t_step = time.perf_counter()
+    needs_fetch = list(top_winners)
+    already_good: list[dict] = []
+
+    if needs_fetch:
+        async def _deep_fetch_safe(r: dict) -> dict:
+            try:
+                data = await fetch_all_reviews(
+                    r["place_id"],
+                    r["name"],
+                    r["lat"],
+                    r["lng"],
+                    language=language,
+                    address=str(r.get("address") or ""),
+                )
+                return _merge_fetched_data(r, data)
+            except Exception as e:
+                log.warning("[C'] Deep fetch failed for %s: %s", r.get("name"), e)
+                return r
+
+        fetched = await asyncio.gather(*[_deep_fetch_safe(r) for r in needs_fetch], return_exceptions=True)
+        needs_fetch = [r for r in fetched if isinstance(r, dict)]
+
+    top_winners = already_good + needs_fetch
+    log.info(
+        "[PERF] Step C' (Smart Fetch): %.2fs → skipped %d, fetched %d",
+        time.perf_counter() - t_step, len(already_good), len(needs_fetch),
+    )
+
+    # ────────── PHASE 4: PARALLEL → 2 LLM batches + live data ──────────
+    t_step = time.perf_counter()
+    batch1 = top_winners[:LLM_BATCH_SPLIT]
+    batch2 = top_winners[LLM_BATCH_SPLIT:]
+
+    live_data_tasks = [
+        get_live_data(
+            category=parent_category,
+            subcategory=subcategory,
+            lat=r.get("lat") or lat,
+            lng=r.get("lng") or lng,
+            website=r.get("website"),
+            name=r.get("name"),
+            city=r.get("city") or _infer_city(r.get("address")),
+        )
+        for r in top_winners
+    ]
+
+    async def _noop():
+        return {}
+
+    # Run 2 LLM batches + all live data in parallel
+    parallel_results = await asyncio.gather(
+        _llm_batch(batch1, mood, language, parent_category, subcategory, price_level),
+        _llm_batch(batch2, mood, language, parent_category, subcategory, price_level) if batch2 else _noop(),
+        *live_data_tasks,
+        return_exceptions=True,
+    )
+
+    # Unpack results
+    ai_map1 = parallel_results[0] if isinstance(parallel_results[0], dict) else {}
+    ai_map2 = parallel_results[1] if isinstance(parallel_results[1], dict) else {}
+    ai_map = {**ai_map1, **ai_map2}
+    live_results = parallel_results[2:]
+
+    log.info(
+        "[PERF] Step E+H (Parallel LLM+Live): %.2fs → AI enriched %d/%d places",
+        time.perf_counter() - t_step, len(ai_map), len(top_winners),
+    )
+
+    # ────────── PHASE 5: Assemble final results ──────────
+    final_results = []
+    for i, r in enumerate(top_winners):
+        ai_data = ai_map.get(r["place_id"], {})
+        ld = live_results[i] if i < len(live_results) and isinstance(live_results[i], dict) else {"type": "none"}
+
+        if ai_data:
+            final_results.append(_build_result(r, ai_data, ld))
+        else:
+            fb = _enrich_fallback(r)
+            fb["liveData"] = ld
+            final_results.append(fb)
+
+    total_time = time.perf_counter() - t_total
+    log.info("=" * 60)
+    log.info("[PERF] PIPELINE v2 DONE in %.2fs → %d results", total_time, len(final_results))
+    log.info("=" * 60)
+    return final_results
+
+
+async def enrich_place_result(
+    *,
+    place_id: str,
+    parent_category: str,
+    subcategory: Optional[str],
+    lat: float,
+    lng: float,
+    language: str = "es",
+    name: str = "",
+    address: str = "",
+    photo_url: str = "",
+    rating: float | None = None,
+    price_level: int | None = None,
+    user_rating_count: int | None = None,
+    google_reviews: Optional[list[dict]] = None,
+    review_summary: str = "",
+) -> dict:
+    """Enrich a single place with WHIM's take for generic place detail views."""
+    cache_key = (
+        f"place_take:{place_id}:{parent_category}:{subcategory or ''}:{language}:"
+        f"{round(lat, 4)}:{round(lng, 4)}"
+    )
+    cached = await cache_get(cache_key)
+    if cached:
+        log.info("[TAKE] cache hit for %s", place_id)
+        return cached
+
+    details = await get_google_place_details(place_id, language=language) or {}
+    normalized_price = price_level or 2
+    raw_price = details.get("price_level")
+    if raw_price == "PRICE_LEVEL_INEXPENSIVE":
+        normalized_price = 1
+    elif raw_price == "PRICE_LEVEL_MODERATE":
+        normalized_price = 2
+    elif raw_price in ("PRICE_LEVEL_EXPENSIVE", "PRICE_LEVEL_VERY_EXPENSIVE"):
+        normalized_price = 3
+
+    candidate = {
+        "place_id": place_id,
+        "name": name or details.get("name") or "Unknown",
+        "address": address or details.get("address") or "",
+        "rating": float(rating if rating is not None else details.get("rating") or 0.0),
+        "price_level": int(normalized_price),
+        "lat": lat,
+        "lng": lng,
+        "photo_url": photo_url or details.get("photo_url") or "",
+        "total_ratings": int(user_rating_count if user_rating_count is not None else details.get("user_rating_count") or 0),
+        "distance_m": 0,
+        "category_id": parent_category,
+        "subcategory": subcategory or parent_category,
+        "types": [],
+        "phone": details.get("phone", ""),
+        "website": details.get("website", ""),
+        "google_reviews": google_reviews if google_reviews else details.get("google_reviews", []),
+        "yelp_reviews": details.get("yelp_reviews", []),
+        "tripadvisor_reviews": details.get("tripadvisor_reviews", []),
+        "review_summary": review_summary or details.get("review_summary", ""),
+    }
+
+    ai_map = await _llm_batch([candidate], "balanced", language, parent_category, subcategory, price_level)
+    ai_data = ai_map.get(place_id, {})
+    if ai_data:
+        result = _build_result(candidate, ai_data, {"type": "none"})
+        log.info("[TAKE] generated LLM take for %s", place_id)
+    else:
+        result = _enrich_fallback(candidate)
+        result["liveData"] = {"type": "none"}
+        log.info("[TAKE] fallback take for %s", place_id)
+
+    await cache_set(cache_key, result, ttl=3600)
+    return result
+
+
+# ────────── Streaming pipeline v2 → batched (STREAM_BATCH_SIZE places per LLM call) ──────────
+
+async def _process_stream_batch(
+    batch: list[dict],
+    mood: str,
+    language: str,
+    parent_category: str,
+    subcategory: str | None,
+    price_level: int | None,
+    lat: float,
+    lng: float,
+) -> list[dict]:
+    """Process a batch: smart fetch + 1 LLM call + live data, all in parallel."""
+
+    # Smart fetch → only for places missing reviews
+    async def _smart_fetch(r: dict) -> dict:
+        try:
+            data = await fetch_all_reviews(
+                r["place_id"],
+                r["name"],
+                r["lat"],
+                r["lng"],
+                language=language,
+                address=str(r.get("address") or ""),
+            )
+            return _merge_fetched_data(r, data)
+        except Exception:
+            return r
+
+    enriched = await asyncio.gather(*[_smart_fetch(r) for r in batch])
+    enriched = [r for r in enriched if isinstance(r, dict)]
+
+    # LLM batch + live data in parallel
+    live_tasks = [
+        get_live_data(
+            category=parent_category, subcategory=subcategory,
+            lat=r.get("lat") or lat, lng=r.get("lng") or lng,
+            website=r.get("website"), name=r.get("name"),
+            city=r.get("city") or _infer_city(r.get("address")),
+        )
+        for r in enriched
+    ]
+
+    parallel = await asyncio.gather(
+        _llm_batch(enriched, mood, language, parent_category, subcategory, price_level),
+        *live_tasks,
+        return_exceptions=True,
+    )
+
+    ai_map = parallel[0] if isinstance(parallel[0], dict) else {}
+    live_results = parallel[1:]
+
+    results = []
+    for i, r in enumerate(enriched):
+        ai_data = ai_map.get(r["place_id"], {})
+        ld = live_results[i] if i < len(live_results) and isinstance(live_results[i], dict) else {"type": "none"}
+        if ai_data:
+            results.append(_build_result(r, ai_data, ld))
+        else:
+            fb = _enrich_fallback(r)
+            fb["liveData"] = ld
+            results.append(fb)
+
+    return results
+
 
 async def recommend_stream(
     parent_category: str,
@@ -620,77 +1230,63 @@ async def recommend_stream(
     lng: float,
     language: str = "es",
 ) -> AsyncGenerator[dict, None]:
-    """Yield results one by one via SSE as they are enriched."""
+    """Yield results in batches via SSE → 1 LLM call per batch of STREAM_BATCH_SIZE."""
     t_total = time.perf_counter()
     resolved_sub = subcategory or parent_category
-    label = _category_label(parent_category)
-    log.info("[STREAM] START category='%s' mood='%s'", parent_category, mood)
-
-    # Phase 1: Search
-    raw = await search_places(parent_category, resolved_sub, lat, lng, price_level, language=language)
-    candidates = raw.get("restaurants", [])
-    if not candidates:
-        yield {"event": "done", "total": 0}
-        return
-
-    # Phase 2: Pre-filter
-    candidates = _pre_filter(candidates, price_level)
-    # IMMEDIATELY YIELD META so UI knows how many are coming
-    yield {"event": "meta", "total": len(candidates)}
-
-    # Phase 3+4+5: Process each candidate and yield IMMEDIATELY as each finishes.
-    # We use an asyncio.Queue so producers (tasks) and the consumer (this generator)
-    # are decoupled — each result is yielded the instant it's ready, no batching.
-    result_queue: asyncio.Queue[dict | None] = asyncio.Queue()
+    log.info("[STREAM v2] START category='%s' mood='%s'", parent_category, mood)
     result_index = 0
-    total_tasks = len(candidates)
 
-    async def _process_one(r: dict) -> None:
-        try:
-            # Deep fetch
+    try:
+        # Phase 1: Search
+        raw = await search_places(parent_category, resolved_sub, mood, lat, lng, price_level, language=language)
+        candidates = raw.get("restaurants", [])
+        if not candidates:
+            return
+
+        # Phase 2: Semantic Pre-filter
+        candidates = await _semantic_filter(candidates, mood, price_level)
+        candidates = candidates[:TOP_RESULTS]
+        yield {"event": "meta", "total": len(candidates)}
+
+        # Phase 3: Process in batches → each batch = 1 LLM call
+        if candidates:
+            first_batch = candidates[:STREAM_INITIAL_BATCH_SIZE]
             try:
-                data = await fetch_all_reviews(r["place_id"], r["name"], r["lat"], r["lng"], language=language)
-                enriched = {**r, **data}
-            except Exception:
-                enriched = r
-
-            # LLM enrich
-            ai_data = await _llm_enrich_single(enriched, mood, language, parent_category)
-
-            # Live data
-            try:
-                live = await get_live_data(
-                    category=parent_category, subcategory=subcategory,
-                    lat=enriched.get("lat") or lat, lng=enriched.get("lng") or lng,
-                    website=enriched.get("website"), name=enriched.get("name"),
-                    city=enriched.get("city") or _infer_city(enriched.get("address")),
+                first_results = await _process_stream_batch(
+                    first_batch, mood, language, parent_category, subcategory, price_level, lat, lng,
                 )
-            except Exception:
-                live = {"type": "none"}
+                for result in first_results:
+                    result_index += 1
+                    yield {"event": "result", "index": result_index, "data": result}
+            except Exception as e:
+                log.error("[STREAM v2] Initial batch failed: %s", e)
+                for r in first_batch:
+                    result_index += 1
+                    fb = _enrich_fallback(r)
+                    fb["liveData"] = {"type": "none"}
+                    yield {"event": "result", "index": result_index, "data": fb}
 
-            await result_queue.put(_build_result(enriched, ai_data, live))
-        except Exception as e:
-            log.error("[STREAM] Failed processing %s: %s", r.get("name"), e)
-            await result_queue.put(None)  # signal this task is done (failed)
+            for i in range(STREAM_INITIAL_BATCH_SIZE, len(candidates), STREAM_BATCH_SIZE):
+                batch = candidates[i:i + STREAM_BATCH_SIZE]
+                try:
+                    results = await _process_stream_batch(
+                        batch, mood, language, parent_category, subcategory, price_level, lat, lng,
+                    )
+                    for result in results:
+                        result_index += 1
+                        yield {"event": "result", "index": result_index, "data": result}
+                except Exception as e:
+                    log.error("[STREAM v2] Batch %d failed: %s", i // STREAM_BATCH_SIZE, e)
+                    # Yield fallbacks for this batch so the stream doesn't break
+                    for r in batch:
+                        result_index += 1
+                        fb = _enrich_fallback(r)
+                        fb["liveData"] = {"type": "none"}
+                        yield {"event": "result", "index": result_index, "data": fb}
 
-    async def _run_all() -> None:
-        """Process all candidates in parallel — results arrive as each finishes."""
-        await asyncio.gather(*[_process_one(c) for c in candidates])
+        total_time = time.perf_counter() - t_total
+        log.info("[STREAM v2] DONE in %.2fs, yielded %d results", total_time, result_index)
+    finally:
+        yield {"event": "done", "total": result_index}
 
-    # Start the producer in the background
-    producer = asyncio.ensure_future(_run_all())
 
-    # Consume results as they arrive from the queue
-    finished = 0
-    while finished < total_tasks:
-        item = await result_queue.get()
-        finished += 1
-        if item is not None:
-            result_index += 1
-            yield {"event": "result", "index": result_index, "data": item}
-
-    await producer  # ensure cleanup
-
-    total_time = time.perf_counter() - t_total
-    log.info("[STREAM] DONE in %.2fs, yielded %d results", total_time, result_index)
-    yield {"event": "done", "total": result_index}
