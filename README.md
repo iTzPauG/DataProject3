@@ -1,6 +1,6 @@
-# GADO — Guía Maestra
+# WHIM — Guía Maestra
 
-GADO es una plataforma premium de descubrimiento de lugares y reportes ciudadanos en tiempo real, diseñada para Valencia y optimizada para la velocidad y la honestidad brutal.
+WHIM es una plataforma premium de descubrimiento de lugares y reportes ciudadanos en tiempo real, diseñada para Valencia y optimizada para la velocidad y la honestidad brutal.
 
 ## ✨ Características Principales
 
@@ -39,7 +39,6 @@ La forma más sencilla de arrancar el proyecto completo es usando el script auto
   SUPABASE_ANON_KEY=...
   GOOGLE_MAPS_API_KEY=... # Para búsqueda de lugares
   GOOGLE_GENAI_API_KEY=... # Cerebro Gemini
-  GEOAPIFY_API_KEY=...    # Mapas y geocodificación
   ```
 
 ### 2. Frontend (React Native + Expo)
@@ -81,10 +80,10 @@ Asegúrate de aplicar las migraciones en orden:
 
 ## 🚢 Despliegue en Producción (Railway)
 
-GADO está configurado para desplegarse automáticamente en Railway:
+WHIM está configurado para desplegarse automáticamente en Railway:
 - **Frontend**: Servido vía nginx (puerto 80).
 - **Backend**: FastAPI con autodetección de URL para evitar errores de CORS.
 - **Variables**: Asegúrate de configurar los *Build Arguments* en Railway para inyectar las claves de Expo durante la compilación.
 
 ---
-*GADO — Discovering the real city, brutally honest.*
+*WHIM — Discovering the real city, brutally honest.*

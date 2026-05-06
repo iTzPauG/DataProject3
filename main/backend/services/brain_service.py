@@ -1,21 +1,36 @@
 """
-Brain Service — LLM pluggable para GADO.
+Brain Service — LLM pluggable para WHIM.
 Providers soportados: gemini | openrouter | groq | ollama
 """
 from __future__ import annotations
 
 import json
 import os
+import logging
 from typing import Optional
 
 import httpx
+from google.auth import default as google_auth_default
+from google import genai
+from google.genai import types
 
-from config import BRAIN_PROVIDER, GOOGLE_GENAI_API_KEY, OPENROUTER_API_KEY, GROQ_API_KEY, OLLAMA_URL, OLLAMA_MODEL
+from config import (
+    BRAIN_PROVIDER, 
+    GOOGLE_GENAI_API_KEY, 
+    OPENROUTER_API_KEY, 
+    GROQ_API_KEY, 
+    OLLAMA_URL, 
+    OLLAMA_MODEL,
+    GOOGLE_CLOUD_PROJECT,
+    GOOGLE_CLOUD_LOCATION
+)
 
+logger = logging.getLogger(__name__)
 GEMINI_API_KEY = GOOGLE_GENAI_API_KEY
+_VERTEX_PROJECT_CACHE: str | None = None
 
 SYSTEM_PROMPT = """
-Eres el asistente de GADO, una app de descubrimiento urbano.
+Eres el asistente de WHIM, una app de descubrimiento urbano.
 Ayudas a los usuarios a encontrar lugares, eventos y reportes en tiempo real.
 Eres conciso, útil y hablas en el idioma que seleccione el usuario por defecto.
 Cuando el usuario busca algo, interpreta su intención y devuelve:
@@ -50,7 +65,7 @@ def _provider_chain() -> list[str]:
 
 def _provider_ready(provider: str) -> bool:
     if provider == "gemini":
-        return not _is_mock(GEMINI_API_KEY)
+        return bool(_resolve_vertex_project())
     if provider == "openrouter":
         return not _is_mock(OPENROUTER_API_KEY)
     if provider == "groq":
@@ -58,6 +73,23 @@ def _provider_ready(provider: str) -> bool:
     if provider == "ollama":
         return True
     return False
+
+
+def _resolve_vertex_project() -> str:
+    global _VERTEX_PROJECT_CACHE
+    if _VERTEX_PROJECT_CACHE:
+        return _VERTEX_PROJECT_CACHE
+    project = (GOOGLE_CLOUD_PROJECT or "").strip()
+    if project:
+        _VERTEX_PROJECT_CACHE = project
+        return _VERTEX_PROJECT_CACHE
+    try:
+        _, detected_project = google_auth_default()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not resolve Vertex project from ADC: %s", exc)
+        detected_project = None
+    _VERTEX_PROJECT_CACHE = (detected_project or "").strip()
+    return _VERTEX_PROJECT_CACHE
 
 
 async def ask_brain(
@@ -80,6 +112,7 @@ async def ask_brain(
             if provider == "ollama":
                 return await _ask_ollama(user_message)
         except Exception as exc:  # noqa: BLE001 - allow fallback
+            logger.error(f"Error in provider {provider}: {exc}")
             last_error = exc
             continue
 
@@ -88,22 +121,51 @@ async def ask_brain(
     return _fallback(user_message)
 
 
-async def ask_brain_stream(message: str):
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        "gemini-3.0-flash:streamGenerateContent?key={GEMINI_API_KEY}"
+async def _ask_gemini(message: str) -> dict:
+    """Vertex AI Gemini Implementation."""
+    project = _resolve_vertex_project()
+    if not project:
+        raise RuntimeError("Vertex AI requires GOOGLE_CLOUD_PROJECT or ADC project discovery.")
+    client = genai.Client(
+        vertexai=True,
+        project=project,
+        location=(GOOGLE_CLOUD_LOCATION or "global"),
+        http_options=types.HttpOptions(apiVersion="v1"),
     )
-    payload = {
-        "contents": [{"role": "user", "parts": [{"text": f"{SYSTEM_PROMPT}\n\nUsuario: {message}"}]}],
-        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 500},
-    }
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        async with client.stream("POST", url, json=payload) as response:
-            response.raise_for_status()
-            async for line in response.aiter_lines():
-                if line.startswith("data: "):
-                    yield line[6:]
 
+    response = client.models.generate_content(
+        model='gemini-2.0-flash',
+        contents=f"{SYSTEM_PROMPT}\n\nUsuario: {message}",
+        config=types.GenerateContentConfig(
+            temperature=0.3,
+            max_output_tokens=500,
+        )
+    )
+    return _parse_brain_response(response.text, message)
+
+
+async def ask_brain_stream(message: str):
+    """Vertex AI Gemini Streaming Implementation."""
+    project = _resolve_vertex_project()
+    if not project:
+        raise RuntimeError("Vertex AI requires GOOGLE_CLOUD_PROJECT or ADC project discovery.")
+    client = genai.Client(
+        vertexai=True,
+        project=project,
+        location=(GOOGLE_CLOUD_LOCATION or "global"),
+        http_options=types.HttpOptions(apiVersion="v1"),
+    )
+
+    responses = client.models.generate_content_stream(
+        model='gemini-2.0-flash',
+        contents=f"{SYSTEM_PROMPT}\n\nUsuario: {message}",
+        config=types.GenerateContentConfig(
+            temperature=0.3,
+            max_output_tokens=500,
+        )
+    )
+    for response in responses:
+        yield json.dumps({"text": response.text}) + "\n"
 
 
 async def _ask_openrouter(message: str) -> dict:

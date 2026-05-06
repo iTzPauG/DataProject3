@@ -1,25 +1,27 @@
+import { useTranslation } from "react-i18next";
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '../../components/SafeIonicons';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Atmosphere from '../../components/Atmosphere';
-import ChoiceCard from '../../components/ChoiceCard';
+import CategoryMonogram from '../../components/CategoryMonogram';
 import { useFlowState } from '../../hooks/useFlowState';
-import { CategoryFlowResponse, getCategoryFlow } from '../../services/api';
+import { CategoryFlowOption, CategoryFlowResponse, getCategoryFlow } from '../../services/api';
 import { useTheme } from '../../utils/theme';
 
-const DEFAULT_OPTIONS = [
-  { id: 'popular', label: 'Popular', emoji: '🔥' },
-  { id: 'new', label: 'Nuevo', emoji: '✨' },
-  { id: 'nearby', label: 'Cerca de ti', emoji: '📍' },
-  { id: 'top_rated', label: 'Mejor valorado', emoji: '⭐' },
-];
-
 export default function CategoryScreen() {
-  const { colors, typography } = useTheme();
+  const { t } = useTranslation();
+  const { colors, typography, space, radii } = useTheme();
   const { categoryId } = useLocalSearchParams<{ categoryId?: string }>();
   const { reset, setCategory, setParentCategory } = useFlowState();
+
+  const DEFAULT_OPTIONS = useMemo<CategoryFlowOption[]>(() => [
+    { id: 'popular', label: t('flow.popular'), emoji: '🔥' },
+    { id: 'new', label: t('common.soon'), emoji: '✨' },
+    { id: 'nearby', label: t('home.locationNow'), emoji: '📍' },
+    { id: 'top_rated', label: t('placeDetails.theBest'), emoji: '⭐' },
+  ], [t]);
 
   const styles = useMemo(() => StyleSheet.create({
     safe: {
@@ -28,51 +30,56 @@ export default function CategoryScreen() {
     },
     container: {
       flex: 1,
-      maxWidth: 560,
+      maxWidth: 600,
       width: '100%',
       alignSelf: 'center',
     },
     navBar: {
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      paddingBottom: 4,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: space.lg,
+      paddingTop: space.xl,
+      paddingBottom: space.sm,
     },
     backButton: {
-      paddingVertical: 8,
-      paddingHorizontal: 4,
-    },
-    backText: {
-      fontSize: 17,
-      color: colors.ink,
-      fontWeight: '600',
-      fontFamily: typography.heading,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.stroke,
     },
     header: {
-      paddingHorizontal: 24,
-      paddingTop: 28,
-      paddingBottom: 12,
+      paddingHorizontal: space.xl,
+      paddingTop: space.hero,
+      paddingBottom: space.xl,
     },
     step: {
-      fontSize: 12,
-      fontWeight: '600',
+      fontSize: 11,
+      fontWeight: '700',
       color: colors.brand,
-      letterSpacing: 1,
+      letterSpacing: 1.6,
       textTransform: 'uppercase',
-      marginBottom: 6,
-      fontFamily: typography.heading,
+      marginBottom: space.sm,
+      fontFamily: typography.mono,
     },
     title: {
-      fontSize: 28,
+      fontSize: 40,
       fontWeight: '800',
       color: colors.ink,
-      marginBottom: 6,
+      lineHeight: 44,
+      marginBottom: space.sm,
       fontFamily: typography.heading,
+      letterSpacing: -0.8,
     },
     subtitle: {
-      fontSize: 15,
+      fontSize: 18,
       color: colors.inkMuted,
-      lineHeight: 22,
+      lineHeight: 26,
       fontFamily: typography.body,
+      letterSpacing: -0.1,
     },
     centered: {
       flex: 1,
@@ -80,15 +87,64 @@ export default function CategoryScreen() {
       justifyContent: 'center',
     },
     scrollContent: {
-      paddingBottom: 16,
+      paddingBottom: space.hero,
     },
     grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      paddingHorizontal: 12,
-      paddingTop: 8,
+      paddingHorizontal: space.xl,
+      gap: space.sm,
     },
-  }), [colors, typography]);
+    gridItem: {
+      borderWidth: 1,
+      borderColor: colors.stroke,
+      padding: space.lg,
+      borderRadius: radii.md,
+      justifyContent: 'space-between',
+    },
+    gridItemFull: {
+      width: '100%',
+      minHeight: 140,
+      backgroundColor: colors.surface,
+    },
+    gridItemHalf: {
+      flex: 1,
+      minWidth: '45%',
+      minHeight: 120,
+    },
+    gridTopRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    emojiBadge: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.chip,
+      borderWidth: 1,
+      borderColor: colors.stroke,
+    },
+    emojiText: {
+      fontSize: 22,
+    },
+    emojiTextLarge: {
+      fontSize: 28,
+    },
+    gridLabel: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.ink,
+      fontFamily: typography.heading,
+      letterSpacing: -0.2,
+    },
+    gridLabelLarge: {
+      fontSize: 22,
+      letterSpacing: -0.4,
+    },
+  }), [colors, typography, space, radii]);
 
   const [flow, setFlow] = useState<CategoryFlowResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -106,7 +162,7 @@ export default function CategoryScreen() {
 
   const options = useMemo(
     () => (flow?.subcategories && flow.subcategories.length > 0 ? flow.subcategories : DEFAULT_OPTIONS),
-    [flow],
+    [flow, DEFAULT_OPTIONS],
   );
 
   const totalSteps = flow?.category.requires_price ? 3 : 2;
@@ -124,20 +180,18 @@ export default function CategoryScreen() {
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backButton}
+            activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="Go back"
+            accessibilityLabel={t('common.back')}
           >
-            <View style={styles.backButton}>
-              <Ionicons name="chevron-back" size={24} color={colors.ink} />
-              <Text style={styles.backText}>Back</Text>
-            </View>
+            <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.header}>
-          <Text style={styles.step}>Paso 1 de {totalSteps}</Text>
-          <Text style={styles.title}>¿Qué estás buscando?</Text>
-          <Text style={styles.subtitle}>Elige una opción para ver recomendaciones personalizadas</Text>
+          <Text style={styles.step}>{t('flow.step', { current: 1, total: totalSteps })}</Text>
+          <Text style={styles.title}>{t('flow.categoryTitle')}</Text>
+          <Text style={styles.subtitle}>{t('flow.categorySubtitle')}</Text>
         </View>
 
         {loading ? (
@@ -150,17 +204,39 @@ export default function CategoryScreen() {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.grid}>
-              {options.map((cat, i) => (
-                <ChoiceCard
-                  key={cat.id}
-                  iconName={cat.id}
-                  category={flow?.category.id ?? categoryId ?? 'food'}
-                  label={cat.label}
-                  selected={false}
-                  onPress={() => handleSelect(cat.id)}
-                  index={i}
-                />
-              ))}
+              {options.map((cat, i) => {
+                const isFull = i % 3 === 0;
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    onPress={() => handleSelect(cat.id)}
+                    activeOpacity={0.8}
+                    style={[
+                      styles.gridItem,
+                      isFull ? styles.gridItemFull : styles.gridItemHalf
+                    ]}
+                  >
+                    <View style={styles.gridTopRow}>
+                      <View style={styles.emojiBadge}>
+                        <Text style={[styles.emojiText, isFull && styles.emojiTextLarge]}>
+                          {cat.emoji ?? '🍽️'}
+                        </Text>
+                      </View>
+                      <CategoryMonogram
+                        categoryId={flow?.category.id ?? categoryId ?? 'food'}
+                        label={cat.label}
+                        size={isFull ? 50 : 38}
+                      />
+                    </View>
+                    <Text 
+                      style={[styles.gridLabel, isFull && styles.gridLabelLarge]}
+                      numberOfLines={2}
+                    >
+                      {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </ScrollView>
         )}

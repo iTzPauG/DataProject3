@@ -11,6 +11,7 @@ from models.schemas import RecommendRequest, RecommendResponse
 from services.recommendation.pipeline import recommend, recommend_stream
 
 router = APIRouter(tags=["recommend"])
+MAX_TOP_RESULTS = 5
 
 # ── In-memory job store for progressive polling ──────────────────────────────
 # Each job: { "results": [...], "total": int|None, "done": bool, "created": float }
@@ -46,7 +47,7 @@ async def recommend_endpoint(
             fast_mode=fast,
             language=req.language or "es",
         )
-        return {"top": results}
+        return {"top": results[:MAX_TOP_RESULTS]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -60,6 +61,7 @@ async def recommend_stream_endpoint(req: RecommendRequest):
     subcategory = req.subcategory or req.category or parent_category
 
     async def event_generator():
+        emitted = 0
         async for event in recommend_stream(
             parent_category=parent_category,
             subcategory=subcategory,
@@ -69,6 +71,15 @@ async def recommend_stream_endpoint(req: RecommendRequest):
             lng=req.lng,
             language=req.language or "es",
         ):
+            if event.get("event") == "meta":
+                event = {**event, "total": min(int(event.get("total", 0) or 0), MAX_TOP_RESULTS)}
+            elif event.get("event") == "result":
+                if emitted >= MAX_TOP_RESULTS:
+                    continue
+                emitted += 1
+                event = {**event, "index": emitted}
+            elif event.get("event") == "done":
+                event = {**event, "total": min(emitted, MAX_TOP_RESULTS)}
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
@@ -113,9 +124,10 @@ async def recommend_start(req: RecommendRequest):
                 language=req.language or "es",
             ):
                 if event["event"] == "meta":
-                    job["total"] = event["total"]
+                    job["total"] = min(int(event.get("total", 0) or 0), MAX_TOP_RESULTS)
                 elif event["event"] == "result":
-                    job["results"].append(event["data"])
+                    if len(job["results"]) < MAX_TOP_RESULTS:
+                        job["results"].append(event["data"])
                 elif event["event"] == "done":
                     job["done"] = True
         except Exception:

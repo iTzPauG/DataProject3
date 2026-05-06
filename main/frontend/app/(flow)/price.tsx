@@ -1,5 +1,7 @@
+import { useTranslation } from "react-i18next";
 import { router } from 'expo-router';
-import React from 'react';
+import { Ionicons } from '../../components/SafeIonicons';
+import React, { useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -11,20 +13,20 @@ import Animated, { FadeInUp } from 'react-native-reanimated';
 import Atmosphere from '../../components/Atmosphere';
 import { useFlowState } from '../../hooks/useFlowState';
 import { useTheme } from '../../utils/theme';
-import { useMemo } from 'react';
 
 const PRICE_LEVELS: Array<{
   value: 1 | 2 | 3;
   label: string;
-  description: string;
+  descriptionKey: string;
 }> = [
-  { value: 1, label: '€',   description: 'Económico' },
-  { value: 2, label: '€€',  description: 'Precio medio' },
-  { value: 3, label: '€€€', description: 'Premium' },
+  { value: 1, label: '€',   descriptionKey: 'price_1' },
+  { value: 2, label: '€€',  descriptionKey: 'price_2' },
+  { value: 3, label: '€€€', descriptionKey: 'price_3' },
 ];
 
 export default function PriceScreen() {
-  const { colors, radii, shadows, typography } = useTheme();
+  const { t } = useTranslation();
+  const { colors, typography, space } = useTheme();
   const { setPriceLevel } = useFlowState();
 
   const styles = useMemo(() => StyleSheet.create({
@@ -34,97 +36,99 @@ export default function PriceScreen() {
     },
     container: {
       flex: 1,
-      maxWidth: 560,
+      maxWidth: 600,
       width: '100%',
       alignSelf: 'center',
     },
     navBar: {
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      paddingBottom: 4,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: space.lg,
+      paddingTop: space.xl,
+      paddingBottom: space.sm,
     },
     backButton: {
-      paddingVertical: 8,
-      paddingHorizontal: 4,
-    },
-    backText: {
-      fontSize: 17,
-      color: colors.brandDeep,
-      fontWeight: '600',
-      fontFamily: typography.heading,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.stroke,
     },
     header: {
-      paddingHorizontal: 24,
-      paddingTop: 8,
-      paddingBottom: 32,
+      paddingHorizontal: space.xl,
+      paddingTop: space.xxxl,
+      paddingBottom: space.xl,
     },
     step: {
-      fontSize: 12,
-      fontWeight: '600',
+      fontSize: 11,
+      fontWeight: '700',
       color: colors.brand,
-      letterSpacing: 1,
+      letterSpacing: 1.6,
       textTransform: 'uppercase',
-      marginBottom: 6,
-      fontFamily: typography.heading,
+      marginBottom: space.sm,
+      fontFamily: typography.mono,
     },
     title: {
-      fontSize: 28,
+      fontSize: 40,
       fontWeight: '800',
       color: colors.ink,
-      marginBottom: 6,
+      lineHeight: 44,
+      marginBottom: space.sm,
       fontFamily: typography.heading,
+      letterSpacing: -0.8,
     },
     subtitle: {
-      fontSize: 15,
+      fontSize: 18,
       color: colors.inkMuted,
-      lineHeight: 22,
+      lineHeight: 26,
       fontFamily: typography.body,
+      letterSpacing: -0.1,
     },
     segmentWrapper: {
-      paddingHorizontal: 24,
+      paddingHorizontal: space.lg,
     },
     segment: {
-      flexDirection: 'row',
-      borderRadius: radii.lg,
+      borderRadius: 16,
       overflow: 'hidden',
       borderWidth: 1,
       borderColor: colors.stroke,
       backgroundColor: colors.surface,
-      ...shadows.soft,
     },
     segmentItem: {
-      flex: 1,
-      paddingVertical: 28,
+      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
+      paddingVertical: space.xl,
+      paddingHorizontal: space.lg,
       backgroundColor: colors.surface,
-    },
-    segmentItemFirst: {
-      borderTopLeftRadius: radii.lg - 2,
-      borderBottomLeftRadius: radii.lg - 2,
-    },
-    segmentItemLast: {
-      borderTopRightRadius: radii.lg - 2,
-      borderBottomRightRadius: radii.lg - 2,
-    },
-    segmentItemBorder: {
-      borderRightWidth: 1,
-      borderRightColor: colors.stroke,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.stroke,
     },
     segmentLabel: {
-      fontSize: 26,
-      fontWeight: '700',
-      color: colors.brandDeep,
+      fontSize: 24,
+      fontWeight: '800',
+      color: colors.brand,
       fontFamily: typography.heading,
-      marginBottom: 6,
+      width: 60,
+    },
+    segmentContent: {
+      flex: 1,
     },
     segmentDesc: {
-      fontSize: 12,
-      color: colors.inkMuted,
-      fontWeight: '500',
-      fontFamily: typography.body,
+      fontSize: 14,
+      color: colors.ink,
+      fontWeight: '600',
+      fontFamily: typography.heading,
+      letterSpacing: -0.2,
     },
-  }), [colors, radii, shadows, typography]);
+    arrow: {
+      color: colors.inkWhisper,
+      fontSize: 18,
+      fontFamily: typography.mono,
+    }
+  }), [colors, typography, space]);
 
   function handleSelect(value: 1 | 2 | 3) {
     setPriceLevel(value);
@@ -135,30 +139,27 @@ export default function PriceScreen() {
     <SafeAreaView style={styles.safe}>
       <Atmosphere />
       <View style={styles.container}>
-        {/* Nav bar */}
         <View style={styles.navBar}>
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backButton}
+            activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="Go back"
+            accessibilityLabel={t('common.back')}
           >
-            <Text style={styles.backText}>‹ Back</Text>
+            <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </TouchableOpacity>
         </View>
 
-        {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.step}>Paso 3 de 3</Text>
-          <Text style={styles.title}>¿Cuál es tu presupuesto?</Text>
-          <Text style={styles.subtitle}>Filtraremos las opciones para ajustarnos a él</Text>
+          <Text style={styles.step}>{t('flow.step', { current: 3, total: 3 })}</Text>
+          <Text style={styles.title}>{t('flow.priceTitle')}</Text>
+          <Text style={styles.subtitle}>{t('flow.priceSubtitle')}</Text>
         </View>
 
-        {/* Segmented selector */}
         <Animated.View entering={FadeInUp.duration(400).delay(100).springify().damping(16)} style={styles.segmentWrapper}>
           <View style={styles.segment}>
             {PRICE_LEVELS.map((pl, index) => {
-              const isFirst = index === 0;
               const isLast = index === PRICE_LEVELS.length - 1;
               return (
                 <TouchableOpacity
@@ -166,20 +167,19 @@ export default function PriceScreen() {
                   onPress={() => handleSelect(pl.value)}
                   style={[
                     styles.segmentItem,
-                    isFirst && styles.segmentItemFirst,
-                    isLast && styles.segmentItemLast,
-                    !isLast && styles.segmentItemBorder,
+                    isLast && { borderBottomWidth: 0 },
                   ]}
                   activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${pl.label} — ${pl.description}`}
                 >
                   <Text style={styles.segmentLabel}>
                     {pl.label}
                   </Text>
-                  <Text style={styles.segmentDesc}>
-                    {pl.description}
-                  </Text>
+                  <View style={styles.segmentContent}>
+                    <Text style={styles.segmentDesc}>
+                      {t(`flow.${pl.descriptionKey}`) || pl.descriptionKey}
+                    </Text>
+                  </View>
+                  <Text style={styles.arrow}>→</Text>
                 </TouchableOpacity>
               );
             })}

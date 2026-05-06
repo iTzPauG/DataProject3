@@ -1,4 +1,6 @@
+import { useTranslation } from "react-i18next";
 import { router } from 'expo-router';
+import { Ionicons } from '../../components/SafeIonicons';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,18 +14,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Atmosphere from '../../components/Atmosphere';
 import ChoiceChip from '../../components/ChoiceChip';
 import { useFlowState } from '../../hooks/useFlowState';
-import { CategoryFlowResponse, getCategoryFlow } from '../../services/api';
+import { CategoryFlowOption, CategoryFlowResponse, getCategoryFlow } from '../../services/api';
 import { useTheme } from '../../utils/theme';
 
-const DEFAULT_MOODS = [
-  { id: 'popular', label: 'Popular', emoji: '🔥' },
-  { id: 'quiet', label: 'Tranquilo', emoji: '🤫' },
-  { id: 'busy', label: 'Animado', emoji: '🎉' },
-];
-
 export default function MoodScreen() {
-  const { colors, typography } = useTheme();
+  const { t } = useTranslation();
+  const { colors, typography, space } = useTheme();
   const { parentCategory, category, setMood } = useFlowState();
+
+  const DEFAULT_MOODS = useMemo<CategoryFlowOption[]>(() => [
+    { id: 'popular', label: t('flow.popular'), emoji: '🔥' },
+    { id: 'quiet', label: t('flow.quiet'), emoji: '🧘' },
+    { id: 'busy', label: t('flow.busy'), emoji: '⚡' },
+  ], [t]);
 
   const styles = useMemo(() => StyleSheet.create({
     safe: {
@@ -32,51 +35,56 @@ export default function MoodScreen() {
     },
     container: {
       flex: 1,
-      maxWidth: 560,
+      maxWidth: 600,
       width: '100%',
       alignSelf: 'center',
     },
     navBar: {
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      paddingBottom: 4,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: space.lg,
+      paddingTop: space.xl,
+      paddingBottom: space.sm,
     },
     backButton: {
-      paddingVertical: 8,
-      paddingHorizontal: 4,
-    },
-    backText: {
-      fontSize: 17,
-      color: colors.ink,
-      fontWeight: '600',
-      fontFamily: typography.heading,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.stroke,
     },
     header: {
-      paddingHorizontal: 24,
-      paddingTop: 8,
-      paddingBottom: 16,
+      paddingHorizontal: space.xl,
+      paddingTop: space.xxxl,
+      paddingBottom: space.xl,
     },
     step: {
-      fontSize: 12,
-      fontWeight: '600',
+      fontSize: 11,
+      fontWeight: '700',
       color: colors.brand,
-      letterSpacing: 1,
+      letterSpacing: 1.6,
       textTransform: 'uppercase',
-      marginBottom: 6,
-      fontFamily: typography.heading,
+      marginBottom: space.sm,
+      fontFamily: typography.mono,
     },
     title: {
-      fontSize: 28,
+      fontSize: 40,
       fontWeight: '800',
       color: colors.ink,
-      marginBottom: 6,
+      lineHeight: 44,
+      marginBottom: space.sm,
       fontFamily: typography.heading,
+      letterSpacing: -0.8,
     },
     subtitle: {
-      fontSize: 15,
+      fontSize: 18,
       color: colors.inkMuted,
-      lineHeight: 22,
+      lineHeight: 26,
       fontFamily: typography.body,
+      letterSpacing: -0.1,
     },
     centered: {
       flex: 1,
@@ -84,18 +92,15 @@ export default function MoodScreen() {
       justifyContent: 'center',
     },
     scrollContent: {
-      paddingBottom: 16,
+      paddingBottom: space.hero,
     },
     chipsContainer: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      paddingHorizontal: 12,
-      gap: 10,
+      paddingHorizontal: space.lg,
+      gap: 12,
     },
-    chipWrapper: {
-      width: '48%',
-    },
-  }), [colors, typography]);
+  }), [colors, typography, space]);
 
   const [flow, setFlow] = useState<CategoryFlowResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -108,24 +113,47 @@ export default function MoodScreen() {
       .finally(() => setLoading(false));
   }, [parentCategory]);
 
-  const currentMoods = useMemo(
-    () => (flow?.moods && flow.moods.length > 0 ? flow.moods : DEFAULT_MOODS),
-    [flow],
-  );
+  const currentMoods = useMemo(() => {
+    const source = flow?.moods && flow.moods.length > 0 ? flow.moods : DEFAULT_MOODS;
+    if ((parentCategory ?? 'food') !== 'food') {
+      return source;
+    }
 
-  const title = flow?.category.mood_title ?? '¿Cuál es el plan?';
-  const subtitle = flow?.category.mood_subtitle ?? 'Elige la opción que mejor encaja contigo';
+    const norm = (value: unknown) => String(value ?? '').trim().toLowerCase();
+    let hasGourmet = source.some((item) => norm(item.id) === 'gourmet');
+    const cleaned: typeof source = [];
+
+    for (const item of source) {
+      const id = norm(item.id);
+      const label = norm(item.label);
+      const isTapasMood = id === 'tapas' || label.includes('tapas');
+
+      if (!isTapasMood) {
+        cleaned.push(item);
+        continue;
+      }
+
+      if (!hasGourmet) {
+        cleaned.push({
+          ...item,
+          id: 'gourmet',
+          label: t('mood.gourmet'),
+          emoji: item.emoji || '🍷',
+        });
+        hasGourmet = true;
+      }
+    }
+
+    return cleaned;
+  }, [flow, DEFAULT_MOODS, parentCategory, t]);
+
+  const screenTitle = flow?.category.mood_title ?? t('flow.moodTitleFallback');
+  const screenSubtitle = flow?.category.mood_subtitle ?? t('flow.moodSubtitleFallback');
   
-  // Logic to determine if we should skip the price screen based on current selections
   const shouldSkipPrice = useMemo(() => {
     if (!flow?.category.requires_price) return true;
-    
-    const skipMoods = flow.category.skip_price_moods || [];
     const skipSubcats = flow.category.skip_price_subcategories || [];
-    
-    // Check if current subcategory is in skip list
     if (category && skipSubcats.includes(category)) return true;
-    
     return false;
   }, [flow, category]);
 
@@ -133,11 +161,8 @@ export default function MoodScreen() {
 
   function handleSelect(id: string) {
     setMood(id);
-    
-    // Additional dynamic check for the selected mood
     const skipMoods = flow?.category.skip_price_moods || [];
     const finalSkip = shouldSkipPrice || skipMoods.includes(id);
-    
     router.push(finalSkip ? '/(flow)/results-map' : '/(flow)/price');
   }
 
@@ -149,17 +174,18 @@ export default function MoodScreen() {
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backButton}
+            activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="Go back"
+            accessibilityLabel={t('common.back')}
           >
-            <Text style={styles.backText}>‹ Back</Text>
+            <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.header}>
-          <Text style={styles.step}>Paso 2 de {totalSteps}</Text>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.subtitle}>{subtitle}</Text>
+          <Text style={styles.step}>{t('flow.step', { current: 2, total: totalSteps })}</Text>
+          <Text style={styles.title}>{screenTitle}</Text>
+          <Text style={styles.subtitle}>{screenSubtitle}</Text>
         </View>
 
         {loading ? (
@@ -169,21 +195,19 @@ export default function MoodScreen() {
         ) : (
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={styles.chipsContainer}>
-              {currentMoods.map((item, index) => {
-                return (
-                  <View key={item.id} style={styles.chipWrapper}>
-                    <ChoiceChip
-                      iconName={item.id}
-                      label={item.label}
-                      category={parentCategory ?? 'food'}
-                      selected={false}
-                      onPress={() => handleSelect(item.id)}
-                      halfWidth
-                      index={index}
-                    />
-                  </View>
-                );
-              })}
+              {currentMoods.map((item, index) => (
+                <ChoiceChip
+                  key={item.id}
+                  iconName={item.id}
+                  emoji={item.emoji}
+                  label={t(`mood.${item.id}`, item.label)}
+                  category={parentCategory ?? 'food'}
+                  selected={false}
+                  onPress={() => handleSelect(item.id)}
+                  halfWidth
+                  index={index}
+                />
+              ))}
             </View>
           </ScrollView>
         )}

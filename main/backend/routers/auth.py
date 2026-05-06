@@ -1,5 +1,7 @@
-"""Auth endpoints — profile sync and retrieval via Firebase JWT."""
+"""Auth endpoints — local profile sync bypass."""
 from typing import Optional
+import uuid
+import logging
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -7,93 +9,61 @@ from pydantic import BaseModel
 from auth import get_optional_user
 from database import get_db
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 class SyncProfileBody(BaseModel):
     display_name: Optional[str] = None
     avatar_url: Optional[str] = None
-    restaurant_place_id: Optional[str] = None
-    restaurant_name: Optional[str] = None
-    restaurant_cuisine: Optional[str] = None
 
 
 @router.post("/sync")
 async def sync_profile(body: SyncProfileBody, request: Request):
-    """Create or update the Cloud SQL profile for the authenticated Firebase user.
-    Called by the frontend after every login/register.
-    Passwords are managed entirely by Firebase — never stored here.
-    """
+    """Create or update the profile for the local test user."""
     firebase_uid = get_optional_user(request)
-    if not firebase_uid:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
+    
+    new_id = str(uuid.uuid4())
     async with get_db() as db:
-        row = await db.fetchrow(
-            """
-            INSERT INTO profiles (firebase_uid, display_name, avatar_url, restaurant_place_id, restaurant_name, restaurant_cuisine)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (firebase_uid) DO UPDATE
-            SET display_name          = COALESCE(EXCLUDED.display_name,          profiles.display_name),
-                avatar_url            = COALESCE(EXCLUDED.avatar_url,            profiles.avatar_url),
-                restaurant_place_id   = COALESCE(EXCLUDED.restaurant_place_id,   profiles.restaurant_place_id),
-                restaurant_name       = COALESCE(EXCLUDED.restaurant_name,       profiles.restaurant_name),
-                restaurant_cuisine    = COALESCE(EXCLUDED.restaurant_cuisine,    profiles.restaurant_cuisine),
-                updated_at            = now()
-            RETURNING id, firebase_uid, display_name, avatar_url, reputation_score, reports_count, role,
-                      restaurant_place_id, restaurant_name, restaurant_cuisine
-            """,
-            firebase_uid,
-            body.display_name,
-            body.avatar_url,
-            body.restaurant_place_id,
-            body.restaurant_name,
-            body.restaurant_cuisine,
-        )
-    return dict(row)
+        try:
+            await db.execute(
+                """
+                INSERT INTO profiles (id, firebase_uid, display_name, avatar_url)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT (firebase_uid) DO UPDATE
+                SET display_name = COALESCE(excluded.display_name, profiles.display_name),
+                    avatar_url   = COALESCE(excluded.avatar_url,   profiles.avatar_url),
+                    updated_at   = CURRENT_TIMESTAMP
+                """,
+                (new_id, firebase_uid, body.display_name or "Local User", body.avatar_url),
+            )
+            await db.commit()
+            
+            cursor = await db.execute(
+                "SELECT id, firebase_uid, display_name, avatar_url, reputation_score, reports_count FROM profiles WHERE firebase_uid=?",
+                (firebase_uid,)
+            )
+            row = await cursor.fetchone()
+            return dict(row)
+        except Exception as e:
+            logger.error(f"Error syncing profile: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/me")
 async def get_me(request: Request):
-    """Get the current user's profile from Cloud SQL."""
+    """Get the local test user's profile."""
     firebase_uid = get_optional_user(request)
-    if not firebase_uid:
-        raise HTTPException(status_code=401, detail="Unauthorized")
 
     async with get_db() as db:
-        row = await db.fetchrow(
-            """SELECT id, firebase_uid, display_name, avatar_url, reputation_score, reports_count, role,
-                      restaurant_place_id, restaurant_name, restaurant_cuisine
-               FROM profiles WHERE firebase_uid=$1""",
-            firebase_uid,
+        cursor = await db.execute(
+            """SELECT id, firebase_uid, display_name, avatar_url, reputation_score, reports_count
+               FROM profiles WHERE firebase_uid=?""",
+            (firebase_uid,),
         )
+        row = await cursor.fetchone()
 
     if not row:
-        raise HTTPException(status_code=404, detail="Profile not found. Call /auth/sync first.")
-    return dict(row)
-
-
-@router.patch("/me")
-async def update_profile(body: SyncProfileBody, request: Request):
-    """Update display name or avatar."""
-    firebase_uid = get_optional_user(request)
-    if not firebase_uid:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    data = body.model_dump(exclude_unset=True)
-    if not data:
-        raise HTTPException(status_code=400, detail="No fields to update")
-
-    async with get_db() as db:
-        sets = ", ".join(f"{k}=${i+2}" for i, k in enumerate(data.keys()))
-        row = await db.fetchrow(
-            f"""UPDATE profiles SET {sets}, updated_at=now()
-                WHERE firebase_uid=$1
-                RETURNING id, firebase_uid, display_name, avatar_url, reputation_score, reports_count, role,
-                          restaurant_place_id, restaurant_name, restaurant_cuisine""",
-            firebase_uid, *data.values(),
-        )
-
-    if not row:
-        raise HTTPException(status_code=404, detail="Profile not found")
+        # Auto-sync for local dev if not found
+        return await sync_profile(SyncProfileBody(), request)
     return dict(row)

@@ -1,5 +1,6 @@
-import { router, useRootNavigationState } from "expo-router";
+﻿import { router, useRootNavigationState } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Animated,
@@ -17,7 +18,9 @@ import Map from "../../components/map/Map";
 import PrimaryButton from "../../components/PrimaryButton";
 import RestaurantCard from "../../components/RestaurantCard";
 import BottomSheet from "../../components/sheet/BottomSheet";
-import GADOIcon from "../../components/GADOIcon";
+import WhimIcon from "../../components/WhimIcon";
+import { WhimLoadingScreen } from "../../components/whim/WhimLoadingScreen";
+import { WhimEmptyState } from "../../components/whim/WhimEmptyState";
 import { BottomSheetRef } from "../../components/sheet/types";
 import { useAppState } from "../../hooks/useAppState";
 import { useFlowState } from "../../hooks/useFlowState";
@@ -26,8 +29,10 @@ import {
   recommendRestaurants,
   recommendRestaurantsStream,
   VoteData,
+  getBookmarks,
 } from "../../services/api";
 import { Restaurant } from "../../types/restaurant";
+import { MapItem } from "../../types";
 import { formatPriceLevel } from "../../utils/format";
 import { useTheme } from "../../utils/theme";
 
@@ -37,10 +42,9 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 const CARD_HEIGHT = 360;
+const MAX_RESULTS = 5;
 
 type Status = "loading" | "streaming" | "success" | "error";
-
-// ── Animated loading dots ───────────────────────────────────────────────────
 
 function PulsingDot({ delay, color }: { delay: number; color: string }) {
   const scale = useRef(new Animated.Value(0.4)).current;
@@ -52,12 +56,12 @@ function PulsingDot({ delay, color }: { delay: number; color: string }) {
         Animated.sequence([
           Animated.delay(delay),
           Animated.parallel([
-            Animated.timing(scale, { toValue: 1, duration: 600, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 1, duration: 600, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 1, duration: 600, easing: Easing.out(Easing.ease), useNativeDriver: false }),
+            Animated.timing(opacity, { toValue: 1, duration: 600, easing: Easing.out(Easing.ease), useNativeDriver: false }),
           ]),
           Animated.parallel([
-            Animated.timing(scale, { toValue: 0.4, duration: 600, easing: Easing.in(Easing.ease), useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 0.3, duration: 600, easing: Easing.in(Easing.ease), useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 0.4, duration: 600, easing: Easing.in(Easing.ease), useNativeDriver: false }),
+            Animated.timing(opacity, { toValue: 0.3, duration: 600, easing: Easing.in(Easing.ease), useNativeDriver: false }),
           ]),
         ]),
       ).start();
@@ -79,34 +83,16 @@ function PulsingDot({ delay, color }: { delay: number; color: string }) {
   );
 }
 
-function LoadingIndicator({ message, sub }: { message: string; sub?: string }) {
-  const { colors, typography } = useTheme();
-  return (
-    <View style={{ alignItems: "center", paddingVertical: 28, paddingHorizontal: 24 }}>
-      <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
-        <PulsingDot delay={0} color={colors.brand} />
-        <PulsingDot delay={200} color={colors.brand} />
-        <PulsingDot delay={400} color={colors.brand} />
-      </View>
-      <Text style={{ fontSize: 17, fontWeight: "700", color: colors.ink, textAlign: "center", fontFamily: typography.heading }}>
-        {message}
-      </Text>
-      {sub ? (
-        <Text style={{ marginTop: 6, fontSize: 13, color: colors.inkMuted, textAlign: "center", lineHeight: 19, fontFamily: typography.body }}>
-          {sub}
-        </Text>
-      ) : null}
-    </View>
-  );
-}
-
 function StreamingIndicator({ found, total }: { found: number; total?: number }) {
+  const { t } = useTranslation();
   const { colors, typography } = useTheme();
   return (
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 16, gap: 10 }}>
       <ActivityIndicator size="small" color={colors.brand} />
       <Text style={{ fontSize: 13, color: colors.inkMuted, fontFamily: typography.body }}>
-        Analizando lugares... ({found}{total ? ` de ${total}` : ""})
+        {total
+          ? t("flow.foundCountOf", { count: found, total })
+          : t("flow.foundCount", { count: found })}
       </Text>
     </View>
   );
@@ -125,7 +111,7 @@ function AnimatedCard({ children }: { children: React.ReactNode }) {
     Animated.parallel([
       Animated.spring(slideY, {
         toValue: 0,
-        useNativeDriver: true,
+        useNativeDriver: false,
         damping: 22,
         stiffness: 260,
         mass: 0.7,
@@ -134,11 +120,11 @@ function AnimatedCard({ children }: { children: React.ReactNode }) {
         toValue: 1,
         duration: 280,
         easing: Easing.out(Easing.ease),
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
       Animated.spring(scale, {
         toValue: 1,
-        useNativeDriver: true,
+        useNativeDriver: false,
         damping: 20,
         stiffness: 240,
       }),
@@ -168,7 +154,17 @@ function MapStatusHero({
   priceLabel: string;
   errorMsg: string;
 }) {
+  const { t } = useTranslation();
   const { colors, radii, shadows, typography } = useTheme();
+
+  // Get a random loading description once when this mounts
+  const loadingDesc = useMemo(() => {
+    const variations = t("loading_variations", { returnObjects: true });
+    if (Array.isArray(variations) && variations.length > 0) {
+      return variations[Math.floor(Math.random() * variations.length)];
+    }
+    return t("flow.analyzingDescription");
+  }, [t]);
 
   // Animated glow
   const glowAnim = useRef(new Animated.Value(0)).current;
@@ -176,8 +172,8 @@ function MapStatusHero({
     if (status === "loading") {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(glowAnim, { toValue: 1, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(glowAnim, { toValue: 0, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(glowAnim, { toValue: 1, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
+          Animated.timing(glowAnim, { toValue: 0, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
         ]),
       ).start();
     }
@@ -289,13 +285,13 @@ function MapStatusHero({
   const isLoading = status === "loading";
   const isError = status === "error";
 
-  const eyebrow = isLoading ? "Buscando cerca" : isError ? "Búsqueda pausada" : "Sin coincidencias";
-  const title = isLoading ? "Preparando tu lista" : isError ? "Hubo un problema" : "No encontramos nada";
+  const eyebrow = isLoading ? t("flow.searchingNearby") : isError ? t("flow.searchPaused") : t("flow.noMatches");
+  const title = isLoading ? t("flow.preparingList") : isError ? t("flow.searchError") : t("flow.noResults");
   const description = isLoading
-    ? "Analizando reseñas, calidad y ambiente para recomendarte solo lo mejor."
+    ? loadingDesc
     : isError
-      ? errorMsg || "No se pudo completar la petición."
-      : "Prueba con otro mood o amplía la zona.";
+      ? errorMsg || t("flow.requestFailed")
+      : t("flow.noResultsMsg");
 
   return (
     <View style={styles.mapPlaceholder}>
@@ -312,9 +308,9 @@ function MapStatusHero({
         <Text style={styles.headline}>{title}</Text>
         <Text style={styles.description}>{description}</Text>
         <View style={styles.pillsRow}>
-          {categoryLabel ? <View style={styles.pill}><GADOIcon name="bookmark" size={14} color={colors.ink} /><Text style={styles.pillText}>{categoryLabel}</Text></View> : null}
-          {moodLabel ? <View style={styles.pill}><GADOIcon name="happy" size={14} color={colors.ink} /><Text style={styles.pillText}>{moodLabel}</Text></View> : null}
-          {priceLabel ? <View style={styles.pill}><GADOIcon name="cash" size={14} color={colors.ink} /><Text style={styles.pillText}>{priceLabel}</Text></View> : null}
+          {categoryLabel ? <View style={styles.pill}><WhimIcon name="bookmark" size={14} color={colors.ink} /><Text style={styles.pillText}>{categoryLabel}</Text></View> : null}
+          {moodLabel ? <View style={styles.pill}><WhimIcon name="happy" size={14} color={colors.ink} /><Text style={styles.pillText}>{moodLabel}</Text></View> : null}
+          {priceLabel ? <View style={styles.pill}><WhimIcon name="cash" size={14} color={colors.ink} /><Text style={styles.pillText}>{priceLabel}</Text></View> : null}
         </View>
         {isLoading && (
           <View style={styles.dotsRow}>
@@ -331,6 +327,7 @@ function MapStatusHero({
 // ── Main screen ─────────────────────────────────────────────────────────────
 
 export default function ResultsMapScreen() {
+  const { t } = useTranslation();
   const { colors, radii, shadows, typography } = useTheme();
   const { parentCategory, category, mood, priceLevel, results, setResults, isHydrated } = useFlowState();
 
@@ -341,6 +338,7 @@ export default function ResultsMapScreen() {
       left: 0,
       right: 0,
       zIndex: 10,
+      backgroundColor: "rgba(12, 13, 18, 0.4)",
     },
     backButton: {
       margin: 16,
@@ -422,6 +420,78 @@ export default function ResultsMapScreen() {
       width: "100%",
       maxWidth: 260,
     },
+    compareBtn: {
+      marginTop: 12,
+      backgroundColor: colors.brand,
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderRadius: radii.pill,
+      alignSelf: 'flex-start',
+    },
+    compareBtnText: {
+      color: '#fff',
+      fontWeight: '700',
+      fontSize: 14,
+    },
+    resultsSummary: {
+      marginBottom: 14,
+      padding: 14,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: colors.stroke,
+      backgroundColor: colors.surface,
+      ...shadows.soft,
+    },
+    resultsSummaryTop: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 10,
+    },
+    resultsSummaryTitle: {
+      fontSize: 16,
+      fontWeight: "800",
+      color: colors.ink,
+      fontFamily: typography.heading,
+    },
+    resultsSummaryCount: {
+      fontSize: 12,
+      color: colors.inkMuted,
+      fontFamily: typography.body,
+      marginTop: 2,
+    },
+    resultsMapBtn: {
+      borderRadius: radii.pill,
+      borderWidth: 1,
+      borderColor: colors.stroke,
+      backgroundColor: colors.chip,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    resultsMapBtnText: {
+      fontSize: 12,
+      color: colors.ink,
+      fontWeight: "700",
+      fontFamily: typography.body,
+    },
+    resultsSummaryFilters: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+    },
+    resultsSummaryFilter: {
+      borderRadius: radii.pill,
+      borderWidth: 1,
+      borderColor: colors.stroke,
+      backgroundColor: colors.chip,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+    },
+    resultsSummaryFilterText: {
+      fontSize: 12,
+      color: colors.inkMuted,
+      fontFamily: typography.body,
+    },
   }), [colors, radii, shadows, typography]);
 
   const { mapPreferences } = useAppState();
@@ -434,6 +504,7 @@ export default function ResultsMapScreen() {
   const [errorMsg, setErrorMsg] = useState("");
   const [votesMap, setVotesMap] = useState<Record<string, VoteData>>({});
   const [totalExpected, setTotalExpected] = useState<number | undefined>(undefined);
+  const [savedItems, setSavedItems] = useState<MapItem[]>([]);
 
   const sheetRef = useRef<BottomSheetRef>(null);
   const fetchingRef = useRef(false);
@@ -448,10 +519,27 @@ export default function ResultsMapScreen() {
   const load = useCallback(async () => {
     if (!isHydrated || fetchingRef.current) return;
 
+    // Fetch bookmarks
+    getBookmarks().then((bookmarks) => {
+      const mapItems: MapItem[] = bookmarks.map(b => ({
+        item_type: b.item_type,
+        item_id: b.item_id,
+        category_id: b.category_id,
+        title: b.title,
+        lat: b.lat,
+        lng: b.lng,
+        distance_m: 0,
+        color: '#FFD700', // Gold color for saved items
+        icon: '⭐',
+        metadata: b.metadata
+      }));
+      setSavedItems(mapItems);
+    }).catch(() => {});
+
     if (results !== null) {
-      setRestaurants(results);
+      setRestaurants(results.slice(0, MAX_RESULTS));
       setStatus("success");
-      loadVotes(results);
+      loadVotes(results.slice(0, MAX_RESULTS));
       return;
     }
 
@@ -474,26 +562,29 @@ export default function ResultsMapScreen() {
         { parentCategory, subcategory: category, mood, priceLevel, language: lang },
         {
           onMeta: ({ total }) => {
-            setTotalExpected(total);
+            setTotalExpected(Math.min(total, MAX_RESULTS));
           },
           onResult: (restaurant) => {
             LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-            accumulatedRef.current = [...accumulatedRef.current, restaurant];
+            if (accumulatedRef.current.length >= MAX_RESULTS) return;
+            accumulatedRef.current = [...accumulatedRef.current, restaurant].slice(0, MAX_RESULTS);
             // Progressive UI update
             setRestaurants([...accumulatedRef.current]);
-            setResults([...accumulatedRef.current]);
+            // Keep flow state in sync while streaming so details can open safely
+            // even if the user taps the first card before onDone fires.
+            setResults(accumulatedRef.current.slice(0, MAX_RESULTS));
             if (accumulatedRef.current.length === 1) {
               setStatus("streaming");
             }
           },
           onDone: (_total) => {
-            setResults(accumulatedRef.current);
+            setResults(accumulatedRef.current.slice(0, MAX_RESULTS));
             setStatus("success");
-            loadVotes(accumulatedRef.current);
+            loadVotes(accumulatedRef.current.slice(0, MAX_RESULTS));
           },
           onError: (err) => {
             if (accumulatedRef.current.length > 0) {
-              setResults(accumulatedRef.current);
+              setResults(accumulatedRef.current.slice(0, MAX_RESULTS));
               setStatus("success");
             } else {
               setErrorMsg(err.message);
@@ -512,18 +603,19 @@ export default function ResultsMapScreen() {
           priceLevel,
           language: lang,
         });
-        setRestaurants(top);
-        setResults(top);
+        const limited = top.slice(0, MAX_RESULTS);
+        setRestaurants(limited);
+        setResults(limited);
         setStatus("success");
-        loadVotes(top);
+        loadVotes(limited);
       } catch (error) {
-        setErrorMsg(error instanceof Error ? error.message : "Algo salió mal.");
+        setErrorMsg(error instanceof Error ? error.message : t("flow.requestFailed"));
         setStatus("error");
       }
     } finally {
       fetchingRef.current = false;
     }
-  }, [canNavigate, category, isHydrated, loadVotes, mapPreferences.language, mood, parentCategory, priceLevel, results, setResults]);
+  }, [canNavigate, category, isHydrated, loadVotes, mapPreferences.language, mood, parentCategory, priceLevel, results, setResults, t]);
 
   useEffect(() => {
     void load();
@@ -543,11 +635,33 @@ export default function ResultsMapScreen() {
     router.push({ pathname: "/(flow)/details", params: { id } });
   }, []);
 
+
   const fmt = (s: string) =>
     s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   const categoryLabel = category ? fmt(category) : "";
   const moodLabel = mood ? fmt(mood) : "";
   const priceLabel = priceLevel ? formatPriceLevel(priceLevel) : "";
+  const conflictingFilter = useMemo(() => {
+    if (moodLabel) return { key: "mood" as const, label: moodLabel };
+    if (priceLabel) return { key: "price" as const, label: priceLabel };
+    if (categoryLabel) return { key: "category" as const, label: categoryLabel };
+    return { key: "category" as const, label: "Filtros" };
+  }, [moodLabel, priceLabel, categoryLabel]);
+
+  const handleRemoveConflictingFilter = useCallback(() => {
+    if (conflictingFilter.key === "mood") {
+      router.replace("/(flow)/mood");
+      return;
+    }
+    if (conflictingFilter.key === "price") {
+      router.replace("/(flow)/price");
+      return;
+    }
+    router.replace({
+      pathname: "/(flow)/category",
+      params: { categoryId: parentCategory ?? "food" },
+    });
+  }, [conflictingFilter.key, parentCategory]);
 
   // Imperatively advance the sheet when streaming finishes — initialSnapIndex is
   // only read at mount, so we need an explicit snap call on the success transition.
@@ -561,46 +675,25 @@ export default function ResultsMapScreen() {
   const hasResults = (restaurants || []).length > 0;
   const showMap = hasResults;
 
-  // ── Sheet header ────────────────────────────────────────────────────────
-
-  const sheetCountText = (() => {
-    if (status === "loading") return "Buscando cerca...";
-    const count = (restaurants || []).length;
-    if (isStreaming) return `Encontrados ${count}${totalExpected ? ` de ${totalExpected}` : ""}...`;
-    return `Mostrando ${count} lugares`;
-  })();
-
-  const sheetHeader = (
-    <View style={styles.sheetHeader}>
-      <Text style={styles.sheetTitle}>Resultados para ti</Text>
-      <Text style={styles.sheetCount}>{sheetCountText}</Text>
-      <View style={styles.pills}>
-        {categoryLabel ? <View style={styles.pill}><GADOIcon name="bookmark" size={14} color={colors.ink} /><Text style={styles.pillText}>{categoryLabel}</Text></View> : null}
-        {moodLabel ? <View style={styles.pill}><GADOIcon name="happy" size={14} color={colors.ink} /><Text style={styles.pillText}>{moodLabel}</Text></View> : null}
-        {priceLabel ? <View style={styles.pill}><GADOIcon name="cash" size={14} color={colors.ink} /><Text style={styles.pillText}>{priceLabel}</Text></View> : null}
-      </View>
-    </View>
-  );
+  const activeFilters = [categoryLabel, moodLabel, priceLabel].filter(Boolean);
+  const showResultsSummary = restaurants.length > 0 && status !== "loading";
 
   // ── Sheet content ───────────────────────────────────────────────────────
 
   const sheetContent = (() => {
     if (status === "loading" && (!results || results.length === 0)) {
       return (
-        <LoadingIndicator
-          message="Buscando los mejores lugares..."
-          sub="Analizando reseñas, calidad y ambiente."
-        />
+        <WhimLoadingScreen activeFilters={activeFilters} loadingPhase={status} selectedCategory={category} />
       );
     }
 
     if (status === "error") {
       return (
         <View style={styles.centered}>
-          <Text style={styles.errorTitle}>Error en la búsqueda</Text>
+          <Text style={styles.errorTitle}>{t("flow.searchError")}</Text>
           <Text style={styles.errorMsg}>{errorMsg}</Text>
           <View style={styles.retryBtn}>
-            <PrimaryButton label="Reintentar" onPress={() => void load()} />
+            <PrimaryButton label={t("common.retry")} onPress={() => void load()} />
           </View>
         </View>
       );
@@ -608,18 +701,40 @@ export default function ResultsMapScreen() {
 
     if (status === "success" && restaurants.length === 0) {
       return (
-        <View style={styles.centered}>
-          <Text style={styles.errorTitle}>Nada por aquí todavía</Text>
-          <Text style={styles.errorMsg}>Prueba con otro mood o amplía el radio de búsqueda.</Text>
-          <View style={styles.retryBtn}>
-            <PrimaryButton label="Cambiar filtros" onPress={() => router.back()} />
-          </View>
-        </View>
+        <WhimEmptyState 
+          conflictingFilter={conflictingFilter.label} 
+          onRemoveFilter={handleRemoveConflictingFilter} 
+          onReset={() => router.replace('/(tabs)')} 
+        />
       );
     }
 
     return (
       <>
+        {showResultsSummary ? (
+          <View style={styles.resultsSummary}>
+            <View style={styles.resultsSummaryTop}>
+              <View>
+                <Text style={styles.resultsSummaryTitle}>Resultados cercanos</Text>
+                <Text style={styles.resultsSummaryCount}>
+                  {restaurants.length} {restaurants.length === 1 ? "sitio recomendado" : "sitios recomendados"}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.resultsMapBtn} onPress={() => sheetRef.current?.snapToIndex(0)}>
+                <Text style={styles.resultsMapBtnText}>Ver mapa</Text>
+              </TouchableOpacity>
+            </View>
+            {activeFilters.length > 0 ? (
+              <View style={styles.resultsSummaryFilters}>
+                {activeFilters.map((filter, i) => (
+                  <View key={`${filter}-${i}`} style={styles.resultsSummaryFilter}>
+                    <Text style={styles.resultsSummaryFilterText}>{filter}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
         {restaurants.map((restaurant, index) => (
           <AnimatedCard key={restaurant.id}>
             <RestaurantCard
@@ -632,17 +747,32 @@ export default function ResultsMapScreen() {
           </AnimatedCard>
         ))}
         {isStreaming && (
-          <StreamingIndicator found={restaurants.length} total={totalExpected} />
+          <StreamingIndicator found={restaurants.length} total={totalExpected != null ? Math.min(totalExpected, MAX_RESULTS) : undefined} />
         )}
       </>
     );
   })();
+
+  if (status === "loading" && !hasResults) {
+    return <WhimLoadingScreen activeFilters={activeFilters} loadingPhase={status} selectedCategory={category} />;
+  }
+
+  if (status === "success" && restaurants.length === 0) {
+    return (
+      <WhimEmptyState
+        conflictingFilter={conflictingFilter.label}
+        onRemoveFilter={handleRemoveConflictingFilter}
+        onReset={() => router.replace('/(tabs)')}
+      />
+    );
+  }
 
   return (
     <View style={StyleSheet.absoluteFill}>
       {showMap ? (
         <Map
           restaurants={restaurants}
+          items={savedItems}
           selectedId={selectedId}
           onSelectRestaurant={handlePinSelect}
           votesMap={votesMap}
@@ -664,10 +794,10 @@ export default function ResultsMapScreen() {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.replace("/(tabs)")}
-          accessibilityLabel="Volver atrás"
+          accessibilityLabel={t("common.back")}
           accessibilityRole="button"
         >
-          <Text style={styles.backText}>‹ Volver</Text>
+          <Text style={styles.backText}>{t("flow.backWithArrow")}</Text>
         </TouchableOpacity>
       </SafeAreaView>
 
@@ -675,10 +805,11 @@ export default function ResultsMapScreen() {
         ref={sheetRef}
         snapPoints={["15%", "50%", "92%"]}
         initialSnapIndex={status === "loading" ? 0 : 1}
-        header={sheetHeader}
+        header={null}
       >
         {sheetContent}
       </BottomSheet>
+
     </View>
   );
 }
