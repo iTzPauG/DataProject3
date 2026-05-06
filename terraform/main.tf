@@ -74,8 +74,9 @@ module "cloud_sql" {
   depends_on = [module.apis]
 }
 
-module "cloud_sql" {
-  source     = "./modules/cloud_sql"
+
+module "registry" {
+  source     = "./modules/registry"
   project_id = var.project_id
   region     = var.region
   depends_on = [module.apis]

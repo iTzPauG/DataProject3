@@ -1,5 +1,13 @@
 locals {
-  image = "${var.region}-docker.pkg.dev/${var.project_id}/restaurant-api/frontend:latest"
+  image      = "${var.region}-docker.pkg.dev/${var.project_id}/frontend/frontend:latest"
+  source_dir = "${path.module}/../../../main/frontend"
+  source_files = tolist(fileset("${path.module}/../../../main/frontend", "**/*.{ts,tsx,js,jsx,json,Dockerfile}"))
+}
+
+resource "google_artifact_registry_repository" "frontend" {
+  location      = var.region
+  repository_id = "frontend"
+  format        = "DOCKER"
 }
 
 resource "null_resource" "docker_build_push" {
