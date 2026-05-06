@@ -9,27 +9,19 @@
  */
 import { Ionicons } from './SafeIonicons';
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { LiveDataResult } from '../services/api';
 import { useTheme } from '../utils/theme';
 
 // ── Fuel label map ────────────────────────────────────────────────────────────
 
-const FUEL_LABELS: Record<string, string> = {
-  gasolina_95:     'Gasolina 95',
-  gasolina_98:     'Gasolina 98',
-  gasoleo_a:       'Diésel',
-  gasoleo_premium: 'Diésel Premium',
-  glp:             'GLP',
-  gas_natural:     'Gas Natural',
-  hidrogeno:       'Hidrógeno',
-};
-
-const FUEL_ORDER = ['gasolina_95', 'gasolina_98', 'gasoleo_a', 'gasoleo_premium', 'glp', 'gas_natural', 'hidrogeno'];
+const FUEL_ORDER = ['gasolina_95', 'gasolina_98', 'diesel', 'diesel_plus', 'glp', 'gas_natural', 'hidrogeno'];
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function FuelPricesBlock({ data }: { data: LiveDataResult }) {
+  const { t } = useTranslation();
   const { colors, typography, radii } = useTheme();
 
   const styles = useMemo(() => StyleSheet.create({
@@ -102,7 +94,7 @@ function FuelPricesBlock({ data }: { data: LiveDataResult }) {
     return (
       <View style={styles.notFoundRow}>
         <Ionicons name="alert-circle-outline" size={16} color={colors.inkMuted} />
-        <Text style={styles.notFoundText}>Precios no disponibles en esta ubicación</Text>
+        <Text style={styles.notFoundText}>{t('liveData.notAvailable')}</Text>
       </View>
     );
   }
@@ -120,7 +112,7 @@ function FuelPricesBlock({ data }: { data: LiveDataResult }) {
             <Text style={styles.priceValue}>
               {(data.prices![key as keyof typeof data.prices] as number).toFixed(3)} €
             </Text>
-            <Text style={styles.priceLabel}>{FUEL_LABELS[key]}</Text>
+            <Text style={styles.priceLabel}>{t(`fuel.${key}`)}</Text>
           </View>
         ))}
       </View>
@@ -138,6 +130,7 @@ function FuelPricesBlock({ data }: { data: LiveDataResult }) {
 }
 
 function LinkBlock({ data }: { data: LiveDataResult }) {
+  const { t } = useTranslation();
   const { colors, typography, radii } = useTheme();
   const hasLink = !!data.link_url;
 
@@ -177,7 +170,7 @@ function LinkBlock({ data }: { data: LiveDataResult }) {
           activeOpacity={0.75}
         >
           <Ionicons name="open-outline" size={16} color="#FFFFFF" />
-          <Text style={styles.linkButtonText}>{data.link_label || 'Ver más'}</Text>
+          <Text style={styles.linkButtonText}>{data.link_label || t('common.viewMore')}</Text>
         </TouchableOpacity>
       )}
     </>
@@ -320,6 +313,7 @@ function WeatherBlock({ data }: { data: LiveDataResult }) {
 }
 
 function CinemaShowtimesBlock({ data }: { data: LiveDataResult }) {
+  const { t } = useTranslation();
   const { colors, typography, radii } = useTheme();
 
   const styles = useMemo(() => StyleSheet.create({
@@ -413,7 +407,7 @@ function CinemaShowtimesBlock({ data }: { data: LiveDataResult }) {
           activeOpacity={0.75}
         >
           <Ionicons name="open-outline" size={16} color="#FFFFFF" />
-          <Text style={styles.linkButtonText}>{data.link_label || 'Ver horarios completos'}</Text>
+          <Text style={styles.linkButtonText}>{data.link_label || t('liveData.viewFullSchedule')}</Text>
         </TouchableOpacity>
       )}
       {data.updated_label && (
@@ -429,17 +423,18 @@ interface Props {
   data: LiveDataResult;
 }
 
-const ADDON_META: Record<string, { icon: string; color: string; title: string }> = {
-  fuel_prices:    { icon: 'speedometer', color: '#F97316', title: 'Precios del combustible' },
-  pharmacy_duty:  { icon: 'medkit', color: '#EF4444', title: 'Farmacia de guardia' },
-  cinema_info:    { icon: 'film', color: '#8B5CF6', title: 'Cartelera de hoy' },
-  cinema_showtimes: { icon: 'film', color: '#8B5CF6', title: 'Cartelera de hoy' },
-  ev_charging:    { icon: 'flash', color: '#0EA5E9', title: 'Carga eléctrica' },
-  weather:        { icon: 'partly-sunny', color: '#0EA5E9', title: 'El tiempo ahora' },
-};
-
 export default function LiveDataAddon({ data }: Props) {
+  const { t } = useTranslation();
   const { colors, typography, radii } = useTheme();
+
+  const ADDON_META: Record<string, { icon: string; color: string; title: string }> = {
+    fuel_prices:    { icon: 'speedometer', color: '#F97316', title: t('liveData.fuelPrices') },
+    pharmacy_duty:  { icon: 'medkit', color: '#EF4444', title: t('liveData.pharmacyDuty') },
+    cinema_info:    { icon: 'film', color: '#8B5CF6', title: t('liveData.cinemaShowtimes') },
+    cinema_showtimes: { icon: 'film', color: '#8B5CF6', title: t('liveData.cinemaShowtimes') },
+    ev_charging:    { icon: 'flash', color: '#0EA5E9', title: t('liveData.evCharging') },
+    weather:        { icon: 'partly-sunny', color: '#0EA5E9', title: t('liveData.weatherNow') },
+  };
   
   const styles = useMemo(() => StyleSheet.create({
     container: {
@@ -474,7 +469,7 @@ export default function LiveDataAddon({ data }: Props) {
 
   if (data.type === 'none') return null;
 
-  const meta = ADDON_META[data.type] ?? { icon: 'radio', color: '#6366F1', title: 'Info en tiempo real' };
+  const meta = ADDON_META[data.type] ?? { icon: 'radio', color: '#6366F1', title: t('liveData.realtime') };
 
   return (
     <View style={styles.container}>
@@ -493,4 +488,5 @@ export default function LiveDataAddon({ data }: Props) {
     </View>
   );
 }
+
 

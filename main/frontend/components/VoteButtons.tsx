@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import * as Haptics from 'expo-haptics';
 import { castVote, VoteData } from "../services/api";
 import { useTheme } from "../utils/theme";
-import GADOIcon from "./GADOIcon";
+import WhimIcon from "./WhimIcon";
 
 interface Props {
   itemId: string;
@@ -13,8 +15,8 @@ interface Props {
 
 function animatePress(anim: Animated.Value) {
   Animated.sequence([
-    Animated.spring(anim, { toValue: 1.08, useNativeDriver: true, speed: 20, bounciness: 6 }),
-    Animated.spring(anim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }),
+    Animated.spring(anim, { toValue: 1.08, useNativeDriver: false, speed: 20, bounciness: 6 }),
+    Animated.spring(anim, { toValue: 1, useNativeDriver: false, speed: 20, bounciness: 6 }),
   ]).start();
 }
 
@@ -22,10 +24,13 @@ export default function VoteButtons({
   itemId,
   itemType,
   initial,
-  title = "Was this place worth it?",
+  title,
 }: Props) {
+  const { t } = useTranslation();
+  const displayTitle = title || t('vote.worthIt');
   const { colors, radii, typography } = useTheme();
   const [likes, setLikes] = useState(0);
+  const [dislikes, setDislikes] = useState(0);
   const [userVote, setUserVote] = useState(0);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState("");
@@ -36,6 +41,7 @@ export default function VoteButtons({
   useEffect(() => {
     if (initial) {
       setLikes(Number(initial.likes) || 0);
+      setDislikes(Number(initial.dislikes) || 0);
       setUserVote(Number(initial.userVote) || 0);
     }
   }, [initial]);
@@ -92,6 +98,7 @@ export default function VoteButtons({
 
   async function handleVote(vote: 1 | -1) {
     if (loading) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setLoading(true);
 
     const prevLikes = likes;
@@ -117,19 +124,19 @@ export default function VoteButtons({
     } catch {
       setLikes(prevLikes);
       setUserVote(prevUserVote);
-      setNotice("Could not save vote, try again");
+      setNotice(t('common.error'));
     } finally {
       setLoading(false);
     }
   }
 
   const summary = likes > 0
-    ? `${likes} ${likes === 1 ? 'person' : 'people'} liked this place`
-    : "Be the first to rate this place";
+    ? `${likes} ${likes === 1 ? t('common.person', { defaultValue: 'person' }) : t('common.people', { defaultValue: 'people' })} ${t('vote.likedThis', { defaultValue: 'liked this place' })}`
+    : t('common.beFirstToRate');
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.title}>{displayTitle}</Text>
       <View style={styles.row}>
         <Animated.View style={[styles.buttonWrap, { transform: [{ scale: likeScale }] }]}>
           <Pressable
@@ -141,8 +148,8 @@ export default function VoteButtons({
             ]}
             disabled={loading}
           >
-            <GADOIcon name="like" category="feedback" size={18} color={userVote === 1 ? colors.success : colors.inkMuted} />
-            <Text style={[styles.buttonLabel, userVote === 1 && styles.likeLabelActive]}>Liked it</Text>
+            <WhimIcon name="like" category="feedback" size={18} color={userVote === 1 ? colors.success : colors.inkMuted} />
+            <Text style={[styles.buttonLabel, userVote === 1 && styles.likeLabelActive]}>{likes > 0 ? likes : ''} {t('common.likedIt')}</Text>
           </Pressable>
         </Animated.View>
 
@@ -156,8 +163,8 @@ export default function VoteButtons({
             ]}
             disabled={loading}
           >
-            <GADOIcon name="dislike" category="feedback" size={18} color={userVote === -1 ? colors.danger : colors.inkMuted} />
-            <Text style={[styles.buttonLabel, userVote === -1 && styles.dislikeLabelActive]}>Nope</Text>
+            <WhimIcon name="dislike" category="feedback" size={18} color={userVote === -1 ? colors.danger : colors.inkMuted} />
+            <Text style={[styles.buttonLabel, userVote === -1 && styles.dislikeLabelActive]}>{dislikes > 0 ? dislikes : ''} {t('common.nope')}</Text>
           </Pressable>
         </Animated.View>
       </View>
@@ -167,3 +174,4 @@ export default function VoteButtons({
     </View>
   );
 }
+

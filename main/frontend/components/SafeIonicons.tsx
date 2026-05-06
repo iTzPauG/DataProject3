@@ -1,18 +1,21 @@
 import React from 'react';
 import { Platform, StyleProp, Text, TextStyle, View, ViewStyle } from 'react-native';
+import Icon, { IconName } from './Icon';
 
 /**
  * Drop-in replacement for `Ionicons` from `@expo/vector-icons`.
  *
- * On native platforms the real Ionicons component is loaded via conditional
- * `require` so the font renders correctly.  On web the production Metro bundle
- * can fail to resolve `@expo/vector-icons`, so we render a plain-text Unicode
- * fallback instead (no font dependency).
+ * On native we still delegate to the real Ionicons component so existing
+ * screens keep their vector glyphs.
+ *
+ * On web we deliberately avoid emoji fallbacks (the colored OS emoji look
+ * was the single biggest "AI slop" tell in the previous design).  For the
+ * icon names the redesigned screens care about we map to our new monochrome
+ * geometric `Icon` component.  For long-tail names that still come from
+ * legacy screens we fall back to a minimal neutral dot — never an emoji.
  */
 
-// ---------------------------------------------------------------------------
-// Native: conditionally load the real Ionicons
-// ---------------------------------------------------------------------------
+// ── Native pathway ───────────────────────────────────────────────────────
 let RealIonicons: React.ComponentType<{
   name: string;
   size: number;
@@ -22,176 +25,98 @@ let RealIonicons: React.ComponentType<{
 
 if (Platform.OS !== 'web') {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     RealIonicons = require('@expo/vector-icons').Ionicons;
   } catch {
     RealIonicons = null;
   }
 }
 
-// ---------------------------------------------------------------------------
-// Unicode glyphs used as web fallback (no font dependency).
-// Every icon name used anywhere in the app must have an entry here.
-// ---------------------------------------------------------------------------
-const WEB_GLYPHS: Record<string, string> = {
-  // ---- arrows / navigation ----
-  'arrow-back': '←',
-  'chevron-back': '‹',
-  'chevron-forward': '›',
-  'navigate-outline': '➤',
+// ── Web mapping: Ionicons name → geometric Icon name ─────────────────────
+const ICON_MAP: Record<string, IconName> = {
+  // navigation
+  'arrow-back': 'arrow-left',
+  'arrow-forward': 'arrow-right',
+  'chevron-back': 'chevron-left',
+  'chevron-forward': 'chevron-right',
+  'chevron-down': 'chevron-down',
+  'navigate': 'arrow-right',
+  'navigate-outline': 'arrow-right',
 
-  // ---- actions ----
-  close: '✕',
-  checkmark: '✓',
-  'checkmark-circle': '✔',
-  'close-circle': '✖',
-  add: '+',
+  // actions
+  close: 'close',
+  'close-circle': 'close-circle',
+  'close-circle-outline': 'close-circle',
+  checkmark: 'check',
+  'checkmark-circle': 'check',
+  add: 'plus',
 
-  // ---- status / info ----
-  'alert-circle': '⚠',
-  'alert-circle-outline': '⚠',
-  warning: '⚠',
-  'time-outline': '🕐',
-  'hourglass-outline': '⏳',
-  'shield-checkmark-outline': '🛡',
-  star: '★',
-  radio: '📡',
-  speedometer: '⏱',
-  thermometer: '🌡',
+  // places / map
+  location: 'pin',
+  'location-outline': 'pin',
+  locate: 'crosshair',
+  'locate-outline': 'crosshair',
+  map: 'map',
+  'map-outline': 'map',
+  compass: 'compass',
+  'compass-outline': 'compass',
 
-  // ---- communication / auth ----
-  'mail-outline': '✉',
-  'lock-closed-outline': '🔒',
-  'logo-google': 'G',
-  'open-outline': '↗',
+  // person / settings
+  person: 'person',
+  'person-outline': 'person',
+  people: 'person',
+  'people-outline': 'person',
+  settings: 'sliders',
+  'settings-outline': 'sliders',
+  options: 'sliders',
+  'options-outline': 'sliders',
 
-  // ---- places / location ----
-  location: '📍',
-  'location-outline': '📍',
-  'navigate': '➤',
-  'water-outline': '💧',
-  'filter-outline': '🌀',
-  'rainy-outline': '🌧',
-  'partly-sunny': '🌤',
-  rainy: '🌧',
-  thunderstorm: '⛈',
-  snow: '❄',
+  // bookmarks
+  bookmark: 'bookmark',
+  'bookmark-outline': 'bookmark',
+  heart: 'bookmark',
+  'heart-outline': 'bookmark',
 
-  // ---- people ----
-  person: '👤',
-  people: '👥',
+  // status (no dedicated glyph yet — fall back to ring/triangle)
+  'alert-circle': 'triangle',
+  'alert-circle-outline': 'triangle',
+  warning: 'triangle',
+  ellipse: 'dot',
+  star: 'triangle',
+  radio: 'dot',
 
-  // ---- bookmarks / favorites ----
-  bookmark: '🔖',
-  'bookmark-outline': '🔖',
-  heart: '❤',
-  'heart-outline': '♡',
+  // communication / auth (neutral ring)
+  'mail-outline': 'ring',
+  'lock-closed-outline': 'ring',
+  'logo-google': 'ring',
 
-  // ---- calendar / events ----
-  calendar: '📅',
-  'calendar-outline': '📅',
-
-  // ---- tags / price ----
-  'pricetag-outline': '🏷',
-  'flag-outline': '🚩',
-
-  // ---- reports / megaphone ----
-  megaphone: '📢',
-  'megaphone-outline': '📢',
-
-  // ---- settings / cloud / misc ----
-  'settings-outline': '⚙',
-  'options-outline': '⚙',
-  'cloud-offline-outline': '☁',
-  'cloud-done-outline': '☁',
-  'locate': '◎',
-  'send': '➤',
-  'report_tab': '📢',
-
-  // ---- existing GADOIcon glyphs carried over ----
-  map: '🗺',
-  explore: '◎',
-  restaurant: '🍽',
-  moon: '🌙',
-  'bag-handle': '🛍',
-  medkit: '💊',
-  leaf: '🌿',
-  'color-palette': '🎨',
-  construct: '🔧',
-  barbell: '🏋',
-  school: '📚',
-  film: '🎬',
-  flower: '✿',
-  laptop: '💻',
-  paw: '🐾',
-  car: '🚗',
-  sparkles: '✦',
-  storefront: '🏪',
-  'musical-notes': '♪',
-  compass: '◎',
-  'thumbs-up': '👍',
-  'thumbs-down': '👎',
-  pizza: '🍕',
-  'fast-food': '🍔',
-  fish: '🐟',
-  nutrition: '🥗',
-  wine: '🍷',
-  cafe: '☕',
-  beer: '🍺',
-  disc: '💿',
-  bed: '🛏',
-  business: '🏢',
-  walk: '🚶',
-  water: '💧',
-  library: '📚',
-  images: '🖼',
-  ticket: '🎫',
-  book: '📖',
-  football: '⚽',
-  basketball: '🏀',
-  tennisball: '🎾',
-  flame: '🔥',
-  'hand-left': '🤚',
-  body: '🧘',
-  fist: '✊',
-  mountain: '⛰',
-  flash: '⚡',
-  ellipse: '●',
-  build: '🔧',
-  clipboard: '📋',
-  happy: '😊',
-  'volume-mute': '🔇',
-  'game-controller': '🎮',
-  diamond: '💎',
-  cash: '💵',
-  wifi: '📶',
-  'musical-note': '♪',
-  fitness: '🏃',
-  bulb: '💡',
+  // reports / misc
+  megaphone: 'triangle',
+  'megaphone-outline': 'triangle',
+  calendar: 'ring',
+  'calendar-outline': 'ring',
+  'pricetag-outline': 'triangle',
+  'flag-outline': 'triangle',
+  'time-outline': 'ring',
+  'cloud-offline-outline': 'ring',
+  'cloud-done-outline': 'check',
+  'shield-checkmark-outline': 'check',
+  'open-outline': 'arrow-right',
+  send: 'arrow-right',
 };
 
-// ---------------------------------------------------------------------------
-// glyphMap – exported so that `keyof typeof Ionicons.glyphMap` still works
-// when consumers reference the type.  The values are irrelevant at runtime on
-// web; on native the real glyphMap from `@expo/vector-icons` is used.
-// ---------------------------------------------------------------------------
-export const glyphMap: Record<string, number> = Object.keys(WEB_GLYPHS).reduce(
+// minimal glyphMap shim — preserves `keyof typeof Ionicons.glyphMap` on web
+export const glyphMap: Record<string, number> = Object.keys(ICON_MAP).reduce(
   (acc, key) => {
     acc[key] = 0;
     return acc;
   },
   {} as Record<string, number>,
 );
-
-// If the real Ionicons is available, merge its glyphMap so all native names
-// are present (important for TypeScript consumers that iterate the map).
 if (RealIonicons && (RealIonicons as any).glyphMap) {
   Object.assign(glyphMap, (RealIonicons as any).glyphMap);
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+// ── Component ────────────────────────────────────────────────────────────
 interface SafeIoniconsProps {
   name: string;
   size?: number;
@@ -202,16 +127,33 @@ interface SafeIoniconsProps {
 function SafeIonicons({
   name,
   size = 24,
-  color = '#000000',
+  color = '#EDEBE3',
   style,
 }: SafeIoniconsProps): React.ReactElement {
-  // Native: delegate to the real Ionicons when available
+  // Native delegates to real Ionicons when available
   if (Platform.OS !== 'web' && RealIonicons) {
-    return <RealIonicons name={name} size={size} color={color} style={style as StyleProp<TextStyle>} />;
+    return (
+      <RealIonicons
+        name={name}
+        size={size}
+        color={color}
+        style={style as StyleProp<TextStyle>}
+      />
+    );
   }
 
-  // Web: Unicode text fallback
-  const unicode = WEB_GLYPHS[name] ?? '●';
+  // Web: geometric Icon for mapped names, neutral dot otherwise
+  const mapped = ICON_MAP[name];
+  if (mapped) {
+    return (
+      <View style={style as StyleProp<ViewStyle>}>
+        <Icon name={mapped} size={size} color={color} />
+      </View>
+    );
+  }
+
+  // Unmapped → tiny centred dot.  Intentionally boring — forces us to map
+  // real icon names as the design evolves instead of leaking emoji.
   return (
     <View
       style={[
@@ -224,21 +166,13 @@ function SafeIonicons({
         style as StyleProp<ViewStyle>,
       ]}
     >
-      <Text
-        style={{
-          fontSize: size * 0.72,
-          lineHeight: size,
-          color,
-          textAlign: 'center',
-        }}
-      >
-        {unicode}
+      <Text style={{ fontSize: size * 0.6, lineHeight: size, color, textAlign: 'center' }}>
+        ·
       </Text>
     </View>
   );
 }
 
-// Attach glyphMap as a static property so `Ionicons.glyphMap` works
 SafeIonicons.glyphMap = glyphMap;
 
 export { SafeIonicons as Ionicons };

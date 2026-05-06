@@ -1,4 +1,5 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Image,
   Platform,
@@ -6,13 +7,16 @@ import {
   StyleSheet,
   Text,
   View,
+  TouchableOpacity,
 } from "react-native";
+import * as Haptics from 'expo-haptics';
 import { Ionicons } from "../components/SafeIonicons";
-import { VoteData } from "../services/api";
+import { VoteData, toggleBookmark, checkBookmark } from "../services/api";
+import { auth } from "../services/supabase";
 import { Restaurant } from "../types/restaurant";
 import { formatDistance, formatRating, formatReviews } from "../utils/format";
 import { useTheme } from "../utils/theme";
-import GADOIcon from "./GADOIcon";
+import WhimIcon from "./WhimIcon";
 import VoteButtons from "./VoteButtons";
 
 interface Props {
@@ -34,10 +38,52 @@ export default function RestaurantCard({
   selected = false,
   voteData,
 }: Props) {
+  const { t } = useTranslation();
   const { colors, radii, shadows, typography } = useTheme();
+  const [isBookmarked, setIsBookmarked] = useState(false);
+
+  useEffect(() => {
+    if (auth.currentUser) {
+      checkBookmark(restaurant.id).then(setIsBookmarked).catch(() => {});
+    }
+  }, [restaurant.id]);
+
+  const handleToggleBookmark = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!auth.currentUser) return;
+    try {
+      await toggleBookmark(restaurant.id, 'place', isBookmarked);
+      setIsBookmarked(!isBookmarked);
+    } catch (e) {
+      console.warn('[WHIM] Error toggling bookmark:', e);
+    }
+  };
+
+  const handleCardPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  };
+
   const distance = restaurant.distanceM > 0 ? formatDistance(restaurant.distanceM) : null;
   const pros = restaurant.pros.slice(0, 2);
   const cons = restaurant.cons.slice(0, 1);
+  const sourceCounts = useMemo(() => {
+    if (restaurant.reviewSources) {
+      return {
+        google: Math.max(0, restaurant.reviewSources.google || 0),
+        yelp: Math.max(0, restaurant.reviewSources.yelp || 0),
+        tripadvisor: Math.max(0, restaurant.reviewSources.tripadvisor || 0),
+      };
+    }
+    const counts = { google: 0, yelp: 0, tripadvisor: 0 };
+    for (const review of restaurant.reviews || []) {
+      if (review.source === "google") counts.google += 1;
+      if (review.source === "yelp") counts.yelp += 1;
+      if (review.source === "tripadvisor") counts.tripadvisor += 1;
+    }
+    return counts;
+  }, [restaurant.reviewSources, restaurant.reviews]);
+  const hasSourceCounts = sourceCounts.google + sourceCounts.yelp + sourceCounts.tripadvisor > 0;
 
   const renderBoldText = (text: string, baseStyle: any, numberOfLines?: number) => {
     if (!text) return null;
@@ -96,6 +142,19 @@ export default function RestaurantCard({
       paddingVertical: 6,
       zIndex: 2,
     },
+    bookmarkBtn: {
+      position: "absolute",
+      left: 12,
+      top: 12,
+      backgroundColor: colors.overlay,
+      borderRadius: radii.pill,
+      width: 36,
+      height: 36,
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 3,
+      elevation: 3,
+    },
     ratingBadgeText: {
       color: "#FFFFFF",
       fontSize: 13,
@@ -152,6 +211,13 @@ export default function RestaurantCard({
       fontSize: 13,
       fontFamily: typography.body,
     },
+    sourceBreakdownText: {
+      color: colors.inkWhisper,
+      fontSize: 11,
+      letterSpacing: 0.2,
+      fontFamily: typography.body,
+      marginTop: -6,
+    },
     signalBox: {
       backgroundColor: colors.chip,
       borderRadius: radii.md,
@@ -198,8 +264,8 @@ export default function RestaurantCard({
 
   return (
     <Pressable
-      onPress={onPress}
-      accessibilityLabel={`Tarjeta de ${restaurant.name}. Puntuación ${formatRating(restaurant.rating)}. ${restaurant.tagline || ""}`}
+      onPress={handleCardPress}
+      accessibilityLabel={`${t('common.cardOf', { defaultValue: 'Card of' })} ${restaurant.name}. ${t('placeDetails.rating', { rating: formatRating(restaurant.rating) })}. ${restaurant.tagline || ""}`}
       accessibilityRole="button"
       style={({ pressed }) => [
         styles.card,
@@ -212,10 +278,21 @@ export default function RestaurantCard({
           <Image source={{ uri: restaurant.photoUrl }} style={styles.heroImage} resizeMode="cover" />
         ) : (
           <View style={styles.heroPlaceholder}>
-            <GADOIcon name="restaurant" category="food" size={34} color={colors.brand} accessibilityLabel="Marcador de posición de restaurante" />
+            <WhimIcon name="restaurant" category="food" size={34} color={colors.brand} accessibilityLabel={t('common.restaurantPlaceholder', { defaultValue: 'Restaurant placeholder' })} />
           </View>
         )}
-        <View style={styles.ratingBadge} accessibilityLabel={`Puntuación ${formatRating(restaurant.rating)}`}>
+        <TouchableOpacity 
+          style={styles.bookmarkBtn} 
+          onPress={handleToggleBookmark}
+          activeOpacity={0.7}
+        >
+          <Ionicons 
+            name={isBookmarked ? "star" : "star-outline"} 
+            size={20} 
+            color={isBookmarked ? "#FFD700" : "#FFFFFF"} 
+          />
+        </TouchableOpacity>
+        <View style={styles.ratingBadge} accessibilityLabel={t('placeDetails.rating', { rating: formatRating(restaurant.rating) })}>
           <Text style={styles.ratingBadgeText}>{formatRating(restaurant.rating)} ★</Text>
         </View>
       </View>
@@ -225,38 +302,43 @@ export default function RestaurantCard({
           <View style={styles.headerCopy}>
             <Text style={styles.name} numberOfLines={1}>{restaurant.name}</Text>
             <Text style={styles.metaLine} numberOfLines={1}>
-              {restaurant.tagline || "Lugar recomendado"}
+              {restaurant.tagline || t('placeDetails.recommended')}
               {distance ? ` · ${distance}` : ""}
             </Text>
           </View>
-          <Text style={styles.priceDots} accessibilityLabel={`Precio nivel ${restaurant.priceLevel}`}>
+          <Text style={styles.priceDots} accessibilityLabel={`${t('common.priceLevel', { defaultValue: 'Price level' })} ${restaurant.priceLevel}`}>
             {priceDots(restaurant.priceLevel)}
           </Text>
         </View>
 
         <View style={styles.scoreRow}>
-          <Text style={styles.scoreText}>Rating: {formatRating(restaurant.rating)}</Text>
-          <Text style={styles.reviewText}>{formatReviews(restaurant.reviewsCount)} reseñas</Text>
+          <Text style={styles.scoreText}>{t('placeDetails.rating', { rating: formatRating(restaurant.rating) })}</Text>
+          <Text style={styles.reviewText}>{formatReviews(restaurant.reviewsCount)} {t('common.reviews', { defaultValue: 'reviews' })}</Text>
         </View>
+        {hasSourceCounts ? (
+          <Text style={styles.sourceBreakdownText}>
+            G {sourceCounts.google} · Y {sourceCounts.yelp} · T {sourceCounts.tripadvisor}
+          </Text>
+        ) : null}
 <View style={styles.signalBox}>
   {(pros || []).length > 0 ? (
     pros.map((pro, i) => (
       <View key={`pro-${i}`} style={styles.signalRow}>
-        <GADOIcon name="like" category="feedback" size={14} color={colors.success} accessibilityLabel="Punto positivo" />
+        <WhimIcon name="like" category="feedback" size={14} color={colors.success} accessibilityLabel={t('common.positivePoint', { defaultValue: 'Positive point' })} />
         {renderBoldText(pro, styles.signalGood, 1)}
       </View>
     ))
   ) : (
     <View style={styles.signalRow}>
-      <GADOIcon name="like" category="feedback" size={14} color={colors.success} />
-      <Text style={styles.signalGood} numberOfLines={1}>Analizando puntos fuertes...</Text>
+      <WhimIcon name="like" category="feedback" size={14} color={colors.success} />
+      <Text style={styles.signalGood} numberOfLines={1}>{t('placeDetails.strengths')}</Text>
     </View>
   )}
 
   {(cons || []).length > 0 ? (
     cons.map((con, i) => (
       <View key={`con-${i}`} style={styles.signalRow}>
-        <GADOIcon name="warning" category="feedback" size={14} color={colors.warning} accessibilityLabel="Punto de atención" />
+        <WhimIcon name="warning" category="feedback" size={14} color={colors.warning} accessibilityLabel={t('common.attentionPoint', { defaultValue: 'Attention point' })} />
         {renderBoldText(con, styles.signalBad, 1)}
       </View>
     ))
@@ -264,10 +346,10 @@ export default function RestaurantCard({
 </View>
         <View style={styles.footerRow}>
           <View style={styles.voteWrap}>
-            <VoteButtons itemId={restaurant.id} itemType="place" initial={voteData} title="Veredicto GADO" />
+            <VoteButtons itemId={restaurant.id} itemType="place" initial={voteData} title={t('placeDetails.verdict')} />
           </View>
-          <View style={styles.moreWrap} accessibilityLabel="Ver más detalles">
-            <Text style={styles.moreText}>Ver más</Text>
+          <View style={styles.moreWrap} accessibilityLabel={t('common.viewMore')}>
+            <Text style={styles.moreText}>{t('common.viewMore')}</Text>
             <Ionicons name="chevron-forward" size={16} color={colors.brandDeep} />
           </View>
         </View>
@@ -275,3 +357,4 @@ export default function RestaurantCard({
     </Pressable>
   );
 }
+

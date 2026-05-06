@@ -1,7 +1,6 @@
 import { Ionicons } from '../../components/SafeIonicons';
-import { BASE_URL } from '../../services/api';
 import { router } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -12,42 +11,84 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
-import { MapStyle, useAppState } from '../../hooks/useAppState';
+import { useAppState } from '../../hooks/useAppState';
+import {
+  fetchRemotePreferences,
+  saveRemotePreferences,
+  toLocalPreferences,
+  toRemotePreferences,
+} from '../../services/preferences';
 import { useTheme } from '../../utils/theme';
-
-const MAP_STYLE_OPTIONS: Array<{ value: MapStyle; label: string; description: string }> = [
-  { value: 'minimal', label: 'Minimal', description: 'Clean and calm' },
-  { value: 'standard', label: 'Standard', description: 'Default city map' },
-  { value: 'hybrid', label: 'Hybrid', description: 'Satellite with labels' },
-  { value: 'satellite', label: 'Satellite', description: 'Imagery first' },
-  { value: 'terrain', label: 'Terrain', description: 'Topography and parks' },
-];
-
-const RADIUS_OPTIONS = [2000, 5000, 10000, 20000];
+import { useTranslation } from 'react-i18next';
 
 function formatRadius(value: number): string {
   return value >= 1000 ? `${value / 1000} km` : `${value} m`;
 }
 
-const THEME_OPTIONS: Array<{ value: 'system' | 'light' | 'dark'; label: string; description: string }> = [
-  { value: 'system', label: 'Sistema', description: 'Match dispositivo' },
-  { value: 'dark', label: 'Oscuro', description: 'Modo noche' },
-  { value: 'light', label: 'Claro', description: 'Modo día' },
-];
+const RADIUS_OPTIONS = [2000, 5000, 10000, 20000];
 
-const LANGUAGE_OPTIONS = [
-  { value: 'system', label: 'Sistema' },
-  { value: 'es', label: 'Español' },
-  { value: 'en', label: 'English' },
-  { value: 'fr', label: 'Français' },
-];
+const staticStyles = StyleSheet.create({
+  headerTextGroup: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+  },
+  cardGrid: {
+    gap: 0,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  toggleCopy: {
+    flex: 1,
+  },
+  radiusRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+});
 
 export default function SettingsModal() {
+  const { t } = useTranslation();
   const { colors, radii, typography, shadows } = useTheme();
-  const { idToken } = useAuth();
+  const { idToken, loading } = useAuth();
   const { mapPreferences, setMapPreferences } = useAppState();
   const [syncState, setSyncState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [remoteLoaded, setRemoteLoaded] = useState(false);
+  const lastSyncedPayloadRef = useRef<string | null>(null);
+  const latestPreferencesRef = useRef(mapPreferences);
+
+  useEffect(() => {
+    latestPreferencesRef.current = mapPreferences;
+  }, [mapPreferences]);
+
+  const MAP_STYLE_OPTIONS = useMemo(() => [
+    { value: 'minimal', label: t('settings.mapLayer.minimal.label'), description: t('settings.mapLayer.minimal.desc') },
+    { value: 'standard', label: t('settings.mapLayer.standard.label'), description: t('settings.mapLayer.standard.desc') },
+    { value: 'hybrid', label: t('settings.mapLayer.hybrid.label'), description: t('settings.mapLayer.hybrid.desc') },
+    { value: 'satellite', label: t('settings.mapLayer.satellite.label'), description: t('settings.mapLayer.satellite.desc') },
+    { value: 'terrain', label: t('settings.mapLayer.terrain.label'), description: t('settings.mapLayer.terrain.desc') },
+  ], [t]);
+
+  const THEME_OPTIONS = useMemo(() => [
+    { value: 'system', label: t('settings.appearance.system'), description: t('settings.appearance.systemDesc') },
+    { value: 'dark', label: t('settings.appearance.dark'), description: t('settings.appearance.darkDesc') },
+    { value: 'light', label: t('settings.appearance.light'), description: t('settings.appearance.lightDesc') },
+  ], [t]);
+
+  const LANGUAGE_OPTIONS = useMemo(() => [
+    { value: 'system', label: t('settings.language.system') },
+    { value: 'es', label: t('settings.language.es') },
+    { value: 'en', label: t('settings.language.en') },
+    { value: 'fr', label: t('settings.language.fr') },
+    { value: 'pt', label: t('settings.language.pt', { defaultValue: 'Português' }) },
+    { value: 'de', label: t('settings.language.de', { defaultValue: 'Deutsch' }) },
+  ], [t]);
 
   const dynamicStyles = useMemo(() => StyleSheet.create({
     safe: {
@@ -211,277 +252,216 @@ export default function SettingsModal() {
   }), [colors, typography, shadows, radii]);
 
   useEffect(() => {
+    if (loading) return;
+
+    let cancelled = false;
+
     async function loadRemote() {
       if (!idToken) {
+        setSyncState('idle');
         setRemoteLoaded(true);
         return;
       }
-      try {
-        const res = await fetch(`${BASE_URL}/preferences/me`, {
-          headers: {
-            Authorization: `Bearer ${idToken}`,
-          },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        const prefs = data.preferences ?? data;
-        setMapPreferences({
-          mapStyle: prefs.map_minimal ? 'minimal' : (prefs.map_style ?? mapPreferences.mapStyle),
-          gadoOverlay: prefs.gado_overlay_on ?? mapPreferences.gadoOverlay,
-          showRealTimeEvents: prefs.show_real_time_events ?? mapPreferences.showRealTimeEvents,
-          defaultRadiusM: prefs.default_radius_m ?? mapPreferences.defaultRadiusM,
-          theme: prefs.theme ?? mapPreferences.theme,
-          language: prefs.language ?? mapPreferences.language,
-        });
-      } catch {
-        // Keep local preferences when remote sync is unavailable.
-      } finally {
-        setRemoteLoaded(true);
+
+      const remote = await fetchRemotePreferences(idToken);
+      if (cancelled) return;
+
+      if (remote) {
+        const nextPreferences = toLocalPreferences(remote, latestPreferencesRef.current);
+        lastSyncedPayloadRef.current = JSON.stringify(toRemotePreferences(nextPreferences));
+        setMapPreferences(nextPreferences);
+        setSyncState('saved');
+      } else {
+        setSyncState('error');
       }
+
+      setRemoteLoaded(true);
     }
 
     void loadRemote();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idToken]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [idToken, loading, setMapPreferences]);
+
+  const remotePayload = useMemo(() => toRemotePreferences({
+    mapStyle: mapPreferences.mapStyle,
+    gadoOverlay: mapPreferences.gadoOverlay,
+    showRealTimeEvents: mapPreferences.showRealTimeEvents,
+    defaultRadiusM: mapPreferences.defaultRadiusM,
+    theme: mapPreferences.theme,
+    language: mapPreferences.language,
+    searchMode: mapPreferences.searchMode,
+  }), [mapPreferences]);
 
   useEffect(() => {
-    async function syncRemote() {
-      if (!idToken || !remoteLoaded) return;
+    if (!idToken || !remoteLoaded) return;
+
+    const payloadStr = JSON.stringify(remotePayload);
+    if (payloadStr === lastSyncedPayloadRef.current) return;
+
+    const timer = setTimeout(async () => {
       setSyncState('saving');
       try {
-        const res = await fetch(`${BASE_URL}/preferences/me`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({
-            map_style: mapPreferences.mapStyle === 'minimal' ? 'standard' : mapPreferences.mapStyle,
-            map_minimal: mapPreferences.mapStyle === 'minimal',
-            map_preset: mapPreferences.gadoOverlay ? 'drive' : 'classic',
-            gado_overlay_on: mapPreferences.gadoOverlay,
-            show_real_time_events: mapPreferences.showRealTimeEvents,
-            default_radius_m: mapPreferences.defaultRadiusM,
-            theme: mapPreferences.theme,
-            language: mapPreferences.language,
-          }),
-        });
-        setSyncState(res.ok ? 'saved' : 'error');
+        await saveRemotePreferences(idToken, remotePayload);
+        lastSyncedPayloadRef.current = payloadStr;
+        setSyncState('saved');
       } catch {
         setSyncState('error');
       }
-    }
+    }, 1000);
 
-    void syncRemote();
-  }, [mapPreferences, remoteLoaded, idToken]);
-
-  const syncLabel = useMemo(() => {
-    if (!idToken) return 'Local preference only';
-    switch (syncState) {
-      case 'saving':
-        return 'Sincronizando...';
-      case 'saved':
-        return 'Ajustes guardados';
-      case 'error':
-        return 'Error de sincronización';
-      default:
-        return 'Conectado a la nube';
-    }
-  }, [idToken, syncState]);
+    return () => clearTimeout(timer);
+  }, [idToken, remotePayload, remoteLoaded]);
 
   return (
     <SafeAreaView style={dynamicStyles.safe}>
       <View style={dynamicStyles.header}>
-        <View style={styles.headerTextGroup}>
-           <Text style={dynamicStyles.title}>Ajustes</Text>
-           <Text style={dynamicStyles.subtitle}>Personaliza tu experiencia</Text>
+        <View style={staticStyles.headerTextGroup}>
+          <Text style={dynamicStyles.title}>{t('settings.title')}</Text>
+          <Text style={dynamicStyles.subtitle}>{t('settings.subtitle')}</Text>
         </View>
-        <TouchableOpacity
-          accessibilityLabel="Close settings"
-          accessibilityRole="button"
-          onPress={() => router.back()}
+        <TouchableOpacity 
+          onPress={() => router.back()} 
           style={dynamicStyles.closeButton}
+          activeOpacity={0.7}
         >
           <Ionicons name="close" size={24} color={colors.ink} />
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={staticStyles.content} showsVerticalScrollIndicator={false}>
         <View style={dynamicStyles.statusPill}>
-          <Ionicons name="cloud-done-outline" size={16} color={colors.brandDeep} />
-          <Text style={dynamicStyles.statusText}>{syncLabel}</Text>
+          <Ionicons 
+            name={syncState === 'saving' ? 'cloud-upload-outline' : syncState === 'saved' ? 'cloud-done-outline' : syncState === 'error' ? 'alert-circle-outline' : 'phone-portrait-outline'} 
+            size={14} 
+            color={colors.brandDeep} 
+          />
+          <Text style={dynamicStyles.statusText}>
+            {!idToken ? t('settings.sync.local') : syncState === 'saving' ? t('settings.sync.saving') : syncState === 'saved' ? t('settings.sync.cloud') : syncState === 'error' ? t('settings.sync.error') : t('settings.sync.cloud')}
+          </Text>
         </View>
 
-        {/* Theme Selection */}
         <View style={dynamicStyles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Apariencia</Text>
-          <Text style={dynamicStyles.sectionSubtitle}>Elige el tono visual de la aplicación.</Text>
+          <Text style={dynamicStyles.sectionTitle}>{t('settings.appearance.title')}</Text>
+          <Text style={dynamicStyles.sectionSubtitle}>{t('settings.appearance.subtitle')}</Text>
           <View style={dynamicStyles.themeGrid}>
-            {THEME_OPTIONS.map((option) => {
-              const selected = mapPreferences.theme === option.value;
-              return (
-                <TouchableOpacity
-                  key={option.value}
-                  activeOpacity={0.82}
-                  onPress={() => setMapPreferences({ theme: option.value })}
-                  style={[
-                    dynamicStyles.themeChip, 
-                    selected && dynamicStyles.themeChipActive
-                  ]}
-                >
-                  <Text style={[dynamicStyles.themeLabel, selected && dynamicStyles.themeLabelActive]}>
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+            {THEME_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt.value}
+                onPress={() => setMapPreferences({ theme: opt.value as any })}
+                style={[dynamicStyles.themeChip, mapPreferences.theme === opt.value && dynamicStyles.themeChipActive]}
+              >
+                <Text style={[dynamicStyles.themeLabel, mapPreferences.theme === opt.value && dynamicStyles.themeLabelActive]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
-        {/* Language Selection */}
         <View style={dynamicStyles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Idioma</Text>
-          <Text style={dynamicStyles.sectionSubtitle}>Personaliza el idioma de la app y reseñas.</Text>
+          <Text style={dynamicStyles.sectionTitle}>{t('settings.language.title')}</Text>
+          <Text style={dynamicStyles.sectionSubtitle}>{t('settings.language.subtitle')}</Text>
           <View style={dynamicStyles.themeGrid}>
-            {LANGUAGE_OPTIONS.map((option) => {
-              const selected = (mapPreferences.language || 'system') === option.value;
-              return (
-                <TouchableOpacity
-                  key={option.value}
-                  activeOpacity={0.82}
-                  onPress={() => setMapPreferences({ language: option.value as any })}
-                  style={[
-                    dynamicStyles.themeChip, 
-                    selected && dynamicStyles.themeChipActive
-                  ]}
-                >
-                  <Text style={[dynamicStyles.themeLabel, selected && dynamicStyles.themeLabelActive]}>
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Map Style */}
-        <View style={dynamicStyles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Capa de Mapa</Text>
-          <Text style={dynamicStyles.sectionSubtitle}>Cómo se renderiza la ciudad bajo tus datos.</Text>
-          <View style={styles.cardGrid}>
-            {MAP_STYLE_OPTIONS.map((option) => {
-              const selected = mapPreferences.mapStyle === option.value;
-              return (
-                <TouchableOpacity
-                  key={option.value}
-                  activeOpacity={0.82}
-                  onPress={() => setMapPreferences({ mapStyle: option.value })}
-                  style={[
-                    dynamicStyles.styleCard,
-                    selected && { borderColor: colors.brand, backgroundColor: colors.brand + '08' }
-                  ]}
-                >
-                  <Text style={[dynamicStyles.styleLabel, selected && { color: colors.brandDeep }]}>
-                    {option.label}
-                  </Text>
-                  <Text style={[dynamicStyles.styleDescription, selected && { color: colors.brandDeep }]}>
-                    {option.description}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+            {LANGUAGE_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt.value}
+                onPress={() => setMapPreferences({ language: opt.value as any })}
+                style={[dynamicStyles.themeChip, mapPreferences.language === opt.value && dynamicStyles.themeChipActive]}
+              >
+                <Text style={[dynamicStyles.themeLabel, mapPreferences.language === opt.value && dynamicStyles.themeLabelActive]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
         <View style={dynamicStyles.section}>
-          <Text style={dynamicStyles.sectionTitle}>GADO Overlay</Text>
-          <Text style={dynamicStyles.sectionSubtitle}>Resalta reportes y eventos con señales visuales fuertes.</Text>
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleCopy}>
-              <Text style={dynamicStyles.toggleTitle}>Énfasis en actividad viva</Text>
-              <Text style={dynamicStyles.toggleText}>Inspirado en apps de tráfico, pero para la comunidad GADO.</Text>
+          <Text style={dynamicStyles.sectionTitle}>{t('settings.mapLayer.title')}</Text>
+          <Text style={dynamicStyles.sectionSubtitle}>{t('settings.mapLayer.subtitle')}</Text>
+          {MAP_STYLE_OPTIONS.map((style) => (
+            <TouchableOpacity
+              key={style.value}
+              onPress={() => setMapPreferences({ mapStyle: style.value as any })}
+              style={[dynamicStyles.styleCard, mapPreferences.mapStyle === style.value && { borderColor: colors.brand, backgroundColor: colors.brand + '08' }]}
+            >
+              <Text style={[dynamicStyles.styleLabel, mapPreferences.mapStyle === style.value && { color: colors.brand }]}>{style.label}</Text>
+              <Text style={dynamicStyles.styleDescription}>{style.description}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={dynamicStyles.section}>
+          <Text style={dynamicStyles.sectionTitle}>{t('settings.gadoOverlay.title')}</Text>
+          <Text style={dynamicStyles.sectionSubtitle}>{t('settings.gadoOverlay.subtitle')}</Text>
+          <View style={staticStyles.toggleRow}>
+            <View style={staticStyles.toggleCopy}>
+              <Text style={dynamicStyles.toggleTitle}>{t('settings.gadoOverlay.liveActivity')}</Text>
+              <Text style={dynamicStyles.toggleText}>{t('settings.gadoOverlay.liveActivityDesc')}</Text>
             </View>
             <Switch
-              onValueChange={(value) => setMapPreferences({ gadoOverlay: value })}
               value={mapPreferences.gadoOverlay}
-              trackColor={{ false: '#D5D7DB', true: colors.brandDeep }}
-              thumbColor={mapPreferences.gadoOverlay ? colors.brand : '#FFFFFF'}
+              onValueChange={(val) => setMapPreferences({ gadoOverlay: val })}
+              trackColor={{ true: colors.brand, false: colors.stroke }}
             />
           </View>
         </View>
 
         <View style={dynamicStyles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Radio por Defecto</Text>
-          <Text style={dynamicStyles.sectionSubtitle}>Filtros del Mapa.</Text>
-          <View style={styles.cardGrid}>
-            <View style={styles.toggleCopy}>
-              <Text style={dynamicStyles.toggleTitle}>Eventos en tiempo real</Text>
-              <Text style={dynamicStyles.toggleText}>Muestra eventos y reportes de la comunidad en el mapa principal.</Text>
+          <Text style={dynamicStyles.sectionTitle}>{t('settings.defaultRadius.title')}</Text>
+          <Text style={dynamicStyles.sectionSubtitle}>{t('settings.defaultRadius.subtitle')}</Text>
+
+          <View style={[staticStyles.toggleRow, { marginBottom: 20 }]}>
+            <View style={staticStyles.toggleCopy}>
+              <Text style={dynamicStyles.toggleTitle}>{t('settings.defaultRadius.realTime', { defaultValue: 'Search by Map Center (Radius)' })}</Text>
+              <Text style={dynamicStyles.toggleText}>{t('settings.defaultRadius.realTimeDesc', { defaultValue: 'Search using the current map center and distance' })}</Text>
             </View>
             <Switch
-              onValueChange={(value) => setMapPreferences({ showRealTimeEvents: value })}
-              value={mapPreferences.showRealTimeEvents}
-              trackColor={{ false: '#D5D7DB', true: colors.brandDeep }}
-              thumbColor={mapPreferences.showRealTimeEvents ? colors.brand : '#FFFFFF'}
+              value={mapPreferences.searchMode !== 'city'}
+              onValueChange={(val) => setMapPreferences({ searchMode: val ? 'radius' : 'city' })}
+              trackColor={{ true: colors.brand, false: colors.stroke }}
             />
           </View>
 
-          <Text style={dynamicStyles.sectionSubtitle}>Distancia máxima de búsqueda automática.</Text>
-          <View style={styles.radiusRow}>
-            {RADIUS_OPTIONS.map((value) => {
-              const selected = mapPreferences.defaultRadiusM === value;
-              return (
-                <TouchableOpacity
-                  key={value}
-                  activeOpacity={0.82}
-                  onPress={() => setMapPreferences({ defaultRadiusM: value })}
-                  style={[
-                    dynamicStyles.radiusChip, 
-                    selected && { backgroundColor: colors.brand }
-                  ]}
-                >
-                  <Text style={[dynamicStyles.radiusChipText, selected && { color: '#FFFFFF' }]}>
-                    {formatRadius(value)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+          <View style={[staticStyles.toggleRow, { marginBottom: 20, opacity: mapPreferences.searchMode === 'city' ? 1 : 0.5 }]}>
+            <View style={staticStyles.toggleCopy}>
+              <Text style={dynamicStyles.toggleTitle}>{t('settings.defaultRadius.citySearch', { defaultValue: 'Search by City Boundary' })}</Text>
+              <Text style={dynamicStyles.toggleText}>{t('settings.defaultRadius.citySearchDesc', { defaultValue: 'Find results across the entire current city (disables radius)' })}</Text>
+            </View>
+            <Switch
+              value={mapPreferences.searchMode === 'city'}
+              onValueChange={(val) => setMapPreferences({ searchMode: val ? 'city' : 'radius' })}
+              trackColor={{ true: colors.brand, false: colors.stroke }}
+            />
+          </View>
+
+          <Text style={[dynamicStyles.toggleTitle, { marginBottom: 12, opacity: mapPreferences.searchMode === 'city' ? 0.5 : 1 }]}>{t('settings.defaultRadius.autoSearch')}</Text>
+          <View style={[staticStyles.radiusRow, { opacity: mapPreferences.searchMode === 'city' ? 0.5 : 1 }]}>
+            {RADIUS_OPTIONS.map((val) => (
+              <TouchableOpacity
+                key={val}
+                onPress={() => mapPreferences.searchMode !== 'city' && setMapPreferences({ defaultRadiusM: val })}
+                disabled={mapPreferences.searchMode === 'city'}
+                style={[dynamicStyles.radiusChip, mapPreferences.defaultRadiusM === val && mapPreferences.searchMode !== 'city' && { backgroundColor: colors.brand }]}
+              >
+                <Text style={[dynamicStyles.radiusChipText, mapPreferences.defaultRadiusM === val && mapPreferences.searchMode !== 'city' && { color: '#FFF' }]}>
+                  {formatRadius(val)}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
-
         <TouchableOpacity 
-          style={dynamicStyles.doneButton}
+          style={dynamicStyles.doneButton} 
           onPress={() => router.back()}
+          activeOpacity={0.8}
         >
-          <Text style={dynamicStyles.doneButtonText}>Listo</Text>
+          <Text style={dynamicStyles.doneButtonText}>{t('common.done')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  headerTextGroup: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingBottom: 32,
-  },
-  cardGrid: {
-    gap: 0,
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  toggleCopy: {
-    flex: 1,
-  },
-  radiusRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-});

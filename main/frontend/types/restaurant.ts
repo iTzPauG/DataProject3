@@ -3,6 +3,7 @@ export type PlaceReview = {
   rating: number;
   text: string;
   relative_time: string;
+  source?: "google" | "yelp" | "tripadvisor";
 };
 
 export type Restaurant = {
@@ -29,6 +30,11 @@ export type Restaurant = {
   cons: string[];
   verdict: string;
   reviews: PlaceReview[];
+  reviewSources?: {
+    google: number;
+    yelp: number;
+    tripadvisor: number;
+  };
   /** Real-time data from APIs like weather, fuel prices, TMDB, pharmacy duties, etc. */
   liveData?: Record<string, any>;
 };

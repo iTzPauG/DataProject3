@@ -3,7 +3,7 @@
 # Uso: bash scripts/get_secrets.sh
 # Requiere: gcloud autenticado con acceso al proyecto
 
-PROJECT="pruebas-edem-dataproject3"
+PROJECT="project1grupo7"
 
 get_secret() {
   gcloud secrets versions access latest --secret="$1" --project="$PROJECT" 2>/dev/null
@@ -20,6 +20,6 @@ EOF
 echo "✓ terraform.tfvars generado"
 echo ""
 echo "Secretos de la app (en Secret Manager, no en tfvars):"
-echo "  google-maps-api-key, google-genai-api-key, geoapify-api-key"
+echo "  google-maps-api-key, google-genai-api-key"
 echo "  tripadvisor-api-key, yelp-api-key, here-api-key"
 echo "  openrouter-api-key, groq-api-key, database-url"

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../utils/theme';
 
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export default function ReviewList({ reviews }: Props) {
+  const { t } = useTranslation();
   const { colors, typography, radii, shadows } = useTheme();
 
   if (!reviews || reviews.length === 0) return null;
@@ -21,7 +23,7 @@ export default function ReviewList({ reviews }: Props) {
   return (
     <View style={styles.container}>
       <Text style={[styles.sectionTitle, { color: colors.ink, fontFamily: typography.heading }]}>
-        What people say
+        {t('placeDetails.whatPeopleSay')}
       </Text>
       {reviews.map((rev, idx) => (
         <View 
@@ -50,6 +52,7 @@ export default function ReviewList({ reviews }: Props) {
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
