@@ -6,8 +6,23 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from auth import get_optional_user, _get_app
+from auth import get_optional_user
 from database import get_db
+
+def _get_app():
+    try:
+        import firebase_admin
+        if not firebase_admin._apps:
+            import os
+            cred_path = os.getenv("FIREBASE_CREDENTIALS_PATH", "")
+            if cred_path:
+                from firebase_admin import credentials
+                firebase_admin.initialize_app(credentials.Certificate(cred_path))
+            else:
+                firebase_admin.initialize_app()
+        return firebase_admin.get_app()
+    except Exception:
+        return None
 
 router = APIRouter(prefix="/deals", tags=["deals"])
 

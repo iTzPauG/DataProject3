@@ -37,9 +37,7 @@ resource "google_project_iam_member" "cloudsql_client" {
   member  = local.cloud_run_sa_member
 }
 
-# Vertex AI access for LLM calls.
-resource "google_project_iam_member" "vertex_ai_user" {
-  project = var.project_id
-  role    = "roles/aiplatform.user"
-  member  = local.cloud_run_sa_member
-}
+# Vertex AI access — assigned manually (Terraform SA lacks resourcemanager.projectIamAdmin).
+# gcloud projects add-iam-policy-binding PROJECT_ID \
+#   --member="serviceAccount:cloud-run-api@PROJECT_ID.iam.gserviceaccount.com" \
+#   --role="roles/aiplatform.user"
