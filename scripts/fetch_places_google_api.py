@@ -6,14 +6,14 @@ Obtiene restaurantes y bares REALES de Valencia usando Google Places API (New).
 Salida: scripts/output/places_valencia_2520.json + scripts/output/places_valencia_2520.sql
 
 Uso:
-    python3 scripts/scrape_valencia_places.py
+    GOOGLE_PLACES_API_KEY=tu_key python3 scripts/fetch_places_google_api.py
 """
 
 import json, time, uuid, re, os
 from datetime import datetime, timezone
 import requests
 
-API_KEY = "AIzaSyD2H_7cGb1tZ0dZ80kibPXEdSrJzhYcTtI"
+API_KEY = os.environ["GOOGLE_PLACES_API_KEY"]
 OUT_DIR = os.path.join(os.path.dirname(__file__), "output")
 os.makedirs(OUT_DIR, exist_ok=True)
 
