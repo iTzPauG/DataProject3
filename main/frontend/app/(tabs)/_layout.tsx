@@ -8,6 +8,7 @@ import { useTheme } from '../../utils/theme';
 const TAB_GLYPHS: Record<string, IconName> = {
   index: 'map',
   explore: 'compass',
+  foryou: 'bookmark',
   profile: 'person',
 };
 
@@ -104,6 +105,12 @@ export default function TabsLayout() {
         name="explore"
         options={{
           tabBarIcon: ({ focused }) => renderTab('explore', focused),
+        }}
+      />
+      <Tabs.Screen
+        name="foryou"
+        options={{
+          tabBarIcon: ({ focused }) => renderTab('foryou', focused),
         }}
       />
       <Tabs.Screen

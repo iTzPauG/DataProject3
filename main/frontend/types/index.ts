@@ -139,3 +139,17 @@ export type UserPreference = {
   language: string;
   updated_at: string;
 };
+
+export type RestaurantDBResult = {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  metadata: {
+    rating?: number;
+    photo_url?: string;
+    price_level?: string;
+    address?: string;
+    distance_m?: number;
+  };
+};

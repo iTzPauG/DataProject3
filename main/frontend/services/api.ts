@@ -1,7 +1,7 @@
 import { Restaurant } from '../types/restaurant';
 import { auth } from './supabase';
 import { storage } from '../utils/storage';
-import { Category, CommunityReport, MapItem, ReportType, SavedItem } from '../types';
+import { Category, CommunityReport, MapItem, ReportType, SavedItem, RestaurantDBResult } from '../types';
 import { FALLBACK_CATEGORIES } from './mapService';
 import i18n from '../utils/i18n';
 
@@ -1100,5 +1100,46 @@ export async function getPlaceData(placeId: string): Promise<MapItem | null> {
     return normalizeSearchResult(found);
   } catch {
     return null;
+  }
+}
+
+export const RESTAURANT_DB_URL = 'https://restaurant-api-dev-ia-149307894342.europe-west1.run.app';
+
+export async function searchRestaurantDB({
+  query,
+  lat,
+  lng,
+  radiusM,
+  useBrain,
+}: {
+  query: string;
+  lat: number;
+  lng: number;
+  radiusM?: number;
+  useBrain?: boolean;
+}): Promise<RestaurantDBResult[]> {
+  try {
+    const url = new URL(`${RESTAURANT_DB_URL}/search/universal`);
+    url.searchParams.set('q', query);
+    url.searchParams.set('lat', lat.toString());
+    url.searchParams.set('lng', lng.toString());
+    if (radiusM != null) url.searchParams.set('radius_m', radiusM.toString());
+    if (useBrain != null) url.searchParams.set('use_brain', useBrain.toString());
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    const res = await fetch(url.toString(), {
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) return [];
+
+    const data = await res.json();
+    return data.results || [];
+  } catch {
+    return [];
   }
 }
