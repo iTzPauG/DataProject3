@@ -6,6 +6,7 @@ export interface MapProps {
   items?: MapItem[];
   selectedId: string | null;
   onSelectItem?: (id: string) => void;
+  onDoubleClickItem?: (id: string, type: string) => void;
   onRegionChange?: (lat: number, lng: number, latDelta: number, lngDelta: number) => void;
   region?: { lat: number; lng: number; latDelta: number; lngDelta: number };
   mapType?: 'standard' | 'satellite' | 'hybrid' | 'terrain' | 'minimal';

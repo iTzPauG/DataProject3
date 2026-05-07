@@ -298,6 +298,11 @@ export default function MapTab() {
     setSelectedId(id);
   }, []);
 
+  const handleDoubleClickItem = useCallback((id: string, type: string) => {
+    const pathname = type === 'event' ? '/(modals)/event-details' : '/(modals)/place-details';
+    router.push({ pathname: pathname as any, params: { id, type } });
+  }, []);
+
   const handleRegionChange = useCallback(
     (lat: number, lng: number, latDelta: number, lngDelta: number) => {
       setMapRegion({ lat, lng, latDelta, lngDelta });
@@ -468,6 +473,7 @@ export default function MapTab() {
             items={displayItems}
             selectedId={selectedId}
             onSelectItem={handleSheetItemPress}
+            onDoubleClickItem={handleDoubleClickItem}
             onRegionChange={handleRegionChange}
             region={mapRegion ?? undefined}
             mapType={mapPreferences.mapStyle}

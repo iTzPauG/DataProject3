@@ -316,6 +316,7 @@ export default function Map({
   items,
   selectedId,
   onSelectItem,
+  onDoubleClickItem,
   onRegionChange,
   region,
   mapType = 'standard',
@@ -481,7 +482,13 @@ export default function Map({
               key={item.item_id}
               position={[item.lat, item.lng]}
               icon={itemIcons[i]}
-              eventHandlers={{ click: () => onSelectItem?.(item.item_id) }}
+              eventHandlers={{
+                click: () => onSelectItem?.(item.item_id),
+                dblclick: (e) => {
+                  e.originalEvent?.stopPropagation();
+                  onDoubleClickItem?.(item.item_id, item.item_type);
+                },
+              }}
             >
               <Popup>
                 <strong>

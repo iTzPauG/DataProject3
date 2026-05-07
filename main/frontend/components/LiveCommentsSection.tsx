@@ -109,6 +109,7 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
   const [reportType, setReportType] = useState('comment');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const fetchComments = useCallback(async () => {
     try {
@@ -132,8 +133,9 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
   }, [fetchComments]);
 
   const handleSubmit = async () => {
+    setErrorMsg(null);
     if (title.trim().length < 2) {
-      Alert.alert('Aviso', 'El comentario debe ser más largo.');
+      setErrorMsg('El comentario debe ser más largo (mínimo 2 caracteres).');
       return;
     }
     setSubmitting(true);
@@ -156,17 +158,33 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
         setTitle('');
         setDescription('');
         setReportType('comment');
+        setErrorMsg(null);
         setLoading(true);
         fetchComments();
       } else {
-        Alert.alert('Error', 'No se pudo publicar el reporte.');
+        let detail = '';
+        try {
+          const j = await res.json();
+          detail = j?.detail || '';
+        } catch {}
+        console.error('[LiveComments] POST failed', res.status, detail);
+        setErrorMsg(`No se pudo publicar (${res.status}). ${detail}`);
       }
-    } catch (e) {
-      Alert.alert('Error', 'No se pudo conectar al servidor.');
+    } catch (e: any) {
+      console.error('[LiveComments] network error', e);
+      setErrorMsg('No se pudo conectar al servidor.');
     } finally {
       setSubmitting(false);
     }
   };
+
+  const openModal = useCallback(() => {
+    setErrorMsg(null);
+    setTitle('');
+    setDescription('');
+    setReportType('comment');
+    setShowModal(true);
+  }, []);
 
   const styles = useMemo(() => StyleSheet.create({
     container: {
@@ -377,7 +395,7 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
           <Ionicons name="chatbubbles" size={20} color="#FFFFFF" />
           <Text style={styles.title}>En directo</Text>
         </View>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setShowModal(true)}>
+        <TouchableOpacity style={styles.addBtn} onPress={openModal}>
           <Text style={styles.addBtnText}>+ Añadir</Text>
         </TouchableOpacity>
       </View>
@@ -463,8 +481,14 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
               maxLength={200}
             />
 
-            <TouchableOpacity 
-              style={[styles.submitBtn, submitting && { opacity: 0.7 }]} 
+            {errorMsg ? (
+              <Text style={{ color: '#FF6B6B', fontSize: 13, marginBottom: 8, textAlign: 'center' }}>
+                {errorMsg}
+              </Text>
+            ) : null}
+
+            <TouchableOpacity
+              style={[styles.submitBtn, submitting && { opacity: 0.7 }]}
               onPress={handleSubmit}
               disabled={submitting}
             >
