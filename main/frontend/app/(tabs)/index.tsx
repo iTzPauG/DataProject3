@@ -268,9 +268,6 @@ export default function MapTab() {
       setSelectedSearchItem(item);
       setMapRegion({ lat: item.lat, lng: item.lng, latDelta: 0.008, lngDelta: 0.008 });
       if (item.id && item.raw) {
-        const backendUrl =
-          process.env.EXPO_PUBLIC_BACKEND_URL ||
-          'https://restaurant-api-gcfbpra65a-ew.a.run.app';
         const photoUrl = item.raw.metadata?.photo_url;
         const mapItem = {
           item_id: item.id,
@@ -282,7 +279,7 @@ export default function MapTab() {
           distance_m: 0,
           metadata: {
             ...item.raw.metadata,
-            photo_url: photoUrl?.startsWith('/') ? `${backendUrl}${photoUrl}` : photoUrl,
+            photo_url: photoUrl?.startsWith('/') ? `${BASE_URL}${photoUrl}` : photoUrl,
             address: item.address,
             google_reviews: item.raw.google_reviews ?? [],
           },
@@ -331,11 +328,8 @@ export default function MapTab() {
     const lat = item?.lat ?? mapRegion?.lat ?? 39.4699;
     const lng = item?.lng ?? mapRegion?.lng ?? -0.3763;
     const q = item?.title ?? selectedId;
-    const backendUrl =
-      process.env.EXPO_PUBLIC_BACKEND_URL ||
-      'https://restaurant-api-gcfbpra65a-ew.a.run.app';
     fetch(
-      `${backendUrl}/search/universal?q=${encodeURIComponent(q)}&lat=${lat}&lng=${lng}&radius_m=300&use_brain=false`,
+      `${BASE_URL}/search/universal?q=${encodeURIComponent(q)}&lat=${lat}&lng=${lng}&radius_m=300&use_brain=false`,
     )
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {

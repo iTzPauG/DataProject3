@@ -13,7 +13,7 @@ async def list_categories():
     async with get_db() as db:
         try:
             cursor = await db.execute(
-                "SELECT * FROM categories WHERE is_active=1 ORDER BY sort_order"
+                "SELECT * FROM categories WHERE is_active ORDER BY sort_order"
             )
             rows = await cursor.fetchall()
         except Exception as e:
@@ -43,7 +43,7 @@ async def get_category_flow(category_id: str):
             cursor = await db.execute(
                 """SELECT id, label, icon, metadata, sort_order, is_active
                    FROM category_subcategories
-                   WHERE category_id=? AND is_active=1 ORDER BY sort_order""",
+                   WHERE category_id=? AND is_active ORDER BY sort_order""",
                 (category_id,),
             )
             sub_rows = await cursor.fetchall()
@@ -67,7 +67,7 @@ async def get_category_flow(category_id: str):
             cursor = await db.execute(
                 """SELECT id, label, icon, metadata, sort_order, is_active
                    FROM category_moods
-                   WHERE category_id=? AND is_active=1 ORDER BY sort_order""",
+                   WHERE category_id=? AND is_active ORDER BY sort_order""",
                 (category_id,),
             )
             mood_rows = await cursor.fetchall()

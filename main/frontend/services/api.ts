@@ -1048,9 +1048,28 @@ export async function fetchNearbyItems(
 export async function fetchPlaceExtra(placeId: string, metadata?: any): Promise<{ take: any; live: any; vote: VoteData | null }> {
   try {
     const url = new URL(`${BASE_URL}/places/${placeId}/take`);
+    const allowedTakeParams = new Set([
+      'lat',
+      'lng',
+      'name',
+      'address',
+      'photo_url',
+      'rating',
+      'price_level',
+      'user_rating_count',
+      'subcategory',
+      'category',
+      'language',
+    ]);
     if (metadata) {
       Object.entries(metadata).forEach(([k, v]) => {
-        if (v !== undefined && v !== null) url.searchParams.append(k, String(v));
+        if (!allowedTakeParams.has(k)) return;
+        if (v === undefined || v === null) return;
+        if (Array.isArray(v)) return;
+        if (typeof v === 'object') return;
+        const value = String(v).trim();
+        if (!value) return;
+        url.searchParams.append(k, value);
       });
     }
 

@@ -145,6 +145,7 @@ export default function PlaceDetailsModal() {
           lat: currentItem.lat,
           lng: currentItem.lng,
           name: currentItem.title,
+          category: currentItem.category_id,
           ...currentItem.metadata
         } : {};
         const extra = await fetchPlaceExtra(id, extraPayload);
