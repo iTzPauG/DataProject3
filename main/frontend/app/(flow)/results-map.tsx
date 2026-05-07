@@ -1,6 +1,5 @@
 ﻿import { router, useRootNavigationState } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Animated,
@@ -84,15 +83,14 @@ function PulsingDot({ delay, color }: { delay: number; color: string }) {
 }
 
 function StreamingIndicator({ found, total }: { found: number; total?: number }) {
-  const { t } = useTranslation();
   const { colors, typography } = useTheme();
   return (
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 16, gap: 10 }}>
       <ActivityIndicator size="small" color={colors.brand} />
       <Text style={{ fontSize: 13, color: colors.inkMuted, fontFamily: typography.body }}>
         {total
-          ? t("flow.foundCountOf", { count: found, total })
-          : t("flow.foundCount", { count: found })}
+          ? `Encontrados ${found} de ${total}`
+          : `Encontrados ${found}`}
       </Text>
     </View>
   );
@@ -154,17 +152,13 @@ function MapStatusHero({
   priceLabel: string;
   errorMsg: string;
 }) {
-  const { t } = useTranslation();
   const { colors, radii, shadows, typography } = useTheme();
 
   // Get a random loading description once when this mounts
   const loadingDesc = useMemo(() => {
-    const variations = t("loading_variations", { returnObjects: true });
-    if (Array.isArray(variations) && variations.length > 0) {
-      return variations[Math.floor(Math.random() * variations.length)];
-    }
-    return t("flow.analyzingDescription");
-  }, [t]);
+    const variations = ["Analizando tu ubicación...", "Buscando los mejores lugares...", "Personalizando recomendaciones..."];
+    return variations[Math.floor(Math.random() * variations.length)];
+  }, []);
 
   // Animated glow
   const glowAnim = useRef(new Animated.Value(0)).current;
@@ -285,13 +279,13 @@ function MapStatusHero({
   const isLoading = status === "loading";
   const isError = status === "error";
 
-  const eyebrow = isLoading ? t("flow.searchingNearby") : isError ? t("flow.searchPaused") : t("flow.noMatches");
-  const title = isLoading ? t("flow.preparingList") : isError ? t("flow.searchError") : t("flow.noResults");
+  const eyebrow = isLoading ? "Buscando cerca" : isError ? "Búsqueda pausada" : "Sin coincidencias";
+  const title = isLoading ? "Preparando lista" : isError ? "Error de búsqueda" : "Sin resultados";
   const description = isLoading
     ? loadingDesc
     : isError
-      ? errorMsg || t("flow.requestFailed")
-      : t("flow.noResultsMsg");
+      ? errorMsg || "La solicitud falló"
+      : "No se encontraron resultados para tus criterios";
 
   return (
     <View style={styles.mapPlaceholder}>
@@ -327,7 +321,6 @@ function MapStatusHero({
 // ── Main screen ─────────────────────────────────────────────────────────────
 
 export default function ResultsMapScreen() {
-  const { t } = useTranslation();
   const { colors, radii, shadows, typography } = useTheme();
   const { parentCategory, category, mood, priceLevel, results, setResults, isHydrated } = useFlowState();
 

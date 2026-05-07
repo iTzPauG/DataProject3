@@ -1,4 +1,3 @@
-import { useTranslation } from "react-i18next";
 import { router } from 'expo-router';
 import { Ionicons } from '../../components/SafeIonicons';
 import React, { useMemo } from 'react';
@@ -25,7 +24,6 @@ const PRICE_LEVELS: Array<{
 ];
 
 export default function PriceScreen() {
-  const { t } = useTranslation();
   const { colors, typography, space } = useTheme();
   const { setPriceLevel } = useFlowState();
 
@@ -145,16 +143,16 @@ export default function PriceScreen() {
             style={styles.backButton}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel={t('common.back')}
+            accessibilityLabel="Volver"
           >
             <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.header}>
-          <Text style={styles.step}>{t('flow.step', { current: 3, total: 3 })}</Text>
-          <Text style={styles.title}>{t('flow.priceTitle')}</Text>
-          <Text style={styles.subtitle}>{t('flow.priceSubtitle')}</Text>
+          <Text style={styles.step}>Paso 3 de 3</Text>
+          <Text style={styles.title}>¿Cuál es tu presupuesto?</Text>
+          <Text style={styles.subtitle}>Selecciona el rango de precios que prefieres</Text>
         </View>
 
         <Animated.View entering={FadeInUp.duration(400).delay(100).springify().damping(16)} style={styles.segmentWrapper}>
@@ -176,7 +174,7 @@ export default function PriceScreen() {
                   </Text>
                   <View style={styles.segmentContent}>
                     <Text style={styles.segmentDesc}>
-                      {t(`flow.${pl.descriptionKey}`) || pl.descriptionKey}
+                      {pl.descriptionKey === 'price_1' ? 'Económico' : pl.descriptionKey === 'price_2' ? 'Moderado' : 'Premium'}
                     </Text>
                   </View>
                   <Text style={styles.arrow}>→</Text>

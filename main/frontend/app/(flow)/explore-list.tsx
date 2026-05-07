@@ -1,4 +1,3 @@
-import { useTranslation } from "react-i18next";
 import { Ionicons } from '../../components/SafeIonicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -20,7 +19,6 @@ import { formatDistance } from '../../utils/format';
 type ItemTypeParam = 'place' | 'event';
 
 export default function ExploreListScreen() {
-  const { t } = useTranslation();
   const { colors, typography, space } = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -140,7 +138,7 @@ export default function ExploreListScreen() {
 
   const categoryId = params.categoryId ?? null;
   const itemType: ItemTypeParam = params.itemType === 'event' ? 'event' : 'place';
-  const displayTitle = params.title ?? (itemType === 'event' ? t('explore.events') : t('common.none'));
+  const displayTitle = params.title ?? (itemType === 'event' ? 'Eventos' : 'Lugares');
 
   useEffect(() => {
     if (location.loading || location.lat === null || location.lng === null) return;
@@ -159,15 +157,14 @@ export default function ExploreListScreen() {
   }, [location.loading, location.lat, location.lng, categoryId, itemType]);
 
   const emptyText = useMemo(() => {
-    if (itemType === 'event') return t('flow.noResults');
-    return t('flow.noResults');
-  }, [itemType, t]);
+    return 'No hay resultados';
+  }, [itemType]);
 
   function renderItem({ item }: { item: MapItem }) {
     const metadata = item.metadata ?? {};
     const subtitle =
       item.item_type === 'event'
-        ? String(metadata.price_info ?? t('explore.events'))
+        ? String(metadata.price_info ?? 'Evento')
         : String(metadata.address ?? '');
     const distance = 'distance_m' in item ? formatDistance(item.distance_m) : '';
 
@@ -206,7 +203,7 @@ export default function ExploreListScreen() {
             </TouchableOpacity>
           </View>
           <Text style={styles.title}>{displayTitle}</Text>
-          <Text style={styles.counter}>{t('explore.showingPlaces', { count: items.length })}</Text>
+          <Text style={styles.counter}>Mostrando {items.length} lugares</Text>
         </View>
 
         {loading ? (
