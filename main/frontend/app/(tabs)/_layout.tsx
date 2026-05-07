@@ -8,7 +8,7 @@ import { useTheme } from '../../utils/theme';
 const TAB_GLYPHS: Record<string, IconName> = {
   index: 'map',
   explore: 'compass',
-  foryou: 'bookmark',
+  foryou: 'heart',
   profile: 'person',
 };
 
