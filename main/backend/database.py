@@ -454,7 +454,7 @@ class PostgresCompatConnection:
         self._conn = conn
 
     async def execute(self, sql: str, params: Sequence[Any] | None = None):
-        params = tuple(params or ())
+        params = tuple(_coerce_pg_param(p) for p in (params or ()))
         translated = _translate_sql(sql)
         if _is_read_query(sql):
             rows = await self._conn.fetch(translated, *params)
@@ -464,7 +464,8 @@ class PostgresCompatConnection:
 
     async def executemany(self, sql: str, param_sets: Iterable[Sequence[Any]]):
         translated = _translate_sql(sql)
-        await self._conn.executemany(translated, list(param_sets))
+        coerced = [tuple(_coerce_pg_param(p) for p in row) for row in param_sets]
+        await self._conn.executemany(translated, coerced)
 
     async def commit(self):
         return None

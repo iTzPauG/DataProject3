@@ -60,6 +60,21 @@ def _photo_proxy_url(photo_name: str) -> str:
     return f"/photos/google/{photo_name}"
 
 
+def _get_display_name(place: dict) -> str:
+    """Safely extract the display name from a Google Places API response.
+
+    Google Places API v1 returns displayName as a LocalizedText object
+    {"text": "...", "languageCode": "..."}, but some responses may return
+    it as a plain string. This helper handles both cases defensively.
+    """
+    dn = place.get("displayName")
+    if isinstance(dn, dict):
+        return str(dn.get("text") or "") or ""
+    if isinstance(dn, str):
+        return dn
+    return ""
+
+
 def _extract_reviews(place: dict, source_language: str | None = None) -> list[dict]:
     """Extract and normalize reviews from a Google Places response."""
     reviews = []
@@ -318,8 +333,6 @@ async def search_places(
         loc = place.get("location", {})
         photos = place.get("photos", [])
         photo_url = _photo_proxy_url(photos[0]["name"]) if photos else ""
-        display_name = place.get("displayName", {})
-
         # Extract reviews inline — this is the key optimization
         reviews = entry["reviews"]
         review_summary = entry["review_summary"]
@@ -328,7 +341,7 @@ async def search_places(
             "source": "google",
             "item_type": "place",
             "id": place.get("id", ""),
-            "name": display_name.get("text", "Unknown"),
+            "name": _get_display_name(place) or "Unknown",
             "lat": loc.get("latitude"),
             "lng": loc.get("longitude"),
             "address": place.get("formattedAddress", ""),
@@ -466,7 +479,7 @@ async def get_place_details(place_id: str, language: str = "es", include_yelp: b
     if include_yelp:
         try:
             yelp_reviews = await get_yelp_reviews(
-                name=data.get("displayName", {}).get("text", ""),
+                name=_get_display_name(data),
                 lat=float(data.get("location", {}).get("latitude") or 0.0),
                 lng=float(data.get("location", {}).get("longitude") or 0.0),
                 address=data.get("formattedAddress", ""),
@@ -492,7 +505,7 @@ async def get_place_details(place_id: str, language: str = "es", include_yelp: b
     photo_url = _photo_proxy_url(photos[0]["name"]) if photos else ""
 
     result = {
-        "name": data.get("displayName", {}).get("text", ""),
+        "name": _get_display_name(data),
         "address": data.get("formattedAddress", ""),
         "phone": data.get("nationalPhoneNumber", ""),
         "photo_url": photo_url,
