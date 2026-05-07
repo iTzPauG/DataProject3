@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import Any, AsyncGenerator, Iterable, Sequence
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -399,6 +401,24 @@ async def _postgres_connect():
         raise RuntimeError("DATABASE_URL is set but asyncpg is not installed")
     kwargs = _postgres_connect_kwargs()
     return await asyncpg.connect(**kwargs)
+
+
+_ISO_DT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}")
+
+
+def _coerce_pg_param(val: Any) -> Any:
+    """Convert ISO datetime strings to datetime objects for asyncpg TIMESTAMP columns.
+
+    asyncpg is strict: TIMESTAMP/TIMESTAMPTZ columns reject plain strings.
+    The app stores datetimes as ISO strings (SQLite-compatible) but production
+    Cloud SQL has proper TIMESTAMP columns, so we coerce on the fly here.
+    """
+    if isinstance(val, str) and _ISO_DT_RE.match(val):
+        try:
+            return datetime.fromisoformat(val)
+        except (ValueError, TypeError):
+            pass
+    return val
 
 
 def _translate_sql(sql: str) -> str:
