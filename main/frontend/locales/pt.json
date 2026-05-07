@@ -66,7 +66,9 @@
     "profile": "Profile",
     "hola": "Hola",
     "saved": "Saved",
-    "index": "Mapa"
+    "index": "Mapa",
+    "publish": "Publicar",
+    "mis-ofertas": "Ofertas"
   },
   "home": {
     "locationNow": "València · Now",

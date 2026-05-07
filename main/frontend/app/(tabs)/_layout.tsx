@@ -3,17 +3,22 @@ import React, { useMemo } from 'react';
 import { useTranslation } from "react-i18next";
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import Icon, { IconName } from '../../components/Icon';
+import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../utils/theme';
 
 const TAB_GLYPHS: Record<string, IconName> = {
   index: 'map',
   explore: 'compass',
+  publish: 'plus',
+  'mis-ofertas': 'tag',
   profile: 'person',
 };
 
 export default function TabsLayout() {
   const { t } = useTranslation();
   const { colors, typography } = useTheme();
+  const { profile } = useAuth();
+  const isBusiness = profile?.role === 'business';
 
   const TAB_H = Platform.OS === 'ios' ? 86 : Platform.OS === 'web' ? 64 : 68;
 
@@ -67,8 +72,8 @@ export default function TabsLayout() {
     [colors, typography, TAB_H],
   );
 
-  const renderTab = (routeName: keyof typeof TAB_GLYPHS, focused: boolean) => {
-    const label = t(`tabs.${routeName === 'index' ? 'index' : routeName}`);
+  const renderTab = (routeName: 'index' | 'explore' | 'publish' | 'mis-ofertas' | 'profile', focused: boolean) => {
+    const label = t(`tabs.${routeName}`);
     const glyph = TAB_GLYPHS[routeName];
     const color = focused ? colors.ink : colors.inkFaint;
     return (
@@ -89,7 +94,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.ink,
         tabBarInactiveTintColor: colors.inkFaint,
         tabBarStyle: styles.tabBar,
-        tabBarItemStyle: { maxWidth: 120, marginHorizontal: 30 }, // Spaced out
+        tabBarItemStyle: { flex: 1, marginHorizontal: 16 },
         tabBarHideOnKeyboard: true,
         tabBarShowLabel: false,
       }}
@@ -103,12 +108,29 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="explore"
         options={{
+          href: isBusiness ? null : undefined,
           tabBarIcon: ({ focused }) => renderTab('explore', focused),
         }}
       />
       <Tabs.Screen
+        name="publish"
+        options={{
+          href: isBusiness ? undefined : null,
+          tabBarIcon: ({ focused }) => renderTab('publish', focused),
+        }}
+      />
+      <Tabs.Screen
+        name="mis-ofertas"
+        options={{
+          href: isBusiness ? undefined : null,
+          tabBarIcon: ({ focused }) => renderTab('mis-ofertas', focused),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
-        options={{ href: null }}
+        options={{
+          tabBarIcon: ({ focused }) => renderTab('profile', focused),
+        }}
       />
     </Tabs>
   );

@@ -64,7 +64,7 @@ const REPORT_TYPE_ICONS: Record<string, string> = {
 export default function ReportDetailsModal() {
   const { colors, radii, shadows, typography } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { session } = useAuth();
+  const { session, user } = useAuth();
 
   const [report, setReport] = useState<CommunityReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -356,6 +356,10 @@ export default function ReportDetailsModal() {
 
   async function handleVote(vote: 1 | -1) {
     if (!id || hasVoted || voting) return;
+    if (!user) {
+      Alert.alert('Acceso restringido', 'Inicia sesión para confirmar o descartar reportes.');
+      return;
+    }
 
     setVoting(true);
     try {

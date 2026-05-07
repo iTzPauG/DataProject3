@@ -11,6 +11,7 @@ interface Props {
   itemType: "place" | "event";
   initial?: VoteData;
   title?: string;
+  canVote?: boolean;
 }
 
 function animatePress(anim: Animated.Value) {
@@ -25,6 +26,7 @@ export default function VoteButtons({
   itemType,
   initial,
   title,
+  canVote = true,
 }: Props) {
   const { t } = useTranslation();
   const displayTitle = title || t('vote.worthIt');
@@ -97,6 +99,10 @@ export default function VoteButtons({
   }), [colors, radii, typography]);
 
   async function handleVote(vote: 1 | -1) {
+    if (!canVote) {
+      setNotice(t('profile.restrictedAccessMsg'));
+      return;
+    }
     if (loading) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setLoading(true);

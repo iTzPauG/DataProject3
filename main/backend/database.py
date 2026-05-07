@@ -373,6 +373,65 @@ POSTGRES_SCHEMA = [
         is_active INTEGER DEFAULT 1
     )
     """,
+    """
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'
+    """,
+    """
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_name TEXT
+    """,
+    """
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_address TEXT
+    """,
+    """
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_phone TEXT
+    """,
+    """
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_place_id TEXT
+    """,
+    """
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_lat REAL
+    """,
+    """
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_lng REAL
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS deals (
+        id TEXT PRIMARY KEY,
+        owner_uid TEXT NOT NULL,
+        restaurant_name TEXT NOT NULL,
+        restaurant_place_id TEXT,
+        lat REAL NOT NULL,
+        lng REAL NOT NULL,
+        price REAL NOT NULL,
+        original_price REAL,
+        seats INTEGER NOT NULL,
+        available_at TEXT NOT NULL,
+        description TEXT,
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        expires_at TEXT
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_deals_active ON deals(is_active, available_at)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_deals_owner ON deals(owner_uid)
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS reservations (
+        id TEXT PRIMARY KEY,
+        deal_id TEXT NOT NULL,
+        customer_uid TEXT,
+        customer_name TEXT NOT NULL,
+        customer_phone TEXT NOT NULL,
+        status TEXT DEFAULT 'confirmed',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_reservations_deal ON reservations(deal_id, status)
+    """,
 ]
 
 
@@ -719,8 +778,65 @@ async def _init_sqlite() -> None:
                 is_active BOOLEAN DEFAULT 1
             )
             """,
+            """
+            CREATE TABLE IF NOT EXISTS deals (
+                id TEXT PRIMARY KEY,
+                owner_uid TEXT NOT NULL,
+                restaurant_name TEXT NOT NULL,
+                restaurant_place_id TEXT,
+                lat REAL NOT NULL,
+                lng REAL NOT NULL,
+                price REAL NOT NULL,
+                original_price REAL,
+                seats INTEGER NOT NULL,
+                available_at TEXT NOT NULL,
+                description TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                expires_at TEXT
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_deals_active ON deals(is_active, available_at)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_deals_owner ON deals(owner_uid)
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS reservations (
+                id TEXT PRIMARY KEY,
+                deal_id TEXT NOT NULL,
+                customer_uid TEXT,
+                customer_name TEXT NOT NULL,
+                customer_phone TEXT NOT NULL,
+                status TEXT DEFAULT 'confirmed',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_reservations_deal ON reservations(deal_id, status)
+            """,
         ]:
             await db.execute(statement)
+
+        # SQLite does not support ADD COLUMN IF NOT EXISTS, so we add profile
+        # columns only when missing.
+        cols_cursor = await db.execute("PRAGMA table_info(profiles)")
+        cols = await cols_cursor.fetchall()
+        existing = {row[1] for row in cols}
+        profile_additions = [
+            ("role", "TEXT NOT NULL DEFAULT 'user'"),
+            ("restaurant_name", "TEXT"),
+            ("restaurant_address", "TEXT"),
+            ("restaurant_phone", "TEXT"),
+            ("restaurant_place_id", "TEXT"),
+            ("restaurant_lat", "REAL"),
+            ("restaurant_lng", "REAL"),
+        ]
+        for col_name, col_type in profile_additions:
+            if col_name not in existing:
+                await db.execute(f"ALTER TABLE profiles ADD COLUMN {col_name} {col_type}")
+
         await db.commit()
         await _seed_sqlite(db)
 
