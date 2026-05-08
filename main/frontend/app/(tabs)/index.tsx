@@ -76,6 +76,7 @@ export default function MapTab() {
   const [acResults, setAcResults] = useState<AutocompleteResult[]>([]);
   const [selectedSearchItem, setSelectedSearchItem] = useState<AutocompleteResult | null>(null);
   const [savedPins, setSavedPins] = useState<MapItem[]>([]);
+  const [showFavorites, setShowFavorites] = useState(false);
   const hasAutoCentered = useRef(false);
   const acTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -300,8 +301,14 @@ export default function MapTab() {
 
   const handleDoubleClickItem = useCallback((id: string, type: string) => {
     const pathname = type === 'event' ? '/(modals)/event-details' : '/(modals)/place-details';
-    router.push({ pathname: pathname as any, params: { id, type } });
-  }, []);
+    // Pass full item as prefill so the modal can fetch /take with name+lat+lng
+    // even before nearbyItems hydrates inside the modal scope.
+    const item = (nearbyItems || []).find((i) => i.item_id === id) ||
+                 (savedPins || []).find((i) => i.item_id === id);
+    const params: Record<string, string> = { id, type };
+    if (item) params.prefill = JSON.stringify(item);
+    router.push({ pathname: pathname as any, params });
+  }, [nearbyItems, savedPins]);
 
   const handleRegionChange = useCallback(
     (lat: number, lng: number, latDelta: number, lngDelta: number) => {
@@ -445,6 +452,15 @@ export default function MapTab() {
     }
   }, [isHydrated]);
 
+  // Re-fetch when food subcategory changes (popular nearby for that category)
+  const lastSubcatRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (lastSubcatRef.current === selectedFoodSubcat) return;
+    lastSubcatRef.current = selectedFoodSubcat;
+    void performSearch();
+  }, [selectedFoodSubcat, isHydrated, performSearch]);
+
   const displayItems = useMemo(() => {
     let base: MapItem[] = nearbyItems;
     if (selectedSearchItem) {
@@ -459,11 +475,12 @@ export default function MapTab() {
       } as any;
       base = [pin, ...nearbyItems.filter((i) => i.item_id !== '__search_pin__')];
     }
-    // Append locally saved pins that aren't already present
+    // Favorites only appear (highlighted gold) when the Favoritos chip is active.
+    if (!showFavorites) return base;
     const baseIds = new Set(base.map((i) => i.item_id));
     const extra = savedPins.filter((sp) => !baseIds.has(sp.item_id));
     return extra.length > 0 ? [...base, ...extra] : base;
-  }, [nearbyItems, selectedSearchItem, savedPins]);
+  }, [nearbyItems, selectedSearchItem, savedPins, showFavorites]);
 
   return (
     <AnimatedTabScene>
@@ -572,11 +589,20 @@ export default function MapTab() {
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.foodSubcatChip, { borderColor: '#FFD700', backgroundColor: 'rgba(255,215,0,0.1)' }]}
-                  onPress={() => router.push('/(modals)/saved-items')}
+                  style={[
+                    styles.foodSubcatChip,
+                    {
+                      borderColor: '#FFD700',
+                      backgroundColor: showFavorites ? 'rgba(255,215,0,0.25)' : 'rgba(255,215,0,0.08)',
+                    },
+                  ]}
+                  onPress={() => setShowFavorites((v) => !v)}
                   activeOpacity={0.7}
+                  accessibilityState={{ selected: showFavorites }}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#FFD700' }}>⭐ Favoritos</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#FFD700' }}>
+                    {showFavorites ? '★ Favoritos' : '☆ Favoritos'}
+                  </Text>
                 </TouchableOpacity>
                 {FOOD_SUBCATEGORIES.map((sub) => {
                   const active = selectedFoodSubcat === sub.id;

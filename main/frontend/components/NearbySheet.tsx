@@ -21,8 +21,11 @@ import CategoryMonogram from './CategoryMonogram';
 import Icon from './Icon';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-const COLLAPSED_HEIGHT = 100;
-const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.5;
+const HEADER_H = 64;
+const ITEM_H = 76;
+// Collapsed: header + 1 item peeking. Expanded: header + ~5 items.
+const COLLAPSED_HEIGHT = HEADER_H + ITEM_H;
+const EXPANDED_HEIGHT = Math.min(SCREEN_HEIGHT * 0.7, HEADER_H + ITEM_H * 5 + 24);
 
 interface Props {
   items: MapItem[];
@@ -250,7 +253,7 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
     [selectedId, onSelectItem],
   );
 
-  const desktopWidth = 600;
+  const desktopWidth = 720;
   const desktopLeft = 40;
 
   if (!selectedId && !hasSearched && (!items || items.length === 0) && !loading) return null;

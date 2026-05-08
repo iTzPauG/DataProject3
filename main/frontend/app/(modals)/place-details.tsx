@@ -139,7 +139,7 @@ export default function PlaceDetailsModal() {
           const baseData = await getPlaceData(id);
           if (baseData) { setParsedPlaceData(baseData); currentItem = baseData; }
         }
-        
+
         // Now fetch enrichment with full metadata context
         const extraPayload = currentItem ? {
           lat: currentItem.lat,
@@ -150,6 +150,9 @@ export default function PlaceDetailsModal() {
         } : {};
         const extra = await fetchPlaceExtra(id, extraPayload);
         if (extra) {
+          if (!extra.take) {
+            console.warn('[place-details] take returned null for', id, extraPayload);
+          }
           setPlaceTake(extra.take);
           setLiveData(extra.live);
           setVoteData(extra.vote);
@@ -315,7 +318,7 @@ export default function PlaceDetailsModal() {
               </View>
             )}
 
-            {item.item_type === 'place' && (loadingExtra || placeTake) && (
+            {item.item_type === 'place' && (
               <View style={styles.takeCard}>
                 <Text style={styles.sectionEyebrow}>{t('placeDetails.whimTake')}</Text>
                 {loadingExtra && !placeTake ? (
@@ -323,6 +326,10 @@ export default function PlaceDetailsModal() {
                     <ActivityIndicator size="small" color={colors.brand} />
                     <Text style={styles.takeLoadingText}>{t('placeDetails.analyzing')}</Text>
                   </View>
+                ) : !placeTake ? (
+                  <Text style={[styles.takeVerdict, { opacity: 0.7 }]}>
+                    {t('placeDetails.takeUnavailable') || 'Análisis no disponible por ahora.'}
+                  </Text>
                 ) : (
                   <>
                     <Text style={styles.takeVerdict}>{placeTake?.verdict || placeTake?.why}</Text>

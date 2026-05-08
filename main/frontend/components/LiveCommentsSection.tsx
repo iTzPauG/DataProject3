@@ -188,33 +188,44 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
 
   const styles = useMemo(() => StyleSheet.create({
     container: {
-      backgroundColor: '#1E2436', // Dark contrast for the live section
-      borderRadius: radii.xl,
-      padding: 16,
-      marginBottom: 20,
+      paddingTop: 24,
+      paddingBottom: 8,
+      marginTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.stroke,
     },
     headerRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      marginBottom: 12,
+      marginBottom: 16,
     },
     headerLeft: {
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'baseline',
       gap: 8,
     },
     title: {
-      fontSize: 16,
-      fontWeight: '800',
-      color: '#FFFFFF',
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.ink,
       fontFamily: typography.heading,
+      letterSpacing: -0.2,
+    },
+    countText: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: colors.inkMuted,
+      fontFamily: typography.body,
     },
     addBtn: {
-      backgroundColor: 'rgba(255,255,255,0.1)',
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.brand,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 999,
     },
     addBtnText: {
       color: '#FFFFFF',
@@ -223,15 +234,15 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
       fontFamily: typography.heading,
     },
     summaryBox: {
-      backgroundColor: 'rgba(0,0,0,0.2)',
+      backgroundColor: colors.bg,
       borderRadius: radii.md,
       padding: 12,
-      marginBottom: 16,
+      marginBottom: 18,
       borderLeftWidth: 3,
-      borderLeftColor: '#7C6CF2',
+      borderLeftColor: colors.brand,
     },
     summaryText: {
-      color: '#E2E8F0',
+      color: colors.ink,
       fontSize: 14,
       lineHeight: 20,
       fontFamily: typography.body,
@@ -240,10 +251,10 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
     commentItem: {
       flexDirection: 'row',
       gap: 12,
-      marginBottom: 12,
-      paddingBottom: 12,
+      marginBottom: 14,
+      paddingBottom: 14,
       borderBottomWidth: 1,
-      borderBottomColor: 'rgba(255,255,255,0.05)',
+      borderBottomColor: colors.stroke,
     },
     commentIconWrap: {
       width: 36,
@@ -259,36 +270,37 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
       flex: 1,
     },
     commentTitle: {
-      color: '#FFFFFF',
+      color: colors.ink,
       fontSize: 15,
-      fontWeight: '700',
+      fontWeight: '600',
       fontFamily: typography.heading,
-      marginBottom: 2,
+      marginBottom: 3,
+      lineHeight: 20,
     },
     commentDesc: {
-      color: '#94A3B8',
-      fontSize: 13,
-      lineHeight: 18,
+      color: colors.inkMuted,
+      fontSize: 14,
+      lineHeight: 20,
       fontFamily: typography.body,
-      marginBottom: 4,
+      marginBottom: 6,
     },
     commentMetaRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
+      gap: 6,
     },
     commentMetaText: {
-      color: '#64748B',
-      fontSize: 11,
-      fontWeight: '600',
+      color: colors.inkFaint,
+      fontSize: 12,
+      fontWeight: '500',
       fontFamily: typography.body,
     },
     emptyText: {
-      color: '#94A3B8',
+      color: colors.inkMuted,
       fontSize: 14,
       fontFamily: typography.body,
       textAlign: 'center',
-      marginVertical: 10,
+      marginVertical: 16,
     },
 
     // Modal styles
@@ -383,20 +395,24 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
   if (loading && !data) {
     return (
       <View style={[styles.container, { alignItems: 'center', paddingVertical: 30 }]}>
-        <ActivityIndicator size="small" color="#7C6CF2" />
+        <ActivityIndicator size="small" color={colors.brand} />
       </View>
     );
   }
+
+  const commentCount = data?.comments?.length ?? 0;
 
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
-          <Ionicons name="chatbubbles" size={20} color="#FFFFFF" />
-          <Text style={styles.title}>En directo</Text>
+          <Text style={styles.title}>Comentarios</Text>
+          {commentCount > 0 && (
+            <Text style={styles.countText}>{commentCount}</Text>
+          )}
         </View>
-        <TouchableOpacity style={styles.addBtn} onPress={openModal}>
-          <Text style={styles.addBtnText}>+ Añadir</Text>
+        <TouchableOpacity style={styles.addBtn} onPress={openModal} activeOpacity={0.85}>
+          <Text style={styles.addBtnText}>Comentar</Text>
         </TouchableOpacity>
       </View>
 
@@ -407,7 +423,7 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
       )}
 
       {(!data?.comments || data.comments.length === 0) ? (
-        <Text style={styles.emptyText}>No hay reportes recientes. ¡Sé el primero!</Text>
+        <Text style={styles.emptyText}>Sé el primero en dejar un comentario.</Text>
       ) : (
         <View>
           {data.comments.map((comment) => {

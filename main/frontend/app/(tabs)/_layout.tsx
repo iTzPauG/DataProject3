@@ -16,7 +16,7 @@ export default function TabsLayout() {
   const { t } = useTranslation();
   const { colors, typography } = useTheme();
 
-  const TAB_H = Platform.OS === 'ios' ? 86 : Platform.OS === 'web' ? 64 : 68;
+  const TAB_H = Platform.OS === 'ios' ? 88 : Platform.OS === 'web' ? 70 : 72;
 
   const styles = useMemo(
     () =>
@@ -26,8 +26,8 @@ export default function TabsLayout() {
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: colors.stroke,
           height: TAB_H,
-          paddingTop: 8,
-          paddingBottom: Platform.OS === 'ios' ? 22 : 8,
+          paddingTop: 10,
+          paddingBottom: Platform.OS === 'ios' ? 22 : 10,
           elevation: 0,
           shadowOpacity: 0,
           position: Platform.OS === 'web' ? undefined : 'absolute',
@@ -38,31 +38,23 @@ export default function TabsLayout() {
           alignItems: 'center',
         },
         item: {
-          flex: 1,
-          maxWidth: 120, // keep them contained to center them better
+          flexDirection: 'row',
           alignItems: 'center',
-          justifyContent: 'flex-start',
-          gap: 6,
-          paddingTop: 4,
+          justifyContent: 'center',
+          gap: 8,
+          paddingHorizontal: 14,
+          paddingVertical: 8,
+          borderRadius: 999,
+          minWidth: 56,
+        },
+        itemActive: {
+          backgroundColor: colors.ink + '12',
         },
         label: {
-          fontSize: 11,
-          letterSpacing: 1.6,
-          textTransform: 'uppercase',
+          fontSize: 13,
           fontFamily: typography.body,
-          fontWeight: '600',
-        },
-        underline: {
-          marginTop: 5,
-          width: 18,
-          height: 1,
-          backgroundColor: colors.ink,
-        },
-        underlinePlaceholder: {
-          marginTop: 5,
-          height: 1,
-          width: 18,
-          backgroundColor: 'transparent',
+          fontWeight: '700',
+          letterSpacing: -0.1,
         },
       }),
     [colors, typography, TAB_H],
@@ -73,12 +65,13 @@ export default function TabsLayout() {
     const glyph = TAB_GLYPHS[routeName];
     const color = focused ? colors.ink : colors.inkFaint;
     return (
-      <View style={styles.item}>
-        <Icon name={glyph} size={18} color={color} strokeWidth={1.4} />
-        <Text style={[styles.label, { color }]}>{label}</Text>
-        <View
-          style={focused ? styles.underline : styles.underlinePlaceholder}
-        />
+      <View style={[styles.item, focused && styles.itemActive]}>
+        <Icon name={glyph} size={18} color={color} strokeWidth={focused ? 2 : 1.6} />
+        {focused && (
+          <Text style={[styles.label, { color }]} numberOfLines={1}>
+            {label}
+          </Text>
+        )}
       </View>
     );
   };
@@ -90,7 +83,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.ink,
         tabBarInactiveTintColor: colors.inkFaint,
         tabBarStyle: styles.tabBar,
-        tabBarItemStyle: { maxWidth: 120, marginHorizontal: 30 }, // Spaced out
+        tabBarItemStyle: { flex: 0, paddingHorizontal: 6, marginHorizontal: 6 },
         tabBarHideOnKeyboard: true,
         tabBarShowLabel: false,
       }}
