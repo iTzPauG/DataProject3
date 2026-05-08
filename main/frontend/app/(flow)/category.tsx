@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '../../components/SafeIonicons';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -10,16 +11,17 @@ import { CategoryFlowOption, CategoryFlowResponse, getCategoryFlow } from '../..
 import { useTheme } from '../../utils/theme';
 
 export default function CategoryScreen() {
+  const { t } = useTranslation();
   const { colors, typography, space, radii } = useTheme();
   const { categoryId } = useLocalSearchParams<{ categoryId?: string }>();
   const { reset, setCategory, setParentCategory } = useFlowState();
 
   const DEFAULT_OPTIONS = useMemo<CategoryFlowOption[]>(() => [
-    { id: 'popular', label: 'Popular', emoji: '🔥' },
-    { id: 'new', label: 'Próximamente', emoji: '✨' },
-    { id: 'nearby', label: 'Ubicación actual', emoji: '📍' },
-    { id: 'top_rated', label: 'Los mejores', emoji: '⭐' },
-  ], []);
+    { id: 'popular', label: t('flow.popular'), emoji: '🔥' },
+    { id: 'new', label: t('common.soon'), emoji: '✨' },
+    { id: 'nearby', label: t('home.locationNow'), emoji: '📍' },
+    { id: 'top_rated', label: t('placeDetails.theBest'), emoji: '⭐' },
+  ], [t]);
 
   const styles = useMemo(() => StyleSheet.create({
     safe: {
@@ -180,16 +182,16 @@ export default function CategoryScreen() {
             style={styles.backButton}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="Volver"
+            accessibilityLabel={t('common.back')}
           >
             <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.header}>
-          <Text style={styles.step}>Paso 1 de {totalSteps}</Text>
-          <Text style={styles.title}>¿Qué tipo de lugar buscas?</Text>
-          <Text style={styles.subtitle}>Selecciona una categoría</Text>
+          <Text style={styles.step}>{t('flow.step', { current: 1, total: totalSteps })}</Text>
+          <Text style={styles.title}>{t('flow.categoryTitle')}</Text>
+          <Text style={styles.subtitle}>{t('flow.categorySubtitle')}</Text>
         </View>
 
         {loading ? (

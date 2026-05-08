@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { router } from 'expo-router';
 import { Ionicons } from '../../components/SafeIonicons';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -17,14 +18,15 @@ import { CategoryFlowOption, CategoryFlowResponse, getCategoryFlow } from '../..
 import { useTheme } from '../../utils/theme';
 
 export default function MoodScreen() {
+  const { t } = useTranslation();
   const { colors, typography, space } = useTheme();
   const { parentCategory, category, setMood } = useFlowState();
 
   const DEFAULT_MOODS = useMemo<CategoryFlowOption[]>(() => [
-    { id: 'popular', label: 'Popular', emoji: '🔥' },
-    { id: 'quiet', label: 'Tranquilo', emoji: '🧘' },
-    { id: 'busy', label: 'Movido', emoji: '⚡' },
-  ], []);
+    { id: 'popular', label: t('flow.popular'), emoji: '🔥' },
+    { id: 'quiet', label: t('flow.quiet'), emoji: '🧘' },
+    { id: 'busy', label: t('flow.busy'), emoji: '⚡' },
+  ], [t]);
 
   const styles = useMemo(() => StyleSheet.create({
     safe: {
@@ -135,7 +137,7 @@ export default function MoodScreen() {
         cleaned.push({
           ...item,
           id: 'gourmet',
-          label: 'Gourmet',
+          label: t('mood.gourmet'),
           emoji: item.emoji || '🍷',
         });
         hasGourmet = true;
@@ -143,10 +145,10 @@ export default function MoodScreen() {
     }
 
     return cleaned;
-  }, [flow, DEFAULT_MOODS, parentCategory]);
+  }, [flow, DEFAULT_MOODS, parentCategory, t]);
 
-  const screenTitle = flow?.category.mood_title ?? '¿Qué ambiente buscas?';
-  const screenSubtitle = flow?.category.mood_subtitle ?? 'Selecciona el estado de ánimo';
+  const screenTitle = flow?.category.mood_title ?? t('flow.moodTitleFallback');
+  const screenSubtitle = flow?.category.mood_subtitle ?? t('flow.moodSubtitleFallback');
   
   const shouldSkipPrice = useMemo(() => {
     if (!flow?.category.requires_price) return true;
@@ -174,14 +176,14 @@ export default function MoodScreen() {
             style={styles.backButton}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="Volver"
+            accessibilityLabel={t('common.back')}
           >
             <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.header}>
-          <Text style={styles.step}>Paso 2 de {totalSteps}</Text>
+          <Text style={styles.step}>{t('flow.step', { current: 2, total: totalSteps })}</Text>
           <Text style={styles.title}>{screenTitle}</Text>
           <Text style={styles.subtitle}>{screenSubtitle}</Text>
         </View>
@@ -198,7 +200,7 @@ export default function MoodScreen() {
                   key={item.id}
                   iconName={item.id}
                   emoji={item.emoji}
-                  label={item.label}
+                  label={t(`mood.${item.id}`, item.label)}
                   category={parentCategory ?? 'food'}
                   selected={false}
                   onPress={() => handleSelect(item.id)}
