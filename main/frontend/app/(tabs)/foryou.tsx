@@ -257,11 +257,14 @@ export default function ForYouTab() {
         const data = await res.json();
         const precipitation = data?.current?.precipitation ?? 0;
         const code = data?.current?.weathercode ?? 0;
-        const isBadWeather = precipitation > 0 || (code >= 51 && code <= 99);
+        const isBadWeather = precipitation > 0 || (code >= 51 && code <= 99) || code === 2 || code === 3;
+        const isGoodWeather = !isBadWeather && (code === 0 || code === 1);
         if (isBadWeather) {
           setWeatherSection({ title: 'Para refugiarse', emoji: '🌧️', query: 'restaurante interior acogedor' });
-        } else {
+        } else if (isGoodWeather) {
           setWeatherSection({ title: 'Terrazas al sol', emoji: '☀️', query: 'restaurante terraza exterior' });
+        } else {
+          setWeatherSection(null);
         }
       } catch {
         setWeatherSection(null);
@@ -418,7 +421,24 @@ export default function ForYouTab() {
             </TouchableOpacity>
           ) : null}
 
-          {/* Weather Section */}
+          {/* Dynamic Sections */}
+          {/* First section (Tendencias) */}
+          {sectionsRef.current.slice(0, 1).map((section) => (
+            <SectionRow
+              key={section.query}
+              title={section.title}
+              emoji={section.emoji}
+              query={section.query}
+              lat={location.lat}
+              lng={location.lng}
+              colors={colors}
+              typography={typography}
+              radii={radii}
+              shadows={shadows}
+              onRestaurantPress={handleRestaurantPress}
+            />
+          ))}
+          {/* Weather Section — after Tendencias */}
           {weatherSection && (
             <SectionRow
               key={weatherSection.query}
@@ -434,8 +454,8 @@ export default function ForYouTab() {
               onRestaurantPress={handleRestaurantPress}
             />
           )}
-          {/* Dynamic Sections */}
-          {sectionsRef.current.map((section) => (
+          {/* Remaining sections */}
+          {sectionsRef.current.slice(1).map((section) => (
             <SectionRow
               key={section.query}
               title={section.title}
