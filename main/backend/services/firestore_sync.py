@@ -101,8 +101,10 @@ def create_reservation(deal_id: str, reservation: dict[str, Any]) -> None:
     client.collection("deals").document(str(deal_id)).set({"reservation": payload, "updated_at": _iso_now()}, merge=True)
 
 
-def update_reservation_status(deal_id: str, status: str) -> None:
+def update_reservation_status(deal_id: str, status: str, reason: str | None = None) -> None:
     client = _get_firestore_client()
+    reason_value = (reason or "").strip()
+    now_iso = _iso_now()
 
     reservations = (
         client.collection("reservations")
@@ -113,12 +115,26 @@ def update_reservation_status(deal_id: str, status: str) -> None:
     )
     doc = next(iter(reservations), None)
     if doc is not None:
-        doc.reference.set({"status": status, "updated_at": _iso_now()}, merge=True)
+        doc.reference.set(
+            {
+                "status": status,
+                "status_reason": reason_value,
+                "updated_at": now_iso,
+            },
+            merge=True,
+        )
 
-    client.collection("deals").document(str(deal_id)).set(
-        {
-            "reservation": {"status": status, "deal_id": deal_id, "updated_at": _iso_now()},
-            "updated_at": _iso_now(),
+    # Mark deal with appropriate timestamp and inactive
+    field_name = "not_presented_at" if status == "no_show" else "cancelled_at"
+    deal_update = {
+        "reservation": {
+            "status": status,
+            "status_reason": reason_value,
+            "deal_id": deal_id,
+            "updated_at": now_iso,
         },
-        merge=True,
-    )
+        "is_active": False,
+        field_name: now_iso,
+        "updated_at": now_iso,
+    }
+    client.collection("deals").document(str(deal_id)).set(deal_update, merge=True)

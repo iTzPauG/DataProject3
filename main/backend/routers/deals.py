@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Any, Optional, Set
-from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Body, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 import json
 
@@ -112,6 +112,11 @@ class ReservationCreate(BaseModel):
 
 class ReservationStatusUpdate(BaseModel):
     status: str  # no_show | cancelled
+    reason: Optional[str] = None
+
+
+class DealDeleteRequest(BaseModel):
+    reason: Optional[str] = None
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -143,7 +148,7 @@ async def list_deals(
                 raise HTTPException(status_code=401, detail="Autenticación requerida")
             deals = await _fetch_all(
                 db,
-                "SELECT * FROM deals WHERE owner_uid = ? ORDER BY created_at DESC",
+                "SELECT * FROM deals WHERE owner_uid = ? AND is_active = TRUE ORDER BY created_at DESC",
                 (uid,),
             )
             # Attach reservation info to each deal
@@ -165,6 +170,8 @@ async def list_deals(
                    WHERE is_active = TRUE
                      AND available_at <= ?
                      AND (expires_at IS NULL OR expires_at >= ?)
+                     AND cancelled_at IS NULL
+                     AND not_presented_at IS NULL
                    ORDER BY created_at DESC""",
                 (now_param, now_param),
             )
@@ -301,7 +308,9 @@ async def update_deal(deal_id: str, body: DealUpdate, request: Request):
 
 
 @router.delete("/{deal_id}")
-async def delete_deal(deal_id: str, request: Request):
+async def delete_deal(deal_id: str, request: Request, body: DealDeleteRequest | None = Body(None)):
+    reason = (body.reason if body else "") or ""
+    reason = reason.strip()
     async with get_db() as db:
         profile = await _require_business(request, db)
         existing = await _fetch_one(db, "SELECT owner_uid FROM deals WHERE id = ?", (deal_id,))
@@ -316,10 +325,16 @@ async def delete_deal(deal_id: str, request: Request):
         )
         if reservation:
             raise HTTPException(status_code=409, detail="No puedes retirar una oferta ya reservada")
-        await db.execute("UPDATE deals SET is_active = FALSE WHERE id = ?", (deal_id,))
+        await db.execute(
+            "UPDATE deals SET is_active = FALSE, cancellation_reason = ?, cancelled_at = ? WHERE id = ?",
+            (reason, datetime.now(timezone.utc), deal_id),
+        )
         await db.commit()
+        deal = await _fetch_one(db, "SELECT * FROM deals WHERE id = ?", (deal_id,))
+        if deal:
+            deal = _serialize_deal(deal)
 
-    firestore_delete_deal(deal_id)
+    firestore_upsert_deal(deal) if deal else None
 
     await manager.broadcast({"event": "deal_deleted", "deal_id": deal_id})
     return {"success": True}
@@ -386,16 +401,30 @@ async def update_reservation_status(deal_id: str, body: ReservationStatusUpdate,
     """Update reservation status (no_show or cancelled). Restaurant only."""
     if body.status not in ("no_show", "cancelled"):
         raise HTTPException(status_code=400, detail="Estado inválido. Usa 'no_show' o 'cancelled'.")
+    reason = (body.reason or "").strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="Debes indicar un motivo.")
     async with get_db() as db:
         profile = await _require_business(request, db)
         deal = await _fetch_one(db, "SELECT owner_uid FROM deals WHERE id = ?", (deal_id,))
         if not deal or deal["owner_uid"] != profile["firebase_uid"]:
             raise HTTPException(status_code=403, detail="No autorizado")
+        now_ts = datetime.now(timezone.utc)
         await db.execute(
-            "UPDATE reservations SET status = ? WHERE deal_id = ? AND status = 'confirmed'",
-            (body.status, deal_id),
+            "UPDATE reservations SET status = ?, status_reason = ?, status_updated_at = ? WHERE deal_id = ? AND status = 'confirmed'",
+            (body.status, reason, now_ts, deal_id),
+        )
+        # Mark deal as inactive and save timestamp
+        field_name = "not_presented_at" if body.status == "no_show" else "cancelled_at"
+        await db.execute(
+            f"UPDATE deals SET is_active = FALSE, {field_name} = ? WHERE id = ?",
+            (now_ts, deal_id),
         )
         await db.commit()
+        deal = await _fetch_one(db, "SELECT * FROM deals WHERE id = ?", (deal_id,))
+        if deal:
+            deal = _serialize_deal(deal)
 
-    firestore_update_reservation_status(deal_id, body.status)
+    firestore_update_reservation_status(deal_id, body.status, reason)
+    firestore_upsert_deal(deal) if deal else None
     return {"success": True}

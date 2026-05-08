@@ -9,19 +9,22 @@ import {
   Alert,
   Animated,
   FlatList,
+  Modal,
   Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
 import { useAuth } from '../../hooks/useAuth';
-import { useLiveDeals, type ReservationEvent } from '../../hooks/useLiveDeals';
 import { BASE_URL } from '../../services/api';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { firebaseConfigured, firestoreDb } from '../../services/firebase';
 import { useTheme } from '../../utils/theme';
 
 interface DealWithReservation {
@@ -34,6 +37,8 @@ interface DealWithReservation {
   is_active: number | boolean;
   created_at?: string;
   expires_at?: string | null;
+  cancelled_at?: string | null;
+  not_presented_at?: string | null;
   reservation?: {
     id: string;
     customer_name: string;
@@ -44,6 +49,8 @@ interface DealWithReservation {
   // local state: newly reserved (for green flash)
   justReserved?: boolean;
 }
+
+type ReasonAction = 'withdraw' | 'no_show';
 
 function normalizeDeal(raw: any): DealWithReservation {
   return {
@@ -56,6 +63,8 @@ function normalizeDeal(raw: any): DealWithReservation {
     is_active: raw.is_active,
     created_at: raw.created_at ?? undefined,
     expires_at: raw.expires_at ?? null,
+    cancelled_at: raw.cancelled_at ?? null,
+    not_presented_at: raw.not_presented_at ?? null,
     reservation: raw.reservation
       ? {
           id: String(raw.reservation.id),
@@ -74,11 +83,18 @@ export default function MisOfertasTab() {
   const [deals, setDeals] = useState<DealWithReservation[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [connected, setConnected] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [reasonModalOpen, setReasonModalOpen] = useState(false);
+  const [reasonAction, setReasonAction] = useState<ReasonAction | null>(null);
+  const [reasonDealId, setReasonDealId] = useState<string | null>(null);
+  const [reasonText, setReasonText] = useState('');
+  const [reasonSubmitting, setReasonSubmitting] = useState(false);
+  const previousReservationsRef = useRef<Record<string, string | null>>({});
+  const reservationsPrimedRef = useRef(false);
   // Toast notification
   const [toast, setToast] = useState<string | null>(null);
   const toastAnim = useRef(new Animated.Value(0)).current;
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -88,28 +104,6 @@ export default function MisOfertasTab() {
       Animated.timing(toastAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
     ]).start(() => setToast(null));
   }, [toastAnim]);
-
-  const handleReservation = useCallback(
-    (event: ReservationEvent) => {
-      // Mark the deal as just reserved in real-time
-      setDeals((prev) =>
-        prev.map((d) =>
-          d.id === event.deal_id
-            ? { ...d, reservation: event.reservation as any, justReserved: true }
-            : d,
-        ),
-      );
-      showToast(`🎉 Nueva reserva: ${event.reservation.customer_name}`);
-    },
-    [showToast],
-  );
-
-  // WebSocket connection (for reservation notifications)
-  const { connected } = useLiveDeals({
-    enabled: profile?.role === 'business',
-    ownerUid: profile?.firebase_uid ?? null,
-    onReservation: handleReservation,
-  });
 
   const fetchDeals = useCallback(async () => {
     if (!profile) return;
@@ -135,72 +129,124 @@ export default function MisOfertasTab() {
   }, [profile, getToken]);
 
   useEffect(() => {
+    if (profile?.role !== 'business' || !profile.firebase_uid) return;
+    if (!firebaseConfigured || !firestoreDb) return;
+
+    const dealsQuery = query(
+      collection(firestoreDb, 'deals'),
+      where('owner_uid', '==', profile.firebase_uid),
+    );
+
+    setConnected(true);
+    const unsubscribe = onSnapshot(
+      dealsQuery,
+      (snapshot) => {
+        const nextDeals = snapshot.docs
+          .map((doc) => normalizeDeal({ id: doc.id, ...doc.data() }))
+          .sort((a, b) => {
+            const aTs = Date.parse(a.created_at ?? '') || 0;
+            const bTs = Date.parse(b.created_at ?? '') || 0;
+            return bTs - aTs;
+          });
+
+        const previous = previousReservationsRef.current;
+        const current: Record<string, string | null> = {};
+        for (const deal of nextDeals) {
+          const status = deal.reservation?.status ?? null;
+          current[deal.id] = status;
+          if (
+            reservationsPrimedRef.current &&
+            previous[deal.id] !== 'confirmed' &&
+            status === 'confirmed' &&
+            deal.reservation?.customer_name
+          ) {
+            showToast(`🎉 Nueva reserva: ${deal.reservation.customer_name}`);
+          }
+        }
+        reservationsPrimedRef.current = true;
+        previousReservationsRef.current = current;
+
+        setDeals(nextDeals);
+        setLoading(false);
+        setRefreshing(false);
+      },
+      () => {
+        setConnected(false);
+      },
+    );
+
+    return () => {
+      unsubscribe();
+      setConnected(false);
+    };
+  }, [profile?.role, profile?.firebase_uid, showToast]);
+
+  useEffect(() => {
     void fetchDeals();
   }, [fetchDeals]);
 
-  const handleWithdraw = useCallback(
-    async (dealId: string) => {
-      Alert.alert('Retirar oferta', '¿Seguro que quieres retirar este anuncio?', [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Retirar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const token = await getToken();
-              const res = await fetch(`${BASE_URL}/deals/${dealId}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token ?? 'local-token'}` },
-              });
-              if (!res.ok) {
-                const data = await res.json().catch(() => ({}));
-                throw new Error(data?.detail || 'No se pudo retirar la oferta');
-              }
-              setDeals((prev) => prev.filter((d) => d.id !== dealId));
-            } catch (error: any) {
-              Alert.alert('Error', error?.message || 'No se pudo retirar la oferta.');
-            }
-          },
-        },
-      ]);
-    },
-    [getToken],
-  );
+  const openReasonModal = useCallback((dealId: string, action: ReasonAction) => {
+    setReasonDealId(dealId);
+    setReasonAction(action);
+    setReasonText('');
+    setReasonModalOpen(true);
+  }, []);
 
-  const handleNoShow = useCallback(
-    async (dealId: string) => {
-      Alert.alert('Denunciar no presentación', '¿El cliente no se ha presentado?', [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Confirmar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const token = await getToken();
-              await fetch(`${BASE_URL}/deals/${dealId}/reservation`, {
-                method: 'PATCH',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${token ?? 'local-token'}`,
-                },
-                body: JSON.stringify({ status: 'no_show' }),
-              });
-              setDeals((prev) =>
-                prev.map((d) =>
-                  d.id === dealId
-                    ? { ...d, reservation: d.reservation ? { ...d.reservation, status: 'no_show' } : null }
-                    : d,
-                ),
-              );
-            } catch {
-              Alert.alert('Error', 'No se pudo actualizar la reserva.');
-            }
+  const closeReasonModal = useCallback(() => {
+    if (reasonSubmitting) return;
+    setReasonModalOpen(false);
+    setReasonAction(null);
+    setReasonDealId(null);
+    setReasonText('');
+  }, [reasonSubmitting]);
+
+  const submitReasonAction = useCallback(async () => {
+    if (!reasonAction || !reasonDealId) return;
+    const reason = reasonText.trim();
+    if (!reason) {
+      Alert.alert('Motivo requerido', 'Escribe un comentario antes de continuar.');
+      return;
+    }
+
+    setReasonSubmitting(true);
+    try {
+      const token = await getToken();
+      if (reasonAction === 'withdraw') {
+        const res = await fetch(`${BASE_URL}/deals/${reasonDealId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token ?? 'local-token'}`,
           },
-        },
-      ]);
-    },
-    [getToken],
-  );
+          body: JSON.stringify({ reason }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data?.detail || 'No se pudo retirar la oferta');
+        }
+      } else {
+        const res = await fetch(`${BASE_URL}/deals/${reasonDealId}/reservation`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token ?? 'local-token'}`,
+          },
+          body: JSON.stringify({ status: reasonAction, reason }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data?.detail || 'No se pudo actualizar la reserva');
+        }
+      }
+
+      setDeals((prev) => prev.map((d) => d.id === reasonDealId ? { ...d, cancelled_at: reasonAction === 'withdraw' ? new Date().toISOString() : d.cancelled_at, not_presented_at: reasonAction === 'no_show' ? new Date().toISOString() : d.not_presented_at } : d));
+      closeReasonModal();
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'No se pudo completar la acción.');
+    } finally {
+      setReasonSubmitting(false);
+    }
+  }, [getToken, reasonAction, reasonDealId, reasonText]);
 
   const styles = useMemo(
     () =>
@@ -280,6 +326,10 @@ export default function MisOfertasTab() {
         cardInactive: {
           borderColor: colors.stroke,
           opacity: 0.6,
+        },
+        cardCancelled: {
+          borderColor: '#EF4444',
+          opacity: 0.5,
         },
         cardHeader: {
           flexDirection: 'row',
@@ -400,6 +450,51 @@ export default function MisOfertasTab() {
           fontWeight: '700',
           fontFamily: typography.body,
         },
+        modalBackdrop: {
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.45)',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 20,
+        },
+        modalCard: {
+          width: '100%',
+          maxWidth: 460,
+          borderRadius: 16,
+          backgroundColor: colors.surface,
+          borderWidth: 1,
+          borderColor: colors.stroke,
+          padding: 16,
+          gap: 10,
+        },
+        modalTitle: {
+          fontSize: 18,
+          fontWeight: '800',
+          color: colors.ink,
+          fontFamily: typography.heading,
+        },
+        modalSubtitle: {
+          fontSize: 13,
+          color: colors.inkMuted,
+          fontFamily: typography.body,
+        },
+        reasonInput: {
+          minHeight: 100,
+          borderWidth: 1,
+          borderColor: colors.stroke,
+          borderRadius: 12,
+          backgroundColor: colors.shell,
+          color: colors.ink,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          fontFamily: typography.body,
+          fontSize: 14,
+        },
+        modalActions: {
+          flexDirection: 'row',
+          gap: 8,
+          marginTop: 4,
+        },
       }),
     [colors, typography, shadows, connected],
   );
@@ -423,6 +518,8 @@ export default function MisOfertasTab() {
   const renderDeal = ({ item }: { item: DealWithReservation }) => {
     const isReserved = item.reservation?.status === 'confirmed';
     const isNoShow = item.reservation?.status === 'no_show';
+    const isCancelled = Boolean(item.cancelled_at);
+    const isNotPresented = Boolean(item.not_presented_at);
     const isActive = Boolean(item.is_active);
     const isExpanded = expandedId === item.id;
 
@@ -430,13 +527,13 @@ export default function MisOfertasTab() {
       <TouchableOpacity
         style={[
           styles.card,
-          isReserved ? styles.cardReserved : isActive ? styles.cardActive : styles.cardInactive,
+          isCancelled || isNotPresented ? styles.cardCancelled : isReserved ? styles.cardReserved : isActive ? styles.cardActive : styles.cardInactive,
         ]}
         onPress={() => setExpandedId(isExpanded ? null : item.id)}
         activeOpacity={0.85}
       >
         <View style={styles.cardHeader}>
-          <Text style={styles.cardEmoji}>{isReserved ? '✅' : isActive ? '🔥' : '⏸️'}</Text>
+          <Text style={styles.cardEmoji}>{isCancelled || isNotPresented ? '❌' : isReserved ? '✅' : isActive ? '🔥' : '⏸️'}</Text>
           <View style={styles.cardInfo}>
             <Text style={styles.cardTitle}>
               {item.price.toFixed(2)} €{item.original_price ? ` (antes ${item.original_price.toFixed(2)} €)` : ''} · {item.seats} {item.seats === 1 ? 'persona' : 'personas'}
@@ -470,20 +567,28 @@ export default function MisOfertasTab() {
               <Text style={styles.noShowStatus}>⚠️ Cliente no presentado</Text>
             )}
 
+            {isCancelled && (
+              <Text style={styles.noShowStatus}>❌ Oferta cancelada</Text>
+            )}
+
+            {isNotPresented && !isCancelled && (
+              <Text style={styles.noShowStatus}>❌ No presentado</Text>
+            )}
+
             <View style={styles.actionRow}>
-              {!isReserved && isActive && (
+              {!isReserved && isActive && !isCancelled && (
                 <TouchableOpacity
                   style={[styles.actionBtn, styles.withdrawBtn]}
-                  onPress={() => handleWithdraw(item.id)}
+                  onPress={() => openReasonModal(item.id, 'withdraw')}
                   activeOpacity={0.8}
                 >
                   <Text style={styles.withdrawText}>Retirar oferta</Text>
                 </TouchableOpacity>
               )}
-              {isReserved && !isNoShow && (
+              {isReserved && !isNoShow && !isCancelled && !isNotPresented && (
                 <TouchableOpacity
                   style={[styles.actionBtn, styles.noShowBtn]}
-                  onPress={() => handleNoShow(item.id)}
+                  onPress={() => openReasonModal(item.id, 'no_show')}
                   activeOpacity={0.8}
                 >
                   <Text style={styles.noShowText}>⚠️ No presentado</Text>
@@ -548,6 +653,53 @@ export default function MisOfertasTab() {
             <Text style={styles.toastText}>{toast}</Text>
           </Animated.View>
         )}
+
+        <Modal
+          visible={reasonModalOpen}
+          animationType="fade"
+          transparent
+          onRequestClose={closeReasonModal}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>
+                {reasonAction === 'no_show'
+                  ? 'Motivo de no presentado'
+                  : 'Motivo de retirada'}
+              </Text>
+              <Text style={styles.modalSubtitle}>
+                Este comentario se guarda en la base de datos.
+              </Text>
+              <TextInput
+                value={reasonText}
+                onChangeText={setReasonText}
+                style={styles.reasonInput}
+                placeholder="Escribe aquí el motivo..."
+                placeholderTextColor={colors.inkMuted}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                editable={!reasonSubmitting}
+              />
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.noShowBtn]}
+                  onPress={closeReasonModal}
+                  disabled={reasonSubmitting}
+                >
+                  <Text style={styles.noShowText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.withdrawBtn]}
+                  onPress={() => { void submitReasonAction(); }}
+                  disabled={reasonSubmitting}
+                >
+                  <Text style={styles.withdrawText}>{reasonSubmitting ? 'Guardando...' : 'Confirmar'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </AnimatedTabScene>
   );

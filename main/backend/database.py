@@ -461,6 +461,15 @@ POSTGRES_SCHEMA = [
     ALTER TABLE deals ADD COLUMN IF NOT EXISTS expires_at TEXT
     """,
     """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS cancellation_reason TEXT
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS cancelled_at TEXT
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS not_presented_at TEXT
+    """,
+    """
     ALTER TABLE deals ALTER COLUMN expires_at TYPE TIMESTAMPTZ USING expires_at::TIMESTAMPTZ
     """,
     """
@@ -494,8 +503,16 @@ POSTGRES_SCHEMA = [
         customer_name TEXT NOT NULL,
         customer_phone TEXT NOT NULL,
         status TEXT DEFAULT 'confirmed',
+        status_reason TEXT,
+        status_updated_at TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
+    """,
+    """
+    ALTER TABLE reservations ADD COLUMN IF NOT EXISTS status_reason TEXT
+    """,
+    """
+    ALTER TABLE reservations ADD COLUMN IF NOT EXISTS status_updated_at TEXT
     """,
     """
     CREATE INDEX IF NOT EXISTS idx_reservations_deal ON reservations(deal_id, status)
@@ -863,6 +880,9 @@ async def _init_sqlite() -> None:
                 available_at TEXT NOT NULL,
                 description TEXT,
                 is_active INTEGER DEFAULT 1,
+                cancellation_reason TEXT,
+                cancelled_at TEXT,
+                not_presented_at TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 expires_at TEXT
             )
@@ -881,6 +901,8 @@ async def _init_sqlite() -> None:
                 customer_name TEXT NOT NULL,
                 customer_phone TEXT NOT NULL,
                 status TEXT DEFAULT 'confirmed',
+                status_reason TEXT,
+                status_updated_at TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
             """,
@@ -925,12 +947,26 @@ async def _init_sqlite() -> None:
             ("available_at", "TEXT"),
             ("description", "TEXT"),
             ("is_active", "INTEGER DEFAULT 1"),
+            ("cancellation_reason", "TEXT"),
+            ("cancelled_at", "TEXT"),
+            ("not_presented_at", "TEXT"),
             ("created_at", "TEXT DEFAULT CURRENT_TIMESTAMP"),
             ("expires_at", "TEXT"),
         ]
         for col_name, col_type in deal_additions:
             if col_name not in existing_deal_cols:
                 await db.execute(f"ALTER TABLE deals ADD COLUMN {col_name} {col_type}")
+
+        reservation_cols_cursor = await db.execute("PRAGMA table_info(reservations)")
+        reservation_cols = await reservation_cols_cursor.fetchall()
+        existing_reservation_cols = {row[1] for row in reservation_cols}
+        reservation_additions = [
+            ("status_reason", "TEXT"),
+            ("status_updated_at", "TEXT"),
+        ]
+        for col_name, col_type in reservation_additions:
+            if col_name not in existing_reservation_cols:
+                await db.execute(f"ALTER TABLE reservations ADD COLUMN {col_name} {col_type}")
 
         await db.commit()
         await _seed_sqlite(db)
