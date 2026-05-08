@@ -1,4 +1,4 @@
-mport { Restaurant } from '../types/restaurant';
+import { Restaurant } from '../types/restaurant';
 import { auth } from './supabase';
 import { storage } from '../utils/storage';
 import { Category, CommunityReport, MapItem, ReportType, SavedItem, RestaurantDBResult } from '../types';
