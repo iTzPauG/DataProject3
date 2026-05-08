@@ -38,23 +38,23 @@ export default function TabsLayout() {
           alignItems: 'center',
         },
         item: {
-          flexDirection: 'row',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 8,
-          paddingHorizontal: 14,
-          paddingVertical: 8,
-          borderRadius: 999,
-          minWidth: 56,
+          gap: 4,
+          paddingHorizontal: 12,
+          paddingVertical: 6,
+          borderRadius: 14,
+          minWidth: 72,
         },
         itemActive: {
-          backgroundColor: colors.ink + '12',
+          backgroundColor: colors.ink + '10',
         },
         label: {
-          fontSize: 13,
+          fontSize: 11,
           fontFamily: typography.body,
           fontWeight: '700',
-          letterSpacing: -0.1,
+          letterSpacing: 0,
         },
       }),
     [colors, typography, TAB_H],
@@ -66,12 +66,10 @@ export default function TabsLayout() {
     const color = focused ? colors.ink : colors.inkFaint;
     return (
       <View style={[styles.item, focused && styles.itemActive]}>
-        <Icon name={glyph} size={18} color={color} strokeWidth={focused ? 2 : 1.6} />
-        {focused && (
-          <Text style={[styles.label, { color }]} numberOfLines={1}>
-            {label}
-          </Text>
-        )}
+        <Icon name={glyph} size={20} color={color} strokeWidth={focused ? 2 : 1.6} />
+        <Text style={[styles.label, { color }]} numberOfLines={1}>
+          {label}
+        </Text>
       </View>
     );
   };
@@ -83,7 +81,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.ink,
         tabBarInactiveTintColor: colors.inkFaint,
         tabBarStyle: styles.tabBar,
-        tabBarItemStyle: { flex: 0, paddingHorizontal: 6, marginHorizontal: 6 },
+        tabBarItemStyle: { flex: 1, paddingHorizontal: 4 },
         tabBarHideOnKeyboard: true,
         tabBarShowLabel: false,
       }}

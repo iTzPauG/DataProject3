@@ -169,6 +169,7 @@
     "recommended": "Recommended place",
     "rating": "Rating: {{rating}}",
     "whimTake": "WHIM's Take",
+    "takeUnavailable": "Analysis unavailable right now.",
     "bookmarkSignInHint": "Sign in to save your favorite places."
   },
   "fuel": {

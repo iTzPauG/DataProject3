@@ -19,6 +19,7 @@ import ReviewList from '../../components/ReviewList';
 import VoteButtons from '../../components/VoteButtons';
 import { useAppState } from '../../hooks/useAppState';
 import { useAuth } from '../../hooks/useAuth';
+import { useUserProfile } from '../../hooks/useUserProfile';
 import { fetchPlaceExtra, getPlaceData, toggleBookmark } from '../../services/api';
 import { formatDistance } from '../../utils/format';
 import { useTheme } from '../../utils/theme';
@@ -49,6 +50,7 @@ export default function PlaceDetailsModal() {
   const router = useRouter();
   const { user } = useAuth();
   const { nearbyItems } = useAppState();
+  const { recordRecentView } = useUserProfile();
   const bookmarkedIds: string[] = []; // Default fallback since it's missing from AppState
 
   const [loadingExtra, setLoadingExtra] = useState(true);
@@ -140,6 +142,16 @@ export default function PlaceDetailsModal() {
           if (baseData) { setParsedPlaceData(baseData); currentItem = baseData; }
         }
 
+        // Record this view in the local recent-views buffer used by Para ti.
+        if (currentItem?.title && currentItem.item_type === 'place') {
+          const subcat = (currentItem.metadata as any)?.subcategory;
+          void recordRecentView(
+            id,
+            currentItem.title,
+            typeof subcat === 'string' ? [subcat] : undefined,
+          );
+        }
+
         // Now fetch enrichment with full metadata context
         const extraPayload = currentItem ? {
           lat: currentItem.lat,
@@ -164,7 +176,7 @@ export default function PlaceDetailsModal() {
       }
     }
     loadData();
-  }, [id, nearbyItems]);
+  }, [id, nearbyItems, prefill, recordRecentView]);
 
   useEffect(() => {
     setIsBookmarked((bookmarkedIds ?? []).includes(id));
@@ -203,6 +215,45 @@ export default function PlaceDetailsModal() {
   const confirmations = item?.metadata?.confirmations as number | undefined;
   const expiresAt = item?.metadata?.expires_at as string | undefined;
   const description = item?.metadata?.description as string | undefined;
+
+  /**
+   * When the backend `/take` endpoint fails or returns null we still want to
+   * show something useful in the WHIM's Take card. This builds a synthetic
+   * "take" purely from the metadata + Google reviews already available on the
+   * client: a verdict from the rating, a pros list from the most positive
+   * review snippets, and a "watch out" if any review mentions common gripes.
+   */
+  const fallbackTake = useMemo(() => {
+    if (!item || item.item_type !== 'place') return null;
+    const rating = (item.metadata?.rating as number | undefined) ?? null;
+    const reviews = ((item.metadata as any)?.google_reviews ?? []) as Array<{ text?: string; rating?: number }>;
+    if (rating == null && reviews.length === 0) return null;
+
+    const verdict = (() => {
+      if (rating == null) return 'Lo que dice la gente sobre este sitio:';
+      if (rating >= 4.6) return `Muy recomendado · ★ ${rating.toFixed(1)} sobre ${reviews.length || '–'} reseñas.`;
+      if (rating >= 4.2) return `Bien valorado · ★ ${rating.toFixed(1)}${reviews.length ? ` (${reviews.length} reseñas)` : ''}.`;
+      if (rating >= 3.5) return `Opiniones mixtas · ★ ${rating.toFixed(1)}${reviews.length ? ` (${reviews.length} reseñas)` : ''}.`;
+      return `Críticas frecuentes · ★ ${rating.toFixed(1)}${reviews.length ? ` (${reviews.length} reseñas)` : ''}.`;
+    })();
+
+    const POSITIVE_KEYWORDS = /(excelente|delici|brutal|increíb|recomend|mejor|espectacular|perfect|favorito|amazing|great|best|delicious|fantastic|wonderful)/i;
+    const NEGATIVE_KEYWORDS = /(malo|tarde|tardó|fría|frío|caro|carísimo|horrible|peor|sucio|lent[oa]|esperar|cola|wait|slow|cold|expensive|dirty|rude)/i;
+
+    const pros: string[] = [];
+    const cons: string[] = [];
+    for (const r of reviews.slice(0, 5)) {
+      const text = (r.text || '').replace(/\s+/g, ' ').trim();
+      if (!text) continue;
+      const sentences = text.split(/(?<=[.!?])\s+/).filter((s) => s.length > 18 && s.length < 220);
+      for (const s of sentences) {
+        if (pros.length < 3 && POSITIVE_KEYWORDS.test(s)) pros.push(s.trim());
+        else if (cons.length < 2 && NEGATIVE_KEYWORDS.test(s) && (r.rating ?? 5) <= 3) cons.push(s.trim());
+      }
+    }
+
+    return { verdict, pros, cons };
+  }, [item]);
 
   const renderBoldText = (text: string, baseStyle: any) => {
     if (!text) return null;
@@ -318,25 +369,28 @@ export default function PlaceDetailsModal() {
               </View>
             )}
 
-            {item.item_type === 'place' && (
+            {item.item_type === 'place' && (() => {
+              // Effective take: prefer backend LLM result, fall back to a
+              // client-side synthesis from rating + Google reviews. Hide the
+              // card entirely only if both are missing AND we're not still
+              // loading.
+              const effective = placeTake || fallbackTake;
+              if (!loadingExtra && !effective) return null;
+              return (
               <View style={styles.takeCard}>
                 <Text style={styles.sectionEyebrow}>{t('placeDetails.whimTake')}</Text>
-                {loadingExtra && !placeTake ? (
+                {loadingExtra && !effective ? (
                   <View style={styles.takeLoading}>
                     <ActivityIndicator size="small" color={colors.brand} />
                     <Text style={styles.takeLoadingText}>{t('placeDetails.analyzing')}</Text>
                   </View>
-                ) : !placeTake ? (
-                  <Text style={[styles.takeVerdict, { opacity: 0.7 }]}>
-                    {t('placeDetails.takeUnavailable') || 'Análisis no disponible por ahora.'}
-                  </Text>
                 ) : (
                   <>
-                    <Text style={styles.takeVerdict}>{placeTake?.verdict || placeTake?.why}</Text>
-                    {(placeTake?.pros || []).length > 0 && (
+                    <Text style={styles.takeVerdict}>{effective?.verdict || (effective as any)?.why}</Text>
+                    {(effective?.pros || []).length > 0 && (
                       <>
                         <Text style={styles.takeBlockTitle}>{t('placeDetails.theBest')}</Text>
-                        {placeTake?.pros.map((pro: string) => (
+                        {effective?.pros.map((pro: string) => (
                           <View key={pro} style={styles.takeRow}>
                             <Ionicons name="thumbs-up-outline" size={16} color={colors.success} />
                             {renderBoldText(pro, styles.takeText)}
@@ -344,10 +398,10 @@ export default function PlaceDetailsModal() {
                         ))}
                       </>
                     )}
-                    {(placeTake?.cons || []).length > 0 && (
+                    {(effective?.cons || []).length > 0 && (
                       <>
                         <Text style={[styles.takeBlockTitle, styles.takeBlockTitleWarn]}>{t('placeDetails.watchOut')}</Text>
-                        {placeTake?.cons.map((con: string) => (
+                        {effective?.cons.map((con: string) => (
                           <View key={con} style={styles.takeRow}>
                             <Ionicons name="warning-outline" size={16} color={colors.warning} />
                             {renderBoldText(con, styles.takeText)}
@@ -358,7 +412,8 @@ export default function PlaceDetailsModal() {
                   </>
                 )}
               </View>
-            )}
+              );
+            })()}
 
             <ReviewList reviews={(placeTake?.reviews as any[] | undefined) || item.metadata?.google_reviews as any[] || []} />
 

@@ -1,4 +1,4 @@
-// v2
+// v3 — real-profile-driven personalization
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import {
   Dimensions,
@@ -17,6 +17,8 @@ import AnimatedTabScene from '../../components/AnimatedTabScene';
 import { useTheme } from '../../utils/theme';
 import { getCurrentLocation, searchRestaurantDB, RESTAURANT_DB_URL } from '../../services/api';
 import { RestaurantDBResult } from '../../types';
+import { useUserProfile } from '../../hooks/useUserProfile';
+import { useLocation as useDeviceLocation } from '../../hooks/useLocation';
 const formatPrice = (p: string) => {
   const map: Record<string, string> = {
     PRICE_LEVEL_FREE: 'Gratis',
@@ -60,38 +62,64 @@ const ALL_SECTIONS: SectionConfig[] = [
   { title: 'Comida Rápida',     emoji: '🍟', query: 'comida rapida burger fast food Valencia', affinityTags: ['fast food','comida rápida'],                       dislikeTags: ['fast food','comida rápida','mcdonalds','montaditos'] },
 ] as (SectionConfig & { newish?: boolean })[];
 
-// Calcula el peso de cada sección según el perfil del usuario
-function getRandomSections(): SectionConfig[] {
-  const fixedSections = ALL_SECTIONS.filter(s => s.fixed);
-  const randomSections = ALL_SECTIONS.filter(s => !s.fixed);
-  return [...fixedSections, ...randomSections];
+// Cuenta cuántos `affinityTags` de una sección coinciden con los positiveTags
+// del usuario, restando coincidencias de `dislikeTags`.
+function sectionAffinityScore(
+  section: SectionConfig,
+  positiveTags: Set<string>,
+  negativeTags: Set<string>,
+): number {
+  const pos = (section.affinityTags ?? []).reduce(
+    (acc, tag) => acc + (positiveTags.has(tag.toLowerCase()) ? 1 : 0),
+    0,
+  );
+  const neg = (section.dislikeTags ?? []).reduce(
+    (acc, tag) => acc + (negativeTags.has(tag.toLowerCase()) || positiveTags.has(tag.toLowerCase()) ? 1 : 0),
+    0,
+  );
+  return pos - neg * 1.2;
 }
 
-// Perfil hardcodeado de usuario para la sección "Como te gustó X"
-const MOCK_USER_PROFILE = {
-  saved:        ['Nozomi Sushi Bar', 'Koku Kitchen', 'La Salita'],
-  recentViews:  ['Nozomi', 'Lateral Valencia', 'Ohana Poke', 'Vuelve Carolina', 'Ramen Kagura'],
-  likes:        ['Nozomi Sushi Bar', 'Ohana Poke', 'Lateral Valencia'],
-  dislikes:     ['McDonald\'s Valencia', '100 Montaditos'],
-  exploreCategories: ['sushi', 'tapas', 'brunch'],
-};
+/**
+ * Devuelve las secciones ordenadas por relevancia para el perfil del usuario.
+ * - Las marcadas `fixed` van siempre primero (tendencias).
+ * - El resto se ordena por `sectionAffinityScore` descendente.
+ * - A igualdad de score se aplica un pequeño aleatorio para introducir variedad.
+ */
+function getOrderedSections(
+  positiveTags: Set<string>,
+  negativeTags: Set<string>,
+): SectionConfig[] {
+  const fixedSections = ALL_SECTIONS.filter(s => s.fixed);
+  const variable = ALL_SECTIONS.filter(s => !s.fixed);
 
-// Deriva una query de búsqueda a partir del perfil del usuario
-function buildPersonalizedQuery(): string {
-  // Inferir gustos de los likes + guardados: sushi/poke/moderno
-  const positiveNames = [...MOCK_USER_PROFILE.saved, ...MOCK_USER_PROFILE.likes];
-  const hasSushi   = positiveNames.some(n => /sushi|nozomi|takami/i.test(n));
-  const hasPoke    = positiveNames.some(n => /poke|ohana/i.test(n));
-  const hasModern  = positiveNames.some(n => /lateral|koku|salita/i.test(n));
-  const cats       = MOCK_USER_PROFILE.exploreCategories;
+  const scored = variable
+    .map(s => ({
+      section: s,
+      score: sectionAffinityScore(s, positiveTags, negativeTags) + Math.random() * 0.4,
+    }))
+    .sort((a, b) => b.score - a.score)
+    .map(x => x.section);
 
-  const terms: string[] = [];
-  if (hasSushi) terms.push('sushi japonés');
-  if (hasPoke)  terms.push('poke');
-  if (hasModern) terms.push('moderno fusión');
-  cats.forEach(c => { if (!terms.join(' ').includes(c)) terms.push(c); });
-  terms.push('Valencia');
-  return terms.join(' ');
+  return [...fixedSections, ...scored];
+}
+
+/**
+ * Construye una query de búsqueda a partir de los positiveTags del usuario.
+ * Usa los tokens más distintivos (filtrando palabras genéricas) y siempre
+ * añade la ciudad detectada para acotar geográficamente.
+ */
+const GENERIC_STOPWORDS = new Set([
+  'restaurante', 'restaurant', 'bar', 'cafe', 'café', 'food', 'comida',
+  'valencia', 'madrid', 'barcelona', 'plaza', 'calle', 'avda', 'avenida',
+]);
+
+function buildPersonalizedQuery(positiveTags: Set<string>, city: string): string {
+  const candidates = Array.from(positiveTags)
+    .filter(t => !GENERIC_STOPWORDS.has(t))
+    .slice(0, 4);
+  const terms = candidates.length > 0 ? candidates : ['popular', 'destacado'];
+  return [...terms, city].join(' ');
 }
 
 // ── Collaborative filtering (clustering) ─────────────────────────────────────
@@ -123,48 +151,43 @@ const CLUSTERS: UserCluster[] = [
   },
 ];
 
-// Convierte el perfil del usuario en un vector de tags
-function getUserTags(): string[] {
-  const all = [
-    ...MOCK_USER_PROFILE.saved,
-    ...MOCK_USER_PROFILE.likes,
-    ...MOCK_USER_PROFILE.exploreCategories,
-    ...MOCK_USER_PROFILE.recentViews,
-  ].join(' ').toLowerCase();
-  return all.split(/[\s,]+/);
-}
-
-// Asigna el usuario al cluster con mayor intersección de tags
-function assignCluster(): UserCluster {
-  const userTags = getUserTags();
+/** Asigna al usuario al cluster cuyo centroide tiene mayor solape con sus positiveTags. */
+function assignCluster(positiveTags: Set<string>): UserCluster {
   let best = CLUSTERS[0];
-  let bestScore = 0;
+  let bestScore = -1;
   for (const cluster of CLUSTERS) {
-    const score = cluster.tags.filter(t => userTags.some(ut => ut.includes(t) || t.includes(ut))).length;
+    const score = cluster.tags.reduce(
+      (acc, t) => acc + (positiveTags.has(t.toLowerCase()) ? 1 : 0),
+      0,
+    );
     if (score > bestScore) { bestScore = score; best = cluster; }
   }
   return best;
 }
 
-// Elige aleatoriamente una de las queries del cluster asignado
-function buildTribeQuery(): string {
-  const cluster = assignCluster();
+/** Una query del pool del cluster asignado, con la ciudad sustituida por la actual. */
+function buildTribeQuery(positiveTags: Set<string>, city: string): string {
+  const cluster = assignCluster(positiveTags);
   const queries = cluster.poolQueries;
-  return queries[Math.floor(Math.random() * queries.length)];
+  const base = queries[Math.floor(Math.random() * queries.length)];
+  // Sustituye cualquier ciudad existente en la query de pool por la detectada.
+  return base.replace(/Valencia/gi, city);
 }
 
-// Sección "¿Te atreves?" — restaurantes de categorías con 0 afinidad con el usuario
-// Elige las 3 categorías más lejanas y mezcla sus queries en una sola búsqueda
-function buildSurpriseQuery(): string {
-  const userTags = getUserTags().join(' ');
+/**
+ * "¿Te atreves?" — secciones cuyo `affinityTags` tiene cero solape con el
+ * perfil del usuario. Mezcla 3 al azar para producir una query variada.
+ */
+function buildSurpriseQuery(positiveTags: Set<string>, city: string): string {
   const distant = ALL_SECTIONS
     .filter(s => !s.fixed)
-    .filter(s => (s.affinityTags ?? []).filter(t => userTags.includes(t)).length === 0)
+    .filter(s => (s.affinityTags ?? []).every(t => !positiveTags.has(t.toLowerCase())))
     .sort(() => Math.random() - 0.5)
     .slice(0, 3);
-  const pool = distant.length > 0 ? distant : ALL_SECTIONS.filter(s => !s.fixed).sort(() => Math.random() - 0.5).slice(0, 3);
-  // Combina keywords de las categorías lejanas para una búsqueda variada
-  return pool.map(s => s.query.split(' ')[0]).join(' ') + ' Valencia';
+  const pool = distant.length > 0
+    ? distant
+    : ALL_SECTIONS.filter(s => !s.fixed).sort(() => Math.random() - 0.5).slice(0, 3);
+  return pool.map(s => s.query.split(' ')[0]).join(' ') + ' ' + city;
 }
 
 // Tendencias: 60% volumen de reseñas + 40% rating + bonus viral
@@ -205,6 +228,15 @@ interface SectionRowProps {
   trending?: boolean;
   surprise?: boolean;
   newish?: boolean;
+  /** Mutable Set of restaurant ids already shown in earlier sections. */
+  seenIdsRef?: React.MutableRefObject<Set<string>>;
+  /**
+   * If true, the section will NOT filter out restaurants whose ids are already
+   * in `seenIdsRef`, but will still add its own results to it. Used for the
+   * top "Tendencias" row so it always renders even when the hero / earlier
+   * sections happened to surface the same places.
+   */
+  feedDedupeOnly?: boolean;
   colors: ReturnType<typeof useTheme>['colors'];
   typography: ReturnType<typeof useTheme>['typography'];
   radii: ReturnType<typeof useTheme>['radii'];
@@ -221,6 +253,8 @@ function SectionRow({
   trending,
   surprise,
   newish,
+  seenIdsRef,
+  feedDedupeOnly,
   colors,
   typography,
   radii,
@@ -242,14 +276,24 @@ function SectionRow({
           useBrain: false,
           category: 'restaurant',
         });
-        const sorted = trending
+        let sorted = trending
           ? [...results].sort((a, b) => trendingScore(b) - trendingScore(a)).slice(0, 10)
           : surprise
           ? [...results].sort(() => Math.random() - 0.5).slice(0, 20)
           : newish
-          // "Lo más nuevo": pocas reseñas + keywords de novedad en reseñas
           ? [...results].sort((a, b) => newishScore(b) - newishScore(a))
           : results;
+
+        // De-duplicate: drop restaurants that earlier sections already rendered,
+        // unless this section is in feed-only mode (used by Tendencias so it
+        // always shows, even if its top items overlap with the hero).
+        if (seenIdsRef) {
+          if (!feedDedupeOnly) {
+            sorted = sorted.filter(r => !seenIdsRef.current.has(r.id));
+          }
+          sorted.forEach(r => seenIdsRef.current.add(r.id));
+        }
+
         setRestaurants(sorted);
       } catch (e) {
         setRestaurants([]);
@@ -259,7 +303,7 @@ function SectionRow({
     };
 
     fetchRestaurants();
-  }, [query, lat, lng, trending]);
+  }, [query, lat, lng, trending, seenIdsRef, feedDedupeOnly]);
 
   // Don't render if no results
   if (!loading && restaurants.length === 0) {
@@ -355,11 +399,44 @@ export default function ForYouTab() {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [heroRestaurant, setHeroRestaurant] = useState<RestaurantDBResult | null>(null);
   const [heroLoading, setHeroLoading] = useState(true);
-  const sectionsRef = useRef<SectionConfig[]>(getRandomSections());
   const [weatherSection, setWeatherSection] = useState<SectionConfig | null>(null);
+
+  // Real user signals: bookmarks (cloud) + saved pins (local) + recent views.
+  const profile = useUserProfile();
+  // Detected city via reverse geocoding (handled inside useLocation).
+  const deviceLocation = useDeviceLocation();
+  const city = deviceLocation.city || 'Valencia';
+
+  // Sections re-ordered by affinity. Recomputed only when the profile changes
+  // so users don't see the order shuffle every render.
+  const sectionsRef = useRef<SectionConfig[]>(getOrderedSections(profile.positiveTags, profile.negativeTags));
+  const lastTagsKey = useRef<string>('');
+  useEffect(() => {
+    const key = `${Array.from(profile.positiveTags).sort().join(',')}|${Array.from(profile.negativeTags).sort().join(',')}`;
+    if (key === lastTagsKey.current) return;
+    lastTagsKey.current = key;
+    sectionsRef.current = getOrderedSections(profile.positiveTags, profile.negativeTags);
+  }, [profile.positiveTags, profile.negativeTags]);
+
+  // De-duplication ref shared across all SectionRow children. Reset every time
+  // the location changes (so a new city starts with a clean slate).
+  const seenIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    seenIdsRef.current = new Set();
+  }, [location?.lat, location?.lng]);
+
   const handleRestaurantPress = useCallback((restaurant: RestaurantDBResult) => {
     const photoUrl = restaurant.metadata?.photo_url;
     const fullPhotoUrl = photoUrl?.startsWith('/') ? `${RESTAURANT_DB_URL}${photoUrl}` : photoUrl;
+
+    // Record the view locally so future "Para ti" loads bias toward this taste.
+    const subcat = (restaurant.metadata as any)?.subcategory;
+    void profile.recordRecentView(
+      restaurant.id,
+      restaurant.name,
+      typeof subcat === 'string' ? [subcat] : undefined,
+    );
+
     router.push({
       pathname: '/(modals)/place-details',
       params: {
@@ -381,7 +458,7 @@ export default function ForYouTab() {
         }),
       },
     });
-  }, [router]);
+  }, [router, profile]);
 
   useEffect(() => {
     const fetchLocation = async () => {
@@ -427,15 +504,19 @@ export default function ForYouTab() {
     fetchWeather();
   }, [location]);
 
-  // Fetch hero restaurant from API
+  // Fetch hero restaurant from API. Uses the detected city + a small rotating
+  // suffix so the hero isn't identical on every visit.
   useEffect(() => {
     if (!location) return;
+
+    const HERO_VARIANTS = ['popular', 'destacado', 'imprescindible', 'recomendado'];
+    const variant = HERO_VARIANTS[Math.floor(Math.random() * HERO_VARIANTS.length)];
 
     const fetchHero = async () => {
       setHeroLoading(true);
       try {
         const results = await searchRestaurantDB({
-          query: 'restaurante popular Valencia destacado',
+          query: `restaurante ${variant} ${city}`,
           lat: location.lat,
           lng: location.lng,
           radiusM: 5000,
@@ -444,6 +525,10 @@ export default function ForYouTab() {
         });
         if (results.length > 0) {
           setHeroRestaurant(results[0]);
+          // We intentionally do NOT add the hero id to seenIdsRef so that the
+          // Tendencias row right below can still surface the same place — the
+          // visual treatment is different (full-bleed hero vs scrollable card)
+          // and downstream sections will dedupe via feedDedupeOnly.
         }
       } catch {
         setHeroRestaurant(null);
@@ -453,7 +538,7 @@ export default function ForYouTab() {
     };
 
     fetchHero();
-  }, [location]);
+  }, [location, city]);
 
   const dynamicStyles = useMemo(
     () =>
@@ -577,16 +662,19 @@ export default function ForYouTab() {
           ) : null}
 
           {/* Dynamic Sections */}
-          {/* First section (Tendencias) */}
+          {/* First section (Tendencias) — always renders, doesn't filter by
+              earlier sections, but feeds seenIdsRef for downstream dedupe. */}
           {sectionsRef.current.slice(0, 1).map((section) => (
             <SectionRow
               key={section.query}
               title={section.title}
               emoji={section.emoji}
-              query={section.query}
+              query={section.query.replace(/Valencia/gi, city)}
               lat={location.lat}
               lng={location.lng}
               trending={section.trending}
+              seenIdsRef={seenIdsRef}
+              feedDedupeOnly
               colors={colors}
               typography={typography}
               radii={radii}
@@ -594,43 +682,48 @@ export default function ForYouTab() {
               onRestaurantPress={handleRestaurantPress}
             />
           ))}
-          {/* Second fixed section — personalized */}
-          <SectionRow
-            key="personalized"
-            title="Como te gustó X"
-            emoji="✨"
-            query={buildPersonalizedQuery()}
-            lat={location.lat}
-            lng={location.lng}
-            colors={colors}
-            typography={typography}
-            radii={radii}
-            shadows={shadows}
-            onRestaurantPress={handleRestaurantPress}
-          />
-          {/* Third fixed section — collaborative filtering */}
+          {/* Personalized — only render if we have at least one positive tag */}
+          {profile.positiveTags.size > 0 && (
+            <SectionRow
+              key="personalized"
+              title="Por tus gustos"
+              emoji="✨"
+              query={buildPersonalizedQuery(profile.positiveTags, city)}
+              lat={location.lat}
+              lng={location.lng}
+              seenIdsRef={seenIdsRef}
+              colors={colors}
+              typography={typography}
+              radii={radii}
+              shadows={shadows}
+              onRestaurantPress={handleRestaurantPress}
+            />
+          )}
+          {/* Collaborative-style cluster recommendation */}
           <SectionRow
             key="tribe"
             title="Tu tribu recomienda"
             emoji="👥"
-            query={buildTribeQuery()}
+            query={buildTribeQuery(profile.positiveTags, city)}
             lat={location.lat}
             lng={location.lng}
+            seenIdsRef={seenIdsRef}
             colors={colors}
             typography={typography}
             radii={radii}
             shadows={shadows}
             onRestaurantPress={handleRestaurantPress}
           />
-          {/* Fourth fixed section — surprise / out of comfort zone */}
+          {/* Surprise / out of comfort zone */}
           <SectionRow
             key="surprise"
-            title="¿Te atreves? 🎲"
+            title="¿Te atreves?"
             emoji="🎲"
-            query={buildSurpriseQuery()}
+            query={buildSurpriseQuery(profile.positiveTags, city)}
             lat={location.lat}
             lng={location.lng}
             surprise
+            seenIdsRef={seenIdsRef}
             colors={colors}
             typography={typography}
             radii={radii}
@@ -643,9 +736,10 @@ export default function ForYouTab() {
               key={weatherSection.query}
               title={weatherSection.title}
               emoji={weatherSection.emoji}
-              query={weatherSection.query}
+              query={`${weatherSection.query} ${city}`}
               lat={location.lat}
               lng={location.lng}
+              seenIdsRef={seenIdsRef}
               colors={colors}
               typography={typography}
               radii={radii}
@@ -653,17 +747,18 @@ export default function ForYouTab() {
               onRestaurantPress={handleRestaurantPress}
             />
           )}
-          {/* Remaining sections */}
+          {/* Remaining sections — already weighted by affinity */}
           {sectionsRef.current.slice(1).map((section) => (
             <SectionRow
               key={section.query}
               title={section.title}
               emoji={section.emoji}
-              query={section.query}
+              query={section.query.replace(/Valencia/gi, city)}
               lat={location.lat}
               lng={location.lng}
               trending={section.trending}
               newish={(section as any).newish}
+              seenIdsRef={seenIdsRef}
               colors={colors}
               typography={typography}
               radii={radii}
