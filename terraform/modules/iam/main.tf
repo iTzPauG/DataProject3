@@ -37,6 +37,13 @@ resource "google_project_iam_member" "cloudsql_client" {
   member  = local.cloud_run_sa_member
 }
 
+# Firestore document read/write from backend runtime.
+resource "google_project_iam_member" "firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = local.cloud_run_sa_member
+}
+
 # Vertex AI access for LLM calls.
 resource "google_project_iam_member" "vertex_ai_user" {
   project = var.project_id

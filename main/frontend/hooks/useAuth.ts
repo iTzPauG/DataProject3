@@ -14,6 +14,7 @@ export interface UserProfile {
   restaurant_place_id: string | null;
   restaurant_lat: number | null;
   restaurant_lng: number | null;
+  restaurant_cuisines: string[] | null;
 }
 
 interface AuthState {
@@ -36,7 +37,7 @@ interface AuthActions {
 
 const AUTH_SESSION_KEY = 'local_auth_session_v1';
 
-const DEV_CREDENTIALS: Record<string, { password: string; uid: string; displayName: string }> = {
+const DEV_CREDENTIALS: Record<string, { password: string; uid: string; displayName: string; cuisines?: string[] }> = {
   'usuario.prueba@gado.local': {
     password: 'Usuario123!',
     uid: 'test-user-1',
@@ -46,16 +47,19 @@ const DEV_CREDENTIALS: Record<string, { password: string; uid: string; displayNa
     password: 'Restaurante123!',
     uid: 'test-business-1',
     displayName: 'La Pepica',
+    cuisines: ['paella', 'mediterranean', 'seafood'],
   },
   'restaurante2@gado.local': {
     password: 'Restaurante123!',
     uid: 'test-business-2',
     displayName: 'Riff Restaurante',
+    cuisines: ['creative', 'mediterranean', 'seasonal'],
   },
   'restaurante3@gado.local': {
     password: 'Restaurante123!',
     uid: 'test-business-3',
     displayName: 'Bar Pilar',
+    cuisines: ['tapas', 'spanish', 'bar'],
   },
 };
 

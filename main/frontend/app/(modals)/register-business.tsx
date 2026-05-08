@@ -20,6 +20,24 @@ import { useTheme } from '../../utils/theme';
 
 type Step = 'form' | 'verifying' | 'otp' | 'email_fallback' | 'done';
 
+const CUISINE_OPTIONS = [
+  'Mediterránea',
+  'Española',
+  'Tapas',
+  'Paella',
+  'Italiana',
+  'Japonesa',
+  'China',
+  'India',
+  'Mexicana',
+  'Vegetariana',
+  'Vegana',
+  'Marisco',
+  'Parrilla',
+  'Fusión',
+  'Internacional',
+];
+
 export default function RegisterBusinessModal() {
   const { colors, typography } = useTheme();
   const router = useRouter();
@@ -34,6 +52,8 @@ export default function RegisterBusinessModal() {
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [mapsUrl, setMapsUrl] = useState('');
+  const [selectedCuisines, setSelectedCuisines] = useState<string[]>([]);
+  const [cuisineDropdownOpen, setCuisineDropdownOpen] = useState(false);
 
   // Verification result
   const [placeData, setPlaceData] = useState<any>(null);
@@ -88,6 +108,10 @@ export default function RegisterBusinessModal() {
 
   async function handleComplete() {
     if (!placeData) return;
+    if (selectedCuisines.length === 0) {
+      setError('Selecciona al menos un tipo de cocina');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -98,6 +122,7 @@ export default function RegisterBusinessModal() {
         restaurant_phone: phone,
         lat: placeData.lat,
         lng: placeData.lng,
+        cuisines: selectedCuisines,
       });
       await refreshProfile();
       setStep('done');
@@ -124,6 +149,45 @@ export default function RegisterBusinessModal() {
       backgroundColor: colors.surface, borderRadius: 12, padding: 14,
       color: colors.ink, fontFamily: typography.body, fontSize: 15,
       borderWidth: 1, borderColor: colors.stroke,
+    },
+    selectHeader: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.stroke,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    selectHeaderText: {
+      color: colors.ink,
+      fontFamily: typography.body,
+      fontSize: 15,
+      flex: 1,
+      marginRight: 8,
+    },
+    selectMenu: {
+      marginTop: 8,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.stroke,
+      overflow: 'hidden',
+    },
+    selectRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.stroke,
+    },
+    selectRowLabel: {
+      color: colors.ink,
+      fontFamily: typography.body,
+      fontSize: 14,
     },
     error: { color: '#EF4444', fontFamily: typography.body, fontSize: 13, marginTop: 8, textAlign: 'center' },
     btn: { backgroundColor: colors.brand, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 24 },
@@ -157,6 +221,17 @@ export default function RegisterBusinessModal() {
     );
   }
 
+  const cuisinesLabel = selectedCuisines.length
+    ? selectedCuisines.join(', ')
+    : 'Selecciona uno o varios tipos';
+
+  const toggleCuisine = (value: string) => {
+    setSelectedCuisines((prev) => {
+      if (prev.includes(value)) return prev.filter((v) => v !== value);
+      return [...prev, value];
+    });
+  };
+
   return (
     <SafeAreaView style={s.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -182,6 +257,41 @@ export default function RegisterBusinessModal() {
 
               <Text style={s.label}>Link de Google Maps (opcional)</Text>
               <TextInput style={s.input} value={mapsUrl} onChangeText={setMapsUrl} placeholder="https://maps.google.com/..." placeholderTextColor={colors.inkFaint} autoCapitalize="none" />
+
+              <Text style={s.label}>Tipo de cocina (puedes elegir varias) *</Text>
+              <TouchableOpacity
+                style={s.selectHeader}
+                onPress={() => setCuisineDropdownOpen((prev) => !prev)}
+                activeOpacity={0.85}
+              >
+                <Text style={s.selectHeaderText}>{cuisinesLabel}</Text>
+                <Ionicons name={cuisineDropdownOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.inkMuted} />
+              </TouchableOpacity>
+              {cuisineDropdownOpen && (
+                <View style={s.selectMenu}>
+                  {CUISINE_OPTIONS.map((option, index) => {
+                    const selected = selectedCuisines.includes(option);
+                    return (
+                      <TouchableOpacity
+                        key={option}
+                        style={[
+                          s.selectRow,
+                          index === CUISINE_OPTIONS.length - 1 ? { borderBottomWidth: 0 } : null,
+                        ]}
+                        onPress={() => toggleCuisine(option)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={s.selectRowLabel}>{option}</Text>
+                        <Ionicons
+                          name={selected ? 'checkbox' : 'square-outline'}
+                          size={18}
+                          color={selected ? colors.brand : colors.inkMuted}
+                        />
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
 
               {error && <Text style={s.error}>{error}</Text>}
 

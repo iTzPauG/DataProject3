@@ -45,6 +45,29 @@ interface DealWithReservation {
   justReserved?: boolean;
 }
 
+function normalizeDeal(raw: any): DealWithReservation {
+  return {
+    id: String(raw.id),
+    restaurant_name: String(raw.restaurant_name ?? 'Restaurante'),
+    price: Number(raw.price ?? 0),
+    original_price: raw.original_price == null ? null : Number(raw.original_price),
+    seats: Number(raw.seats ?? 0),
+    description: raw.description ?? null,
+    is_active: raw.is_active,
+    created_at: raw.created_at ?? undefined,
+    expires_at: raw.expires_at ?? null,
+    reservation: raw.reservation
+      ? {
+          id: String(raw.reservation.id),
+          customer_name: String(raw.reservation.customer_name ?? ''),
+          customer_phone: String(raw.reservation.customer_phone ?? ''),
+          status: String(raw.reservation.status ?? ''),
+          created_at: String(raw.reservation.created_at ?? ''),
+        }
+      : null,
+  };
+}
+
 export default function MisOfertasTab() {
   const { colors, typography, shadows } = useTheme();
   const { profile, getToken } = useAuth();
@@ -96,11 +119,15 @@ export default function MisOfertasTab() {
       const res = await fetch(`${BASE_URL}/deals?owner=me`, {
         headers: { Authorization: `Bearer ${token ?? 'local-token'}` },
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        const errorBody = await res.text();
+        throw new Error(errorBody || 'No se pudieron cargar tus ofertas');
+      }
       const data = await res.json();
-      setDeals(Array.isArray(data.deals) ? data.deals : []);
-    } catch {
-      // noop
+      const normalized = Array.isArray(data.deals) ? data.deals.map(normalizeDeal) : [];
+      setDeals(normalized);
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'No se pudieron cargar tus ofertas');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -121,13 +148,17 @@ export default function MisOfertasTab() {
           onPress: async () => {
             try {
               const token = await getToken();
-              await fetch(`${BASE_URL}/deals/${dealId}`, {
+              const res = await fetch(`${BASE_URL}/deals/${dealId}`, {
                 method: 'DELETE',
                 headers: { Authorization: `Bearer ${token ?? 'local-token'}` },
               });
+              if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data?.detail || 'No se pudo retirar la oferta');
+              }
               setDeals((prev) => prev.filter((d) => d.id !== dealId));
-            } catch {
-              Alert.alert('Error', 'No se pudo retirar la oferta.');
+            } catch (error: any) {
+              Alert.alert('Error', error?.message || 'No se pudo retirar la oferta.');
             }
           },
         },

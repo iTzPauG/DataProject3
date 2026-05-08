@@ -8,6 +8,12 @@ import json
 
 from auth import get_optional_user
 from database import get_db
+from services.firestore_sync import (
+    create_reservation as firestore_create_reservation,
+    delete_deal as firestore_delete_deal,
+    update_reservation_status as firestore_update_reservation_status,
+    upsert_deal as firestore_upsert_deal,
+)
 
 router = APIRouter(prefix="/deals", tags=["deals"])
 
@@ -60,6 +66,25 @@ async def _require_business(request: Request, db) -> dict:
     if row.get("role") != "business":
         raise HTTPException(status_code=403, detail="Solo cuentas de restaurante pueden gestionar ofertas")
     return row
+
+
+def _parse_cuisines(raw_value: object) -> list[str]:
+    if isinstance(raw_value, list):
+        return [str(v).strip() for v in raw_value if str(v).strip()]
+    if isinstance(raw_value, str) and raw_value.strip():
+        try:
+            loaded = json.loads(raw_value)
+            if isinstance(loaded, list):
+                return [str(v).strip() for v in loaded if str(v).strip()]
+        except json.JSONDecodeError:
+            return [chunk.strip() for chunk in raw_value.split(",") if chunk.strip()]
+    return []
+
+
+def _serialize_deal(row: dict) -> dict:
+    payload = dict(row)
+    payload["restaurant_cuisines"] = _parse_cuisines(payload.get("restaurant_cuisines"))
+    return payload
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -122,24 +147,28 @@ async def list_deals(
                 (uid,),
             )
             # Attach reservation info to each deal
-            for deal in deals:
+            for index, deal in enumerate(deals):
                 res = await _fetch_one(
                     db,
                     "SELECT * FROM reservations WHERE deal_id = ? AND status = 'confirmed'",
                     (deal["id"],),
                 )
-                deal["reservation"] = res
+                normalized = _serialize_deal(deal)
+                normalized["reservation"] = res
+                deals[index] = normalized
         else:
-            now = datetime.now(timezone.utc).isoformat()
+            now = datetime.now(timezone.utc)
+            now_param = now
             deals = await _fetch_all(
                 db,
                 """SELECT * FROM deals
-                   WHERE is_active = 1
+                   WHERE is_active = TRUE
                      AND available_at <= ?
                      AND (expires_at IS NULL OR expires_at >= ?)
                    ORDER BY created_at DESC""",
-                (now, now),
+                (now_param, now_param),
             )
+            deals = [_serialize_deal(d) for d in deals]
 
     if owner != "me" and lat is not None and lng is not None:
         def dist(d):
@@ -157,43 +186,81 @@ async def get_deal(deal_id: str):
         row = await _fetch_one(db, "SELECT * FROM deals WHERE id = ?", (deal_id,))
     if not row:
         raise HTTPException(status_code=404, detail="Oferta no encontrada")
-    return row
+    return _serialize_deal(row)
 
 
 @router.post("")
 async def create_deal(body: DealCreate, request: Request):
     """Create a deal. Requires business account."""
+    firestore_doc: dict[str, Any] | None = None
+    deal_id = str(uuid.uuid4())
     async with get_db() as db:
         profile = await _require_business(request, db)
         if profile.get("restaurant_lat") is None or profile.get("restaurant_lng") is None:
             raise HTTPException(status_code=400, detail="Perfil de restaurante sin coordenadas")
 
-        deal_id = str(uuid.uuid4())
-        expires_at = (datetime.now(timezone.utc) + timedelta(minutes=body.expires_in_minutes)).isoformat()
-        await db.execute(
-            """INSERT INTO deals
-               (id, owner_uid, restaurant_name, restaurant_place_id, lat, lng,
-                price, original_price, seats, available_at, description, expires_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                deal_id,
-                profile["firebase_uid"],
-                profile.get("restaurant_name") or "Restaurante",
-                profile.get("restaurant_place_id"),
-                profile["restaurant_lat"],
-                profile["restaurant_lng"],
-                body.price,
-                body.original_price,
-                body.seats,
-                body.available_at.isoformat(),
-                body.description,
-                expires_at,
-            ),
-        )
-        await db.commit()
-        deal = await _fetch_one(db, "SELECT * FROM deals WHERE id = ?", (deal_id,))
-        if not deal:
-            raise HTTPException(status_code=500, detail="No se pudo crear la oferta")
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=body.expires_in_minutes)
+        available_at_value = body.available_at
+        expires_at_value = expires_at
+        restaurant_cuisines = _parse_cuisines(profile.get("restaurant_cuisines"))
+        primary_cuisine = restaurant_cuisines[0] if restaurant_cuisines else "general"
+        restaurant_cuisines_value = json.dumps(restaurant_cuisines)
+
+        firestore_doc = {
+            "id": deal_id,
+            "owner_uid": profile["firebase_uid"],
+            "restaurant_name": profile.get("restaurant_name") or "Restaurante",
+            "restaurant_place_id": profile.get("restaurant_place_id"),
+            "lat": profile["restaurant_lat"],
+            "lng": profile["restaurant_lng"],
+            "price": body.price,
+            "original_price": body.original_price,
+            "seats": body.seats,
+            "cuisine": primary_cuisine,
+            "restaurant_cuisines": restaurant_cuisines,
+            "available_at": body.available_at.isoformat(),
+            "description": body.description,
+            "expires_at": expires_at.isoformat(),
+            "is_active": True,
+        }
+        firestore_upsert_deal(firestore_doc)
+
+        try:
+            await db.execute(
+                """INSERT INTO deals
+                   (id, owner_uid, restaurant_id, restaurant_name, restaurant_place_id, lat, lng,
+                          price, original_price, seats, cuisine, restaurant_cuisines,
+                          available_at, description, expires_at)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    deal_id,
+                    profile["firebase_uid"],
+                    profile["firebase_uid"],
+                    profile.get("restaurant_name") or "Restaurante",
+                    profile.get("restaurant_place_id"),
+                    profile["restaurant_lat"],
+                    profile["restaurant_lng"],
+                    body.price,
+                    body.original_price,
+                    body.seats,
+                    primary_cuisine,
+                    restaurant_cuisines_value,
+                    available_at_value,
+                    body.description,
+                    expires_at_value,
+                ),
+            )
+            await db.commit()
+            deal = await _fetch_one(db, "SELECT * FROM deals WHERE id = ?", (deal_id,))
+            if not deal:
+                raise HTTPException(status_code=500, detail="No se pudo crear la oferta")
+            deal = _serialize_deal(deal)
+        except Exception:
+            firestore_delete_deal(deal_id)
+            raise
+
+    if firestore_doc is not None:
+        firestore_upsert_deal(deal)
 
     # Broadcast to all connected WebSocket clients
     await manager.broadcast({"event": "deal_created", "deal": deal})
@@ -225,6 +292,9 @@ async def update_deal(deal_id: str, body: DealUpdate, request: Request):
         deal = await _fetch_one(db, "SELECT * FROM deals WHERE id = ?", (deal_id,))
         if not deal:
             raise HTTPException(status_code=404, detail="Oferta no encontrada")
+        deal = _serialize_deal(deal)
+
+    firestore_upsert_deal(deal)
 
     await manager.broadcast({"event": "deal_updated", "deal": deal})
     return {"success": True, "deal": deal}
@@ -239,8 +309,17 @@ async def delete_deal(deal_id: str, request: Request):
             raise HTTPException(status_code=404, detail="Oferta no encontrada")
         if existing["owner_uid"] != profile["firebase_uid"]:
             raise HTTPException(status_code=403, detail="No eres el propietario")
-        await db.execute("UPDATE deals SET is_active = 0 WHERE id = ?", (deal_id,))
+        reservation = await _fetch_one(
+            db,
+            "SELECT id FROM reservations WHERE deal_id = ? AND status = 'confirmed'",
+            (deal_id,),
+        )
+        if reservation:
+            raise HTTPException(status_code=409, detail="No puedes retirar una oferta ya reservada")
+        await db.execute("UPDATE deals SET is_active = FALSE WHERE id = ?", (deal_id,))
         await db.commit()
+
+    firestore_delete_deal(deal_id)
 
     await manager.broadcast({"event": "deal_deleted", "deal_id": deal_id})
     return {"success": True}
@@ -273,6 +352,9 @@ async def create_reservation(deal_id: str, body: ReservationCreate, request: Req
         )
         await db.commit()
         reservation = await _fetch_one(db, "SELECT * FROM reservations WHERE id = ?", (res_id,))
+
+    if reservation:
+        firestore_create_reservation(deal_id, reservation)
 
     await manager.broadcast({
         "event": "reservation_created",
@@ -314,4 +396,6 @@ async def update_reservation_status(deal_id: str, body: ReservationStatusUpdate,
             (body.status, deal_id),
         )
         await db.commit()
+
+    firestore_update_reservation_status(deal_id, body.status)
     return {"success": True}

@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BASE_URL } from '../services/api';
+import { collection, onSnapshot, query } from 'firebase/firestore';
+import { firebaseConfigured, firestoreDb } from '../services/firebase';
 
 export interface LiveDeal {
   id: string;
   owner_uid: string;
   restaurant_name: string;
+  cuisine?: string | null;
+  restaurant_cuisines?: string[];
   restaurant_place_id?: string | null;
   lat: number;
   lng: number;
@@ -30,10 +34,16 @@ export interface ReservationEvent {
 }
 
 function normalizeDeal(raw: any): LiveDeal {
+  const parsedCuisines = Array.isArray(raw.restaurant_cuisines)
+    ? raw.restaurant_cuisines.map((v: unknown) => String(v)).filter(Boolean)
+    : [];
+
   return {
     id: String(raw.id),
     owner_uid: String(raw.owner_uid ?? ''),
     restaurant_name: String(raw.restaurant_name ?? 'Restaurante'),
+    cuisine: raw.cuisine == null ? null : String(raw.cuisine),
+    restaurant_cuisines: parsedCuisines,
     restaurant_place_id: raw.restaurant_place_id ?? null,
     lat: Number(raw.lat),
     lng: Number(raw.lng),
@@ -65,9 +75,12 @@ export function useLiveDeals(params: {
   const { lat, lng, radiusM = 5000, enabled = true, ownerUid, onReservation } = params;
   const [deals, setDeals] = useState<LiveDeal[]>([]);
   const [connected, setConnected] = useState(false);
+  const [firestoreDenied, setFirestoreDenied] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const usingFirestore = firebaseConfigured && firestoreDb != null && !ownerUid && !firestoreDenied;
 
   // Use refs so fetchInitial closure doesn't change on every pan/zoom
   const latRef = useRef(lat);
@@ -84,6 +97,7 @@ export function useLiveDeals(params: {
 
   // fetchInitial uses refs so it never changes reference → no re-fetch on pan/zoom
   const fetchInitial = useCallback(async () => {
+    if (usingFirestore) return;
     const q = new URLSearchParams();
     if (latRef.current != null) q.set('lat', String(latRef.current));
     if (lngRef.current != null) q.set('lng', String(lngRef.current));
@@ -98,16 +112,17 @@ export function useLiveDeals(params: {
     } catch {
       // noop
     }
-  }, []); // stable — uses refs internally
+  }, [usingFirestore]); // stable enough; uses refs internally
 
   const connectWs = useCallback(() => {
-    if (!enabled) return;
+    if (!enabled || usingFirestore) return;
     const wsUrl = toWebSocketUrl(BASE_URL);
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
       setConnected(true);
+      void fetchInitial();
       if (pingTimer.current) clearInterval(pingTimer.current);
       pingTimer.current = setInterval(() => {
         try {
@@ -160,17 +175,73 @@ export function useLiveDeals(params: {
         connectWs();
       }, 1500);
     };
-  }, [enabled]);
+  }, [enabled, usingFirestore, fetchInitial]);
+
+  useEffect(() => {
+    if (!enabled || !usingFirestore || !firestoreDb) return;
+
+    setConnected(true);
+    const dealsQuery = query(collection(firestoreDb, 'deals'));
+    const unsubscribe = onSnapshot(
+      dealsQuery,
+      (snapshot) => {
+        const parsed = snapshot.docs.map((doc) => normalizeDeal({ id: doc.id, ...doc.data() }));
+        const active = parsed.filter((deal) => Boolean(deal.is_active));
+        const inRadius = active.filter((deal) => {
+            if (!Number.isFinite(deal.lat) || !Number.isFinite(deal.lng)) return false;
+            if (latRef.current == null || lngRef.current == null) return true;
+            const dlat = (deal.lat - latRef.current) * 111000;
+            const dlng = (deal.lng - lngRef.current) * 111000 * 0.7;
+            const distance = (dlat ** 2 + dlng ** 2) ** 0.5;
+            return distance <= radiusRef.current;
+          });
+
+        const items = inRadius.length > 0 || active.length === 0 ? inRadius : active;
+
+        console.info('[deals/firestore]', {
+          totalDocs: snapshot.size,
+          activeDocs: active.length,
+          inRadiusDocs: inRadius.length,
+          returnedDocs: items.length,
+          radiusFallbackUsed: inRadius.length === 0 && active.length > 0,
+          centerLat: latRef.current,
+          centerLng: lngRef.current,
+          radiusM: radiusRef.current,
+        });
+        setDeals(items);
+      },
+      (error) => {
+        console.error('[deals/firestore] snapshot error', error);
+        if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'permission-denied') {
+          setFirestoreDenied(true);
+          void fetchInitial();
+        }
+        setConnected(false);
+      },
+    );
+
+    return () => {
+      unsubscribe();
+      setConnected(false);
+    };
+  }, [enabled, usingFirestore]);
 
   useEffect(() => {
     if (!enabled) return;
     void fetchInitial();
+    if (usingFirestore) return;
+    if (refreshTimer.current) {
+      clearInterval(refreshTimer.current);
+    }
+    refreshTimer.current = setInterval(() => {
+      void fetchInitial();
+    }, 15000);
     // fetchInitial is stable (uses refs) so this only fires once on mount / enabled change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled]);
+  }, [enabled, usingFirestore, fetchInitial]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || usingFirestore) return;
     connectWs();
 
     return () => {
@@ -182,11 +253,15 @@ export function useLiveDeals(params: {
         clearInterval(pingTimer.current);
         pingTimer.current = null;
       }
+      if (refreshTimer.current) {
+        clearInterval(refreshTimer.current);
+        refreshTimer.current = null;
+      }
       wsRef.current?.close();
       wsRef.current = null;
       setConnected(false);
     };
-  }, [enabled, connectWs]);
+  }, [enabled, usingFirestore, connectWs]);
 
   const activeDeals = useMemo(
     () => deals.filter((d) => Boolean(d.is_active) && Number.isFinite(d.lat) && Number.isFinite(d.lng)),

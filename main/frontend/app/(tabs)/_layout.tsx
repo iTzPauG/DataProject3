@@ -43,18 +43,20 @@ export default function TabsLayout() {
         },
         item: {
           flex: 1,
-          maxWidth: 120, // keep them contained to center them better
+          maxWidth: 132,
           alignItems: 'center',
           justifyContent: 'flex-start',
           gap: 6,
           paddingTop: 4,
         },
         label: {
-          fontSize: 10,
-          letterSpacing: 1.6,
+          fontSize: 9,
+          letterSpacing: 0.8,
           textTransform: 'uppercase',
           fontFamily: typography.body,
           fontWeight: '600',
+          textAlign: 'center',
+          width: '100%',
         },
         underline: {
           marginTop: 5,
@@ -76,10 +78,18 @@ export default function TabsLayout() {
     const label = t(`tabs.${routeName}`);
     const glyph = TAB_GLYPHS[routeName];
     const color = focused ? colors.ink : colors.inkFaint;
+    const labelStyle = routeName === 'mis-ofertas'
+      ? { fontSize: 8.2, letterSpacing: 0.2 }
+      : null;
     return (
       <View style={styles.item}>
         <Icon name={glyph} size={18} color={color} strokeWidth={1.4} />
-        <Text style={[styles.label, { color }]}>{label}</Text>
+        <Text
+          style={[styles.label, { color }, labelStyle]}
+          numberOfLines={1}
+        >
+          {label}
+        </Text>
         <View
           style={focused ? styles.underline : styles.underlinePlaceholder}
         />
@@ -94,7 +104,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.ink,
         tabBarInactiveTintColor: colors.inkFaint,
         tabBarStyle: styles.tabBar,
-        tabBarItemStyle: { flex: 1, marginHorizontal: 16 },
+        tabBarItemStyle: { flex: 1, marginHorizontal: 10 },
         tabBarHideOnKeyboard: true,
         tabBarShowLabel: false,
       }}

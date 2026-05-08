@@ -395,9 +395,13 @@ POSTGRES_SCHEMA = [
     ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_lng REAL
     """,
     """
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_cuisines TEXT DEFAULT '[]'
+    """,
+    """
     CREATE TABLE IF NOT EXISTS deals (
         id TEXT PRIMARY KEY,
         owner_uid TEXT NOT NULL,
+        restaurant_id TEXT NOT NULL,
         restaurant_name TEXT NOT NULL,
         restaurant_place_id TEXT,
         lat REAL NOT NULL,
@@ -405,6 +409,8 @@ POSTGRES_SCHEMA = [
         price REAL NOT NULL,
         original_price REAL,
         seats INTEGER NOT NULL,
+        cuisine TEXT NOT NULL DEFAULT 'general',
+        restaurant_cuisines TEXT DEFAULT '[]',
         available_at TEXT NOT NULL,
         description TEXT,
         is_active INTEGER DEFAULT 1,
@@ -412,6 +418,68 @@ POSTGRES_SCHEMA = [
         expires_at TEXT
     )
     """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS restaurant_name TEXT
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS restaurant_id TEXT
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS restaurant_place_id TEXT
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS lat REAL
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS lng REAL
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS original_price REAL
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS seats INTEGER
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS cuisine TEXT NOT NULL DEFAULT 'general'
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS restaurant_cuisines TEXT DEFAULT '[]'
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS available_at TEXT
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS description TEXT
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS expires_at TEXT
+    """,
+    """
+    ALTER TABLE deals ALTER COLUMN expires_at TYPE TIMESTAMPTZ USING expires_at::TIMESTAMPTZ
+    """,
+    """
+    ALTER TABLE deals ALTER COLUMN available_at TYPE TIMESTAMPTZ USING available_at::TIMESTAMPTZ
+    """,
+        """
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                    AND table_name = 'deals'
+                    AND column_name = 'cuisine'
+            ) THEN
+                EXECUTE 'ALTER TABLE deals ALTER COLUMN cuisine SET DEFAULT ''general''';
+            END IF;
+        END $$;
+        """,
     """
     CREATE INDEX IF NOT EXISTS idx_deals_active ON deals(is_active, available_at)
     """,
@@ -782,6 +850,7 @@ async def _init_sqlite() -> None:
             CREATE TABLE IF NOT EXISTS deals (
                 id TEXT PRIMARY KEY,
                 owner_uid TEXT NOT NULL,
+                restaurant_id TEXT NOT NULL,
                 restaurant_name TEXT NOT NULL,
                 restaurant_place_id TEXT,
                 lat REAL NOT NULL,
@@ -789,6 +858,8 @@ async def _init_sqlite() -> None:
                 price REAL NOT NULL,
                 original_price REAL,
                 seats INTEGER NOT NULL,
+                cuisine TEXT NOT NULL DEFAULT 'general',
+                restaurant_cuisines TEXT DEFAULT '[]',
                 available_at TEXT NOT NULL,
                 description TEXT,
                 is_active INTEGER DEFAULT 1,
@@ -832,10 +903,34 @@ async def _init_sqlite() -> None:
             ("restaurant_place_id", "TEXT"),
             ("restaurant_lat", "REAL"),
             ("restaurant_lng", "REAL"),
+            ("restaurant_cuisines", "TEXT DEFAULT '[]'"),
         ]
         for col_name, col_type in profile_additions:
             if col_name not in existing:
                 await db.execute(f"ALTER TABLE profiles ADD COLUMN {col_name} {col_type}")
+
+        deal_cols_cursor = await db.execute("PRAGMA table_info(deals)")
+        deal_cols = await deal_cols_cursor.fetchall()
+        existing_deal_cols = {row[1] for row in deal_cols}
+        deal_additions = [
+            ("restaurant_name", "TEXT"),
+            ("restaurant_id", "TEXT"),
+            ("restaurant_place_id", "TEXT"),
+            ("lat", "REAL"),
+            ("lng", "REAL"),
+            ("original_price", "REAL"),
+            ("seats", "INTEGER"),
+            ("cuisine", "TEXT NOT NULL DEFAULT 'general'"),
+            ("restaurant_cuisines", "TEXT DEFAULT '[]'"),
+            ("available_at", "TEXT"),
+            ("description", "TEXT"),
+            ("is_active", "INTEGER DEFAULT 1"),
+            ("created_at", "TEXT DEFAULT CURRENT_TIMESTAMP"),
+            ("expires_at", "TEXT"),
+        ]
+        for col_name, col_type in deal_additions:
+            if col_name not in existing_deal_cols:
+                await db.execute(f"ALTER TABLE deals ADD COLUMN {col_name} {col_type}")
 
         await db.commit()
         await _seed_sqlite(db)

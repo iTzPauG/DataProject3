@@ -474,7 +474,7 @@ export default function MapTab() {
     return liveDeals.map((deal: LiveDeal) => ({
       item_id: `deal:${deal.id}`,
       item_type: 'place',
-      title: `${deal.restaurant_name} · ${deal.price.toFixed(2)} EUR`,
+      title: `${deal.restaurant_name}${deal.cuisine ? ` (${deal.cuisine})` : ''} · ${deal.price.toFixed(2)} EUR`,
       category_id: 'food',
       lat: deal.lat,
       lng: deal.lng,
@@ -484,6 +484,8 @@ export default function MapTab() {
       metadata: {
         deal: true,
         deal_id: deal.id,
+        cuisine: deal.cuisine,
+        restaurant_cuisines: deal.restaurant_cuisines,
         seats: deal.seats,
         price: deal.price,
         original_price: deal.original_price,

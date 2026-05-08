@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -112,6 +113,13 @@ export default function LoginModal() {
       fontWeight: '700',
       color: '#FFF',
       fontFamily: typography.heading,
+    },
+    errorText: {
+      color: '#B42318',
+      fontSize: 14,
+      textAlign: 'center',
+      fontFamily: typography.body,
+      marginTop: -4,
     },
     divider: {
       flexDirection: 'row',
@@ -227,16 +235,12 @@ export default function LoginModal() {
               />
             </View>
 
+            {loginError ? (
+              <Text style={styles.errorText}>{loginError}</Text>
+            ) : null}
+
             <TouchableOpacity
               style={[styles.primaryButton, loading && styles.disabledButton]}
-                          {loginError ? (
-                            <Text style={{ color: 'red', fontSize: 14, textAlign: 'center', fontFamily: typography.body }}>
-                              {loginError}
-                            </Text>
-                          ) : null}
-
-                          <TouchableOpacity
-                            style={[styles.primaryButton, loading && styles.disabledButton]}
               onPress={handleLogin}
               disabled={loading}
             >

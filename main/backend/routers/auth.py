@@ -3,6 +3,7 @@ from typing import Optional
 import uuid
 import logging
 import re
+import json
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request
@@ -29,7 +30,8 @@ SELECT
     restaurant_phone,
     restaurant_place_id,
     restaurant_lat,
-    restaurant_lng
+    restaurant_lng,
+    restaurant_cuisines
 FROM profiles
 """
 
@@ -42,6 +44,7 @@ DEV_BUSINESS_PROFILES = {
         "restaurant_place_id": "ChIJa9ZBqHhQYA0RqJBJJJJJJJJ",
         "restaurant_lat": 39.4607,
         "restaurant_lng": -0.3340,
+        "restaurant_cuisines": ["paella", "mediterranean", "seafood"],
     },
     "test-business-2": {
         "restaurant_name": "Riff Restaurante",
@@ -50,6 +53,7 @@ DEV_BUSINESS_PROFILES = {
         "restaurant_place_id": "ChIJb9ZBqHhQYA0RqJBJJJJJJJK",
         "restaurant_lat": 39.4648,
         "restaurant_lng": -0.3812,
+        "restaurant_cuisines": ["creative", "mediterranean", "seasonal"],
     },
     "test-business-3": {
         "restaurant_name": "Bar Pilar",
@@ -58,8 +62,39 @@ DEV_BUSINESS_PROFILES = {
         "restaurant_place_id": "ChIJc9ZBqHhQYA0RqJBJJJJJJJL",
         "restaurant_lat": 39.4762,
         "restaurant_lng": -0.3762,
+        "restaurant_cuisines": ["tapas", "spanish", "bar"],
     },
 }
+
+
+def _normalize_cuisines(cuisines: Optional[list[str]]) -> list[str]:
+    if not cuisines:
+        return []
+    out: list[str] = []
+    for cuisine in cuisines:
+        value = (cuisine or "").strip()
+        if value and value not in out:
+            out.append(value)
+    return out
+
+
+def _parse_cuisines(raw_value: object) -> list[str]:
+    if isinstance(raw_value, list):
+        return _normalize_cuisines([str(v) for v in raw_value])
+    if isinstance(raw_value, str) and raw_value.strip():
+        try:
+            loaded = json.loads(raw_value)
+            if isinstance(loaded, list):
+                return _normalize_cuisines([str(v) for v in loaded])
+        except json.JSONDecodeError:
+            return _normalize_cuisines([p.strip() for p in raw_value.split(",")])
+    return []
+
+
+def _serialize_profile(row: dict) -> dict:
+    payload = dict(row)
+    payload["restaurant_cuisines"] = _parse_cuisines(payload.get("restaurant_cuisines"))
+    return payload
 
 
 class SyncProfileBody(BaseModel):
@@ -98,6 +133,7 @@ async def sync_profile(body: SyncProfileBody, request: Request):
                        restaurant_place_id = ?,
                        restaurant_lat = ?,
                        restaurant_lng = ?,
+                       restaurant_cuisines = ?,
                        updated_at = CURRENT_TIMESTAMP
                        WHERE firebase_uid = ?""",
                     (
@@ -108,6 +144,7 @@ async def sync_profile(body: SyncProfileBody, request: Request):
                         business["restaurant_place_id"],
                         business["restaurant_lat"],
                         business["restaurant_lng"],
+                        json.dumps(business["restaurant_cuisines"]),
                         firebase_uid,
                     ),
                 )
@@ -119,7 +156,7 @@ async def sync_profile(body: SyncProfileBody, request: Request):
                 (firebase_uid,)
             )
             row = await cursor.fetchone()
-            return dict(row)
+            return _serialize_profile(dict(row))
         except Exception as e:
             logger.error(f"Error syncing profile: {e}")
             raise HTTPException(status_code=500, detail=str(e))
@@ -140,7 +177,7 @@ async def get_me(request: Request):
     if not row:
         # Auto-sync for local dev if not found
         return await sync_profile(SyncProfileBody(), request)
-    return dict(row)
+    return _serialize_profile(dict(row))
 
 
 class RegisterBusinessBody(BaseModel):
@@ -157,6 +194,7 @@ class CompleteBusinessBody(BaseModel):
     restaurant_phone: str
     lat: float
     lng: float
+    cuisines: list[str]
 
 
 def _normalize_phone(phone: str) -> str:
@@ -220,12 +258,16 @@ async def complete_business_registration(body: CompleteBusinessBody, request: Re
     if not firebase_uid:
         raise HTTPException(status_code=401, detail="Autenticación requerida")
 
+    cuisines = _normalize_cuisines(body.cuisines)
+    if not cuisines:
+        raise HTTPException(status_code=400, detail="Selecciona al menos un tipo de cocina")
+
     async with get_db() as db:
         await db.execute(
             """UPDATE profiles SET
                role = ?, restaurant_name = ?, restaurant_address = ?,
                restaurant_phone = ?, restaurant_place_id = ?,
-               restaurant_lat = ?, restaurant_lng = ?
+               restaurant_lat = ?, restaurant_lng = ?, restaurant_cuisines = ?
                WHERE firebase_uid = ?""",
             (
                 "business",
@@ -235,6 +277,7 @@ async def complete_business_registration(body: CompleteBusinessBody, request: Re
                 body.place_id,
                 body.lat,
                 body.lng,
+                json.dumps(cuisines),
                 firebase_uid,
             ),
         )
@@ -247,4 +290,4 @@ async def complete_business_registration(body: CompleteBusinessBody, request: Re
         if not row:
             raise HTTPException(status_code=404, detail="Perfil no encontrado")
 
-    return dict(row)
+    return _serialize_profile(dict(row))
