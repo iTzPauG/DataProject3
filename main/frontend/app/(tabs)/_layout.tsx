@@ -1,4 +1,4 @@
-import { Tabs } from 'expo-router';
+﻿import { Tabs } from 'expo-router';
 import React, { useMemo } from 'react';
 import { useTranslation } from "react-i18next";
 import { Platform, StyleSheet, Text, View } from 'react-native';
@@ -46,7 +46,7 @@ export default function TabsLayout() {
           paddingTop: 4,
         },
         label: {
-          fontSize: 10,
+          fontSize: 11,
           letterSpacing: 1.6,
           textTransform: 'uppercase',
           fontFamily: typography.body,

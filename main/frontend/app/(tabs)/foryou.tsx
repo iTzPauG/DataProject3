@@ -37,6 +37,7 @@ interface SectionConfig {
   query: string;
   fixed?: boolean;
   trending?: boolean;
+  newish?: boolean;
   // tags para calcular afinidad con el perfil del usuario
   affinityTags?: string[];
   // tags que reducen probabilidad (si el usuario los tiene en dislikes)
@@ -44,68 +45,26 @@ interface SectionConfig {
 }
 
 const ALL_SECTIONS: SectionConfig[] = [
-  { title: 'Tendencias',        emoji: '🔥', query: 'restaurante popular Valencia',   fixed: true, trending: true },
-  { title: 'Pizzerías',         emoji: '🍕', query: 'pizzeria restaurante',            affinityTags: ['pizza','italiana'],          dislikeTags: [] },
-  { title: 'Hamburguesas',      emoji: '🍔', query: 'hamburguesa restaurante',         affinityTags: ['hamburguesa','burger','mcdonalds','fast food'], dislikeTags: ['vegano','saludable'] },
-  { title: 'Sushi',             emoji: '🍱', query: 'sushi japones restaurante',       affinityTags: ['sushi','japonés','nozomi','takami','asiático'],  dislikeTags: [] },
-  { title: 'Cafés & Brunch',    emoji: '☕', query: 'cafe brunch desayuno',            affinityTags: ['brunch','café','coffee','desayuno'],             dislikeTags: [] },
-  { title: 'Vegano / Saludable',emoji: '🌱', query: 'vegano saludable restaurante',   affinityTags: ['vegano','saludable','healthy','vegan','orgánico'],dislikeTags: ['carne','burger','mcdonalds'] },
-  { title: 'Abiertos de noche', emoji: '🌙', query: 'restaurante nocturno',            affinityTags: ['nocturno','noche','bar'],                        dislikeTags: [] },
-  { title: 'Para una cita',     emoji: '🎯', query: 'restaurante romantico cena',      affinityTags: ['romántico','cena','íntimo'],                     dislikeTags: [] },
-  { title: 'Familiar',          emoji: '👨‍👩‍👧', query: 'restaurante familiar',        affinityTags: ['familiar','niños','familia'],                    dislikeTags: [] },
-  { title: 'Instagrameables',   emoji: '📸', query: 'restaurante bonito moderno',      affinityTags: ['moderno','instagrameable','bonito','koku','lateral'], dislikeTags: [] },
-  { title: 'Terrazas',          emoji: '🍹', query: 'restaurante terraza',             affinityTags: ['terraza','exterior','sol'],                      dislikeTags: [] },
-  { title: 'Recién abiertos',   emoji: '🆕', query: 'restaurante nuevo abierto Valencia', affinityTags: [],                                            dislikeTags: [] },
-  { title: 'Comida Rápida',     emoji: '🍟', query: 'comida rapida burger fast food Valencia', affinityTags: ['mcdonalds','burger king','fast food','hamburguesa','montaditos'], dislikeTags: ['vegano','saludable','healthy'] },
-];
+  { title: 'Tendencias',        emoji: '🔥', query: 'restaurante popular Valencia',        fixed: true, trending: true },
+  { title: 'Pizzerías',         emoji: '🍕', query: 'pizzeria restaurante',                affinityTags: ['pizza','italiana'],                                    dislikeTags: [] },
+  { title: 'Hamburguesas',      emoji: '🍔', query: 'hamburguesa restaurante',             affinityTags: ['hamburguesa','burger'],                                dislikeTags: ['hamburguesa','burger','fast food'] },
+  { title: 'Sushi',             emoji: '🍱', query: 'sushi japones restaurante',           affinityTags: ['sushi','japonés','asiático','ramen','poke'],            dislikeTags: ['sushi','japonés','asiático'] },
+  { title: 'Cafés & Brunch',    emoji: '☕', query: 'cafe brunch desayuno',                affinityTags: ['brunch','café','coffee','desayuno'],                    dislikeTags: [] },
+  { title: 'Vegano / Saludable',emoji: '🌱', query: 'vegano saludable restaurante',        affinityTags: ['vegano','saludable','healthy','vegan','orgánico'],      dislikeTags: ['vegano','saludable','healthy'] },
+  { title: 'Abiertos de noche', emoji: '🌙', query: 'restaurante nocturno',                affinityTags: ['nocturno','noche','bar','copas'],                       dislikeTags: [] },
+  { title: 'Para una cita',     emoji: '🎯', query: 'restaurante romantico cena',          affinityTags: [],                                                      dislikeTags: [] },
+  { title: 'Familiar',          emoji: '👨‍👩‍👧', query: 'restaurante familiar',            affinityTags: [],                                                      dislikeTags: [] },
+  { title: 'Instagrameables',   emoji: '📸', query: 'restaurante bonito moderno',          affinityTags: ['moderno','fusión','instagrameable'],                    dislikeTags: [] },
+  { title: 'Terrazas',          emoji: '🍹', query: 'restaurante terraza',                 affinityTags: ['terraza','exterior'],                                  dislikeTags: [] },
+  { title: 'Lo más nuevo',      emoji: '✨', query: 'restaurante reciente nuevo Valencia',  affinityTags: [],                                                      dislikeTags: [], newish: true },
+  { title: 'Comida Rápida',     emoji: '🍟', query: 'comida rapida burger fast food Valencia', affinityTags: ['fast food','comida rápida'],                       dislikeTags: ['fast food','comida rápida','mcdonalds','montaditos'] },
+] as (SectionConfig & { newish?: boolean })[];
 
 // Calcula el peso de cada sección según el perfil del usuario
-// base 1.0, +0.4 por cada affinityTag que coincida, -0.5 por cada dislikeTag que coincida
-function getSectionWeight(section: SectionConfig): number {
-  const positive = [
-    ...MOCK_USER_PROFILE.saved,
-    ...MOCK_USER_PROFILE.likes,
-    ...MOCK_USER_PROFILE.exploreCategories,
-    ...MOCK_USER_PROFILE.recentViews,
-  ].join(' ').toLowerCase();
-
-  const negative = MOCK_USER_PROFILE.dislikes.join(' ').toLowerCase();
-
-  let weight = 1.0;
-  for (const tag of (section.affinityTags ?? [])) {
-    if (positive.includes(tag)) weight += 0.4;
-  }
-  for (const tag of (section.dislikeTags ?? [])) {
-    if (negative.includes(tag)) weight -= 0.5;
-  }
-  return Math.max(weight, 0.1); // mínimo 0.1 para que siempre pueda aparecer
-}
-
-// Weighted random selection: secciones con más peso tienen más probabilidad
-function weightedSample(sections: SectionConfig[], n: number): SectionConfig[] {
-  const pool = [...sections];
-  const selected: SectionConfig[] = [];
-  for (let i = 0; i < n && pool.length > 0; i++) {
-    const weights = pool.map(s => getSectionWeight(s));
-    const total = weights.reduce((a, b) => a + b, 0);
-    let r = Math.random() * total;
-    let idx = 0;
-    for (let j = 0; j < weights.length; j++) {
-      r -= weights[j];
-      if (r <= 0) { idx = j; break; }
-    }
-    selected.push(pool[idx]);
-    pool.splice(idx, 1);
-  }
-  return selected;
-}
-
 function getRandomSections(): SectionConfig[] {
   const fixedSections = ALL_SECTIONS.filter(s => s.fixed);
   const randomSections = ALL_SECTIONS.filter(s => !s.fixed);
-  // Weighted pick de 5 secciones
-  const selected = weightedSample(randomSections, 5);
-  return [...fixedSections, ...selected];
+  return [...fixedSections, ...randomSections];
 }
 
 // Perfil hardcodeado de usuario para la sección "Como te gustó X"
@@ -208,18 +167,33 @@ function buildSurpriseQuery(): string {
   return pool.map(s => s.query.split(' ')[0]).join(' ') + ' Valencia';
 }
 
-// rating * log10(nReseñas + 1) — premia rating alto con volumen real
-// + pequeño bonus por palabras clave positivas/virales en reseñas (máx +0.5)
+// Tendencias: 60% volumen de reseñas + 40% rating + bonus viral
+// + pequeño bonus por palabras clave virales en reseñas (máx +0.1)
 const TRENDING_KEYWORDS = ['increíble', 'espectacular', 'imprescindible', 'lleno', 'cola', 'viral', 'amazing', 'incredible', 'must', 'packed', 'queue', 'incroyable', 'génial'];
 function trendingScore(r: RestaurantDBResult): number {
   const rating = r.metadata?.rating ?? 0;
   const count = r.metadata?.user_rating_count ?? 0;
-  const base = rating * Math.log10(count + 1);
-  const reviews: string[] = (r.google_reviews ?? []).map((rv: any) => (rv.text ?? '').toLowerCase());
+  const countScore = Math.log10(count + 1);
+  // 60% volumen + 40% rating, ambos normalizados
+  const base = (countScore / 4) * 0.6 + (rating / 5) * 0.4;
+  const reviews: string[] = ((r as any).google_reviews ?? []).map((rv: any) => (rv.text ?? '').toLowerCase());
   const allText = reviews.join(' ');
   const hits = TRENDING_KEYWORDS.filter(kw => allText.includes(kw)).length;
-  const bonus = Math.min(hits * 0.1, 0.5);
+  const bonus = Math.min(hits * 0.02, 0.1);
   return base + bonus;
+}
+
+// "Lo más nuevo": pocas reseñas + palabras en reseñas que sugieren novedad
+const NEWISH_KEYWORDS = ['nuevo', 'nueva', 'recién', 'reciente', 'abierto', 'inaugurado', 'estreno', 'new', 'just opened', 'recently opened', 'brand new', 'nouveau'];
+function newishScore(r: RestaurantDBResult): number {
+  const count = r.metadata?.user_rating_count ?? 0;
+  // Penaliza sitios con muchas reseñas (más antiguos)
+  const freshnessScore = 1 / Math.log10(count + 2);
+  const reviews: string[] = ((r as any).google_reviews ?? []).map((rv: any) => (rv.text ?? '').toLowerCase());
+  const allText = reviews.join(' ');
+  const hits = NEWISH_KEYWORDS.filter(kw => allText.includes(kw)).length;
+  const bonus = hits * 0.2;
+  return freshnessScore + bonus;
 }
 
 interface SectionRowProps {
@@ -230,6 +204,7 @@ interface SectionRowProps {
   lng: number;
   trending?: boolean;
   surprise?: boolean;
+  newish?: boolean;
   colors: ReturnType<typeof useTheme>['colors'];
   typography: ReturnType<typeof useTheme>['typography'];
   radii: ReturnType<typeof useTheme>['radii'];
@@ -245,6 +220,7 @@ function SectionRow({
   lng,
   trending,
   surprise,
+  newish,
   colors,
   typography,
   radii,
@@ -270,9 +246,12 @@ function SectionRow({
           ? [...results].sort((a, b) => trendingScore(b) - trendingScore(a)).slice(0, 10)
           : surprise
           ? [...results].sort(() => Math.random() - 0.5).slice(0, 20)
+          : newish
+          // "Lo más nuevo": pocas reseñas + keywords de novedad en reseñas
+          ? [...results].sort((a, b) => newishScore(b) - newishScore(a))
           : results;
         setRestaurants(sorted);
-      } catch {
+      } catch (e) {
         setRestaurants([]);
       } finally {
         setLoading(false);
@@ -379,6 +358,8 @@ export default function ForYouTab() {
   const sectionsRef = useRef<SectionConfig[]>(getRandomSections());
   const [weatherSection, setWeatherSection] = useState<SectionConfig | null>(null);
   const handleRestaurantPress = useCallback((restaurant: RestaurantDBResult) => {
+    const photoUrl = restaurant.metadata?.photo_url;
+    const fullPhotoUrl = photoUrl?.startsWith('/') ? `${RESTAURANT_DB_URL}${photoUrl}` : photoUrl;
     router.push({
       pathname: '/(modals)/place-details',
       params: {
@@ -391,7 +372,12 @@ export default function ForYouTab() {
           lat: restaurant.lat,
           lng: restaurant.lng,
           category_id: 'restaurant',
-          metadata: restaurant.metadata,
+          metadata: {
+            ...restaurant.metadata,
+            photo_url: fullPhotoUrl,
+            google_reviews: (restaurant as any).google_reviews ?? [],
+            user_rating_count: restaurant.metadata?.user_rating_count,
+          },
         }),
       },
     });
@@ -626,7 +612,7 @@ export default function ForYouTab() {
           <SectionRow
             key="tribe"
             title="Tu tribu recomienda"
-            emoji="🫂"
+            emoji="👥"
             query={buildTribeQuery()}
             lat={location.lat}
             lng={location.lng}
@@ -676,6 +662,8 @@ export default function ForYouTab() {
               query={section.query}
               lat={location.lat}
               lng={location.lng}
+              trending={section.trending}
+              newish={(section as any).newish}
               colors={colors}
               typography={typography}
               radii={radii}

@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+﻿import { useTranslation } from "react-i18next";
 import { Ionicons } from '../../components/SafeIonicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -44,7 +44,7 @@ const DEFAULT_STYLE = { color: '#9E9E9E', icon: '📍', label: 'Lugar' };
 
 export default function PlaceDetailsModal() {
   const { t } = useTranslation();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, prefill } = useLocalSearchParams<{ id: string; prefill?: string }>();
   const { colors, typography, shadows, radii } = useTheme();
   const router = useRouter();
   const { user } = useAuth();
@@ -132,12 +132,12 @@ export default function PlaceDetailsModal() {
       setLoadingExtra(true);
       try {
         let currentItem = nearbyItems.find(i => i.item_id === id);
+        if (!currentItem && prefill) {
+          try { const p = JSON.parse(prefill as string); setParsedPlaceData(p); currentItem = p; } catch {}
+        }
         if (!currentItem) {
           const baseData = await getPlaceData(id);
-          if (baseData) {
-            setParsedPlaceData(baseData);
-            currentItem = baseData;
-          }
+          if (baseData) { setParsedPlaceData(baseData); currentItem = baseData; }
         }
         
         // Now fetch enrichment with full metadata context
