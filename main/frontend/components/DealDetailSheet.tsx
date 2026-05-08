@@ -19,8 +19,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { router } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LiveDeal } from '../hooks/useLiveDeals';
+import { useAuth } from '../hooks/useAuth';
 import { BASE_URL } from '../services/api';
 import { useTheme } from '../utils/theme';
 
@@ -36,10 +38,13 @@ type SheetView = 'deal' | 'reserve' | 'confirmed';
 
 export default function DealDetailSheet({ deal, onClose }: Props) {
   const { colors, typography, shadows } = useTheme();
+  const { profile, getToken } = useAuth();
   const [view, setView] = useState<SheetView>('deal');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const isBusinessAccount = profile?.role === 'business';
+  const [loginPromptOpen, setLoginPromptOpen] = useState(false);
 
   const discount =
     deal.original_price && deal.original_price > deal.price
@@ -56,15 +61,27 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
   }, [deal.expires_at]);
 
   const handleReserve = useCallback(async () => {
+    if (!profile) {
+      setLoginPromptOpen(true);
+      return;
+    }
+    if (isBusinessAccount) {
+      Alert.alert('No disponible', 'Las cuentas de restaurante no pueden reservar ofertas.');
+      return;
+    }
     if (!customerName.trim() || !customerPhone.trim()) {
       Alert.alert('Campos requeridos', 'Por favor, introduce tu nombre y teléfono.');
       return;
     }
     setSubmitting(true);
     try {
+      const token = await getToken();
       const res = await fetch(`${BASE_URL}/deals/${deal.id}/reserve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token ?? 'local-token'}`,
+        },
         body: JSON.stringify({
           customer_name: customerName.trim(),
           customer_phone: customerPhone.trim(),
@@ -72,7 +89,11 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
       });
       const data = await res.json();
       if (res.status === 409) {
-        Alert.alert('Ya reservada', 'Esta oferta ya ha sido reservada por otro usuario.');
+        Alert.alert('Reserva consumida', data?.detail || 'Esta reserva ya ha sido consumida por otro usuario.');
+        return;
+      }
+      if (res.status === 401) {
+        setLoginPromptOpen(true);
         return;
       }
       if (!res.ok) throw new Error(data.detail || 'No se pudo realizar la reserva');
@@ -82,7 +103,7 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
     } finally {
       setSubmitting(false);
     }
-  }, [deal.id, customerName, customerPhone]);
+  }, [deal.id, customerName, customerPhone, getToken, isBusinessAccount]);
 
   const styles = useMemo(
     () =>
@@ -222,11 +243,19 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
           alignItems: 'center',
           justifyContent: 'center',
         },
+        ctaButtonDisabled: {
+          backgroundColor: 'rgba(255,255,255,0.12)',
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.2)',
+        },
         ctaText: {
           color: '#fff',
           fontSize: 16,
           fontWeight: '800',
           fontFamily: typography.heading,
+        },
+        ctaTextDisabled: {
+          color: 'rgba(255,255,255,0.65)',
         },
         // Reservation form
         label: {
@@ -335,8 +364,24 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
       </View>
 
       {/* CTA */}
-      <TouchableOpacity style={styles.ctaButton} onPress={() => setView('reserve')} activeOpacity={0.85}>
-        <Text style={styles.ctaText}>Me interesa esta oferta →</Text>
+      <TouchableOpacity
+        style={[styles.ctaButton, isBusinessAccount ? styles.ctaButtonDisabled : null]}
+        onPress={() => {
+          if (!profile) {
+            setLoginPromptOpen(true);
+            return;
+          }
+          if (isBusinessAccount) {
+            Alert.alert('No disponible', 'Las cuentas de restaurante no pueden reservar ofertas.');
+            return;
+          }
+          setView('reserve');
+        }}
+        activeOpacity={0.85}
+      >
+        <Text style={[styles.ctaText, isBusinessAccount ? styles.ctaTextDisabled : null]}>
+          {isBusinessAccount ? 'No disponible para cuentas restaurante' : 'Me interesa esta oferta →'}
+        </Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -410,6 +455,49 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
     </View>
   );
 
+  const renderLoginPrompt = () => (
+    <View
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.45)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+        zIndex: 100,
+      }}
+    >
+      <View style={{ width: '100%', maxWidth: 360, borderRadius: 16, backgroundColor: '#181A23', padding: 18, gap: 10 }}>
+        <Text style={{ color: '#fff', fontSize: 18, fontWeight: '800', fontFamily: typography.heading }}>
+          Inicia sesión para reservar
+        </Text>
+        <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, lineHeight: 20, fontFamily: typography.body }}>
+          Necesitas una cuenta activa para confirmar una reserva.
+        </Text>
+        <TouchableOpacity
+          style={[styles.ctaButton, { marginTop: 8 }]}
+          onPress={() => {
+            setLoginPromptOpen(false);
+            router.push('/(modals)/login');
+          }}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.ctaText}>Ir a iniciar sesión</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.ctaButton, styles.ctaButtonDisabled]}
+          onPress={() => setLoginPromptOpen(false)}
+          activeOpacity={0.85}
+        >
+          <Text style={[styles.ctaText, styles.ctaTextDisabled]}>Cancelar</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   return (
     <View style={styles.overlay}>
       <BlurView intensity={80} tint="dark" style={styles.blur}>
@@ -420,6 +508,7 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
         {view === 'deal' && renderDealView()}
         {view === 'reserve' && renderReserveView()}
         {view === 'confirmed' && renderConfirmedView()}
+        {loginPromptOpen && renderLoginPrompt()}
       </BlurView>
     </View>
   );

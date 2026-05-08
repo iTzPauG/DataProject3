@@ -15,6 +15,7 @@ export interface UserProfile {
   restaurant_lat: number | null;
   restaurant_lng: number | null;
   restaurant_cuisines: string[] | null;
+  restaurant_photo_url: string | null;
 }
 
 interface AuthState {

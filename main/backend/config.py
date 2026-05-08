@@ -45,6 +45,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 # Firebase
 FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH", "")
+FIREBASE_STORAGE_BUCKET = os.getenv("FIREBASE_STORAGE_BUCKET", "")
 
 # External APIs
 HERE_API_KEY = os.getenv("HERE_API_KEY", "mock")

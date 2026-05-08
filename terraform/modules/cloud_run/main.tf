@@ -49,6 +49,10 @@ resource "google_cloud_run_v2_service" "api" {
         value = "global"
       }
       env {
+        name  = "FIREBASE_STORAGE_BUCKET"
+        value = var.firebase_storage_bucket
+      }
+      env {
         name  = "GOOGLE_GENAI_USE_VERTEXAI"
         value = "true"
       }

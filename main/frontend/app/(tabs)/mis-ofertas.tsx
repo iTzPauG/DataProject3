@@ -51,6 +51,26 @@ interface DealWithReservation {
 }
 
 type ReasonAction = 'withdraw' | 'no_show';
+type DealFilter = 'all' | 'active' | 'reserved' | 'cancelled' | 'no_show' | 'finalized';
+
+function formatDealDate(value?: string | null): string {
+  if (!value) return 'Sin fecha';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Sin fecha';
+  return new Intl.DateTimeFormat('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function formatDealWindow(start?: string | null, end?: string | null): string {
+  const from = formatDealDate(start);
+  const to = formatDealDate(end);
+  return `${from} -> ${to}`;
+}
 
 function normalizeDeal(raw: any): DealWithReservation {
   return {
@@ -90,6 +110,8 @@ export default function MisOfertasTab() {
   const [reasonDealId, setReasonDealId] = useState<string | null>(null);
   const [reasonText, setReasonText] = useState('');
   const [reasonSubmitting, setReasonSubmitting] = useState(false);
+  const [reasonError, setReasonError] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<DealFilter>('all');
   const previousReservationsRef = useRef<Record<string, string | null>>({});
   const reservationsPrimedRef = useRef(false);
   // Toast notification
@@ -189,6 +211,7 @@ export default function MisOfertasTab() {
     setReasonDealId(dealId);
     setReasonAction(action);
     setReasonText('');
+    setReasonError(null);
     setReasonModalOpen(true);
   }, []);
 
@@ -198,16 +221,18 @@ export default function MisOfertasTab() {
     setReasonAction(null);
     setReasonDealId(null);
     setReasonText('');
+    setReasonError(null);
   }, [reasonSubmitting]);
 
   const submitReasonAction = useCallback(async () => {
     if (!reasonAction || !reasonDealId) return;
     const reason = reasonText.trim();
     if (!reason) {
-      Alert.alert('Motivo requerido', 'Escribe un comentario antes de continuar.');
+      setReasonError('El comentario es necesario para cancelar o presentar una reclamacion de no presentado.');
       return;
     }
 
+    setReasonError(null);
     setReasonSubmitting(true);
     try {
       const token = await getToken();
@@ -248,6 +273,39 @@ export default function MisOfertasTab() {
     }
   }, [getToken, reasonAction, reasonDealId, reasonText]);
 
+  const filteredDeals = useMemo(() => {
+    const nowMs = Date.now();
+    const isFinalized = (deal: DealWithReservation) => {
+      if (!deal.expires_at) return false;
+      const expiresMs = Date.parse(deal.expires_at);
+      return Number.isFinite(expiresMs) && expiresMs < nowMs;
+    };
+
+    return deals.filter((deal) => {
+      const cancelled = Boolean(deal.cancelled_at);
+      const notPresented = Boolean(deal.not_presented_at);
+      const reserved = deal.reservation?.status === 'confirmed';
+      const active = Boolean(deal.is_active);
+      const finalized = isFinalized(deal);
+
+      switch (activeFilter) {
+        case 'active':
+          return active && !reserved && !cancelled && !notPresented && !finalized;
+        case 'reserved':
+          return reserved && !cancelled && !notPresented && !finalized;
+        case 'cancelled':
+          return cancelled;
+        case 'no_show':
+          return notPresented;
+        case 'finalized':
+          return finalized && !cancelled && !notPresented;
+        case 'all':
+        default:
+          return true;
+      }
+    });
+  }, [activeFilter, deals]);
+
   const styles = useMemo(
     () =>
       StyleSheet.create({
@@ -285,6 +343,36 @@ export default function MisOfertasTab() {
           fontSize: 10,
           fontWeight: '700',
           color: connected ? '#22C55E' : '#EF4444',
+        },
+        filterRow: {
+          paddingHorizontal: 16,
+          paddingBottom: 8,
+          flexDirection: 'row',
+          gap: 8,
+        },
+        filterScrollContent: {
+          paddingRight: 16,
+          gap: 8,
+        },
+        filterBtn: {
+          height: 34,
+          paddingHorizontal: 12,
+          borderRadius: 999,
+          borderWidth: 1,
+          borderColor: colors.stroke,
+          backgroundColor: colors.surface,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        filterBtnActive: {
+          borderColor: colors.brand,
+          backgroundColor: 'rgba(34,197,94,0.14)',
+        },
+        filterText: {
+          color: colors.ink,
+          fontSize: 12,
+          fontWeight: '600',
+          fontFamily: typography.body,
         },
         empty: {
           flex: 1,
@@ -346,6 +434,12 @@ export default function MisOfertasTab() {
           fontFamily: typography.heading,
         },
         cardMeta: {
+          fontSize: 12,
+          color: colors.inkMuted,
+          fontFamily: typography.body,
+          marginTop: 2,
+        },
+        cardDate: {
           fontSize: 12,
           color: colors.inkMuted,
           fontFamily: typography.body,
@@ -495,6 +589,12 @@ export default function MisOfertasTab() {
           gap: 8,
           marginTop: 4,
         },
+        reasonError: {
+          marginTop: -2,
+          color: '#EF4444',
+          fontSize: 12,
+          fontFamily: typography.body,
+        },
       }),
     [colors, typography, shadows, connected],
   );
@@ -521,25 +621,29 @@ export default function MisOfertasTab() {
     const isCancelled = Boolean(item.cancelled_at);
     const isNotPresented = Boolean(item.not_presented_at);
     const isActive = Boolean(item.is_active);
+    const isFinalized = Boolean(item.expires_at) && (Date.parse(item.expires_at || '') || 0) < Date.now();
     const isExpanded = expandedId === item.id;
 
     return (
       <TouchableOpacity
         style={[
           styles.card,
-          isCancelled || isNotPresented ? styles.cardCancelled : isReserved ? styles.cardReserved : isActive ? styles.cardActive : styles.cardInactive,
+          isCancelled || isNotPresented ? styles.cardCancelled : isReserved ? styles.cardReserved : isActive && !isFinalized ? styles.cardActive : styles.cardInactive,
         ]}
         onPress={() => setExpandedId(isExpanded ? null : item.id)}
         activeOpacity={0.85}
       >
         <View style={styles.cardHeader}>
-          <Text style={styles.cardEmoji}>{isCancelled || isNotPresented ? '❌' : isReserved ? '✅' : isActive ? '🔥' : '⏸️'}</Text>
+          <Text style={styles.cardEmoji}>{isCancelled || isNotPresented ? '❌' : isFinalized ? '🕓' : isReserved ? '✅' : isActive ? '🔥' : '⏸️'}</Text>
           <View style={styles.cardInfo}>
             <Text style={styles.cardTitle}>
               {item.price.toFixed(2)} €{item.original_price ? ` (antes ${item.original_price.toFixed(2)} €)` : ''} · {item.seats} {item.seats === 1 ? 'persona' : 'personas'}
             </Text>
             <Text style={styles.cardMeta} numberOfLines={1}>
               {item.description ?? 'Sin descripción'}
+            </Text>
+            <Text style={styles.cardDate}>
+              Franja: {formatDealWindow(item.available_at, item.expires_at)}
             </Text>
           </View>
           {isReserved && (
@@ -575,8 +679,12 @@ export default function MisOfertasTab() {
               <Text style={styles.noShowStatus}>❌ No presentado</Text>
             )}
 
+            {isFinalized && !isCancelled && !isNotPresented && (
+              <Text style={styles.noShowStatus}>🕓 Oferta finalizada</Text>
+            )}
+
             <View style={styles.actionRow}>
-              {!isReserved && isActive && !isCancelled && (
+              {!isReserved && isActive && !isCancelled && !isFinalized && (
                 <TouchableOpacity
                   style={[styles.actionBtn, styles.withdrawBtn]}
                   onPress={() => openReasonModal(item.id, 'withdraw')}
@@ -585,7 +693,7 @@ export default function MisOfertasTab() {
                   <Text style={styles.withdrawText}>Retirar oferta</Text>
                 </TouchableOpacity>
               )}
-              {isReserved && !isNoShow && !isCancelled && !isNotPresented && (
+              {isReserved && !isNoShow && !isCancelled && !isNotPresented && !isFinalized && (
                 <TouchableOpacity
                   style={[styles.actionBtn, styles.noShowBtn]}
                   onPress={() => openReasonModal(item.id, 'no_show')}
@@ -612,24 +720,46 @@ export default function MisOfertasTab() {
           </View>
         </View>
 
-        {loading && deals.length === 0 ? (
+        <View style={styles.filterRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScrollContent}>
+            {[
+              { key: 'all', label: 'Todas' },
+              { key: 'active', label: 'Activas' },
+              { key: 'reserved', label: 'Reservadas' },
+              { key: 'cancelled', label: 'Canceladas' },
+              { key: 'no_show', label: 'No presentadas' },
+                { key: 'finalized', label: 'Finalizadas' },
+            ].map((filter) => (
+              <TouchableOpacity
+                key={filter.key}
+                style={[styles.filterBtn, activeFilter === filter.key ? styles.filterBtnActive : null]}
+                onPress={() => setActiveFilter(filter.key as DealFilter)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.filterText}>{filter.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {loading && filteredDeals.length === 0 ? (
           <View style={styles.empty}>
             <ActivityIndicator color={colors.brand} />
           </View>
-        ) : deals.length === 0 ? (
+        ) : filteredDeals.length === 0 ? (
           <ScrollView
             contentContainerStyle={styles.empty}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void fetchDeals(); }} />}
           >
             <Text style={styles.emptyEmoji}>📋</Text>
-            <Text style={styles.emptyTitle}>Sin ofertas publicadas</Text>
+            <Text style={styles.emptyTitle}>No hay ofertas en este filtro</Text>
             <Text style={styles.emptySubtitle}>
               Ve a la pestaña Publicar para crear tu primera oferta de última hora.
             </Text>
           </ScrollView>
         ) : (
           <FlatList
-            data={deals}
+            data={filteredDeals}
             keyExtractor={(item) => item.id}
             renderItem={renderDeal}
             contentContainerStyle={{ paddingTop: 8, paddingBottom: 40 }}
@@ -672,7 +802,10 @@ export default function MisOfertasTab() {
               </Text>
               <TextInput
                 value={reasonText}
-                onChangeText={setReasonText}
+                onChangeText={(value) => {
+                  setReasonText(value);
+                  if (reasonError) setReasonError(null);
+                }}
                 style={styles.reasonInput}
                 placeholder="Escribe aquí el motivo..."
                 placeholderTextColor={colors.inkMuted}
@@ -681,6 +814,9 @@ export default function MisOfertasTab() {
                 textAlignVertical="top"
                 editable={!reasonSubmitting}
               />
+              {reasonError ? (
+                <Text style={styles.reasonError}>{reasonError}</Text>
+              ) : null}
               <View style={styles.modalActions}>
                 <TouchableOpacity
                   style={[styles.actionBtn, styles.noShowBtn]}

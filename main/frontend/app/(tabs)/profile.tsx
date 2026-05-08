@@ -2,15 +2,18 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  ActivityIndicator,
   Alert,
   Dimensions,
   Image,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
@@ -18,6 +21,7 @@ import AnimatedTabScene from '../../components/AnimatedTabScene';
 import Icon, { IconName } from '../../components/Icon';
 import { monogramFor } from '../../constants/design';
 import { useAuth } from '../../hooks/useAuth';
+import { BASE_URL } from '../../services/api';
 import { useTheme } from '../../utils/theme';
 
 const { width, height } = Dimensions.get('window');
@@ -34,7 +38,8 @@ export default function ProfileTab() {
   const { colors, typography } = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, getToken, refreshProfile } = useAuth();
+  const [uploadingRestaurantPhoto, setUploadingRestaurantPhoto] = React.useState(false);
 
   const profileDesc = useMemo(() => {
     const variations = t("profile_variations", { returnObjects: true });
@@ -313,6 +318,53 @@ export default function ProfileTab() {
           fontFamily: typography.heading,
           fontWeight: '500',
         },
+        businessCard: {
+          marginHorizontal: 24,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: colors.stroke,
+          paddingTop: 18,
+          gap: 12,
+        },
+        businessTitle: {
+          fontSize: 13,
+          letterSpacing: 1.8,
+          textTransform: 'uppercase',
+          color: colors.inkFaint,
+          fontFamily: typography.body,
+          fontWeight: '600',
+        },
+        businessName: {
+          fontSize: 18,
+          color: colors.ink,
+          fontFamily: typography.heading,
+          fontWeight: '500',
+        },
+        restaurantImage: {
+          width: '100%',
+          height: 180,
+          borderRadius: 14,
+          borderWidth: 1,
+          borderColor: colors.stroke,
+          backgroundColor: colors.bg,
+        },
+        photoUploadBtn: {
+          alignSelf: 'flex-start',
+          paddingHorizontal: 14,
+          paddingVertical: 9,
+          borderRadius: 999,
+          borderWidth: 1,
+          borderColor: colors.strokeStrong,
+          backgroundColor: colors.surface,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
+        },
+        photoUploadText: {
+          fontSize: 13,
+          color: colors.ink,
+          fontFamily: typography.body,
+          fontWeight: '600',
+        },
 
         // ── footer ─────────────────────────────────────────────
         footer: {
@@ -366,6 +418,58 @@ export default function ProfileTab() {
       { text: t('common.cancel'), style: 'cancel' },
       { text: t('common.exit'), style: 'destructive', onPress: signOut },
     ]);
+  }
+
+  async function handleRestaurantPhotoUpload() {
+    if (!user || !profile || profile.role !== 'business') return;
+
+    try {
+      const pickerResult = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.85,
+        allowsEditing: true,
+      });
+
+      if (pickerResult.canceled || !pickerResult.assets?.[0]) return;
+      const asset = pickerResult.assets[0];
+
+      setUploadingRestaurantPhoto(true);
+      const form = new FormData();
+      const fileName = asset.fileName || 'restaurant-photo.jpg';
+      const mimeType = asset.mimeType || 'image/jpeg';
+
+      if (Platform.OS === 'web') {
+        const blob = await fetch(asset.uri).then((res) => res.blob());
+        form.append('file', blob, fileName);
+      } else {
+        form.append('file', {
+          uri: asset.uri,
+          name: fileName,
+          type: mimeType,
+        } as any);
+      }
+
+      const token = await getToken();
+      const res = await fetch(`${BASE_URL}/auth/restaurant/photo`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token ?? 'local-token'}`,
+        },
+        body: form,
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.detail || 'No se pudo subir la foto del restaurante');
+      }
+
+      await refreshProfile();
+      Alert.alert('Foto actualizada', 'La imagen del restaurante se ha guardado correctamente.');
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'No se pudo actualizar la foto del restaurante');
+    } finally {
+      setUploadingRestaurantPhoto(false);
+    }
   }
 
   const displayName = profile?.display_name || user?.email?.split('@')[0] || t('profile.guest');
@@ -443,6 +547,27 @@ export default function ProfileTab() {
                     </Text>
                   </View>
                 </View>
+
+                {profile?.role === 'business' ? (
+                  <View style={styles.businessCard}>
+                    <Text style={styles.businessTitle}>Foto del restaurante</Text>
+                    <Text style={styles.businessName}>{profile.restaurant_name || 'Restaurante'}</Text>
+                    {profile.restaurant_photo_url ? (
+                      <Image source={{ uri: profile.restaurant_photo_url }} style={styles.restaurantImage} />
+                    ) : null}
+                    <TouchableOpacity
+                      style={styles.photoUploadBtn}
+                      onPress={handleRestaurantPhotoUpload}
+                      activeOpacity={0.8}
+                      disabled={uploadingRestaurantPhoto}
+                    >
+                      {uploadingRestaurantPhoto ? <ActivityIndicator size="small" color={colors.ink} /> : null}
+                      <Text style={styles.photoUploadText}>
+                        {uploadingRestaurantPhoto ? 'Subiendo foto...' : 'Subir o cambiar foto'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
               </>
             ) : (
               <View style={styles.guest}>

@@ -95,7 +95,8 @@ class DealCreate(BaseModel):
     seats: int
     available_at: datetime
     description: Optional[str] = None
-    expires_in_minutes: int = 120
+    expires_at: Optional[datetime] = None
+    expires_in_minutes: Optional[int] = 120
 
 
 class DealUpdate(BaseModel):
@@ -156,7 +157,7 @@ async def list_deals(
                 res = await _fetch_one(
                     db,
                     "SELECT * FROM reservations WHERE deal_id = ? AND status = 'confirmed'",
-                    (deal["id"],),
+                    (str(deal["id"]),),
                 )
                 normalized = _serialize_deal(deal)
                 normalized["reservation"] = res
@@ -206,7 +207,15 @@ async def create_deal(body: DealCreate, request: Request):
         if profile.get("restaurant_lat") is None or profile.get("restaurant_lng") is None:
             raise HTTPException(status_code=400, detail="Perfil de restaurante sin coordenadas")
 
-        expires_at = datetime.now(timezone.utc) + timedelta(minutes=body.expires_in_minutes)
+        if body.expires_at is not None:
+            expires_at = body.expires_at
+        else:
+            expires_minutes = body.expires_in_minutes or 120
+            expires_at = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
+
+        if expires_at <= body.available_at:
+            raise HTTPException(status_code=400, detail="La hora limite debe ser posterior a la disponibilidad")
+
         available_at_value = body.available_at
         expires_at_value = expires_at
         restaurant_cuisines = _parse_cuisines(profile.get("restaurant_cuisines"))
@@ -327,7 +336,7 @@ async def delete_deal(deal_id: str, request: Request, body: DealDeleteRequest | 
             raise HTTPException(status_code=409, detail="No puedes retirar una oferta ya reservada")
         await db.execute(
             "UPDATE deals SET is_active = FALSE, cancellation_reason = ?, cancelled_at = ? WHERE id = ?",
-            (reason, datetime.now(timezone.utc), deal_id),
+            (reason, datetime.now(timezone.utc).isoformat(), deal_id),
         )
         await db.commit()
         deal = await _fetch_one(db, "SELECT * FROM deals WHERE id = ?", (deal_id,))
@@ -347,25 +356,42 @@ async def create_reservation(deal_id: str, body: ReservationCreate, request: Req
     """Reserve a deal. Returns 409 if already taken."""
     async with get_db() as db:
         uid = get_optional_user(request)
+        if not uid:
+            raise HTTPException(status_code=401, detail="Debes iniciar sesión para reservar")
+        if uid:
+            profile = await _fetch_one(db, "SELECT role FROM profiles WHERE firebase_uid = ?", (uid,))
+            if profile and profile.get("role") == "business":
+                raise HTTPException(status_code=403, detail="Las cuentas de restaurante no pueden reservar ofertas")
         deal = await _fetch_one(db, "SELECT * FROM deals WHERE id = ?", (deal_id,))
         if not deal:
             raise HTTPException(status_code=404, detail="Oferta no encontrada")
-        if not deal.get("is_active"):
-            raise HTTPException(status_code=400, detail="Esta oferta ya no está disponible")
         existing = await _fetch_one(
             db,
             "SELECT id FROM reservations WHERE deal_id = ? AND status = 'confirmed'",
             (deal_id,),
         )
         if existing:
-            raise HTTPException(status_code=409, detail="Esta oferta ya ha sido reservada")
+            raise HTTPException(status_code=409, detail="Esta reserva ya ha sido consumida por otro usuario")
+        if not deal.get("is_active"):
+            raise HTTPException(status_code=409, detail="Esta reserva ya ha sido consumida por otro usuario")
 
         res_id = str(uuid.uuid4())
-        await db.execute(
-            "INSERT INTO reservations (id, deal_id, customer_uid, customer_name, customer_phone) VALUES (?, ?, ?, ?, ?)",
-            (res_id, deal_id, uid, body.customer_name, body.customer_phone),
-        )
-        await db.commit()
+        try:
+            await db.execute(
+                "INSERT INTO reservations (id, deal_id, customer_uid, customer_name, customer_phone) VALUES (?, ?, ?, ?, ?)",
+                (res_id, deal_id, uid, body.customer_name, body.customer_phone),
+            )
+            await db.execute(
+                "UPDATE deals SET is_active = FALSE WHERE id = ?",
+                (deal_id,),
+            )
+            await db.commit()
+        except Exception as exc:
+            await db.rollback()
+            message = str(exc).lower()
+            if "unique" in message or "constraint" in message:
+                raise HTTPException(status_code=409, detail="Esta reserva ya ha sido consumida por otro usuario")
+            raise
         reservation = await _fetch_one(db, "SELECT * FROM reservations WHERE id = ?", (res_id,))
 
     if reservation:
@@ -409,7 +435,7 @@ async def update_reservation_status(deal_id: str, body: ReservationStatusUpdate,
         deal = await _fetch_one(db, "SELECT owner_uid FROM deals WHERE id = ?", (deal_id,))
         if not deal or deal["owner_uid"] != profile["firebase_uid"]:
             raise HTTPException(status_code=403, detail="No autorizado")
-        now_ts = datetime.now(timezone.utc)
+        now_ts = datetime.now(timezone.utc).isoformat()
         await db.execute(
             "UPDATE reservations SET status = ?, status_reason = ?, status_updated_at = ? WHERE deal_id = ? AND status = 'confirmed'",
             (body.status, reason, now_ts, deal_id),

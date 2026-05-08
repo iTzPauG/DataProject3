@@ -153,6 +153,9 @@ export function useLiveDeals(params: {
               owner_uid: String(payload.owner_uid),
               reservation: payload.reservation,
             });
+          } else if (!ownerUidRef.current) {
+            const dealId = String(payload.deal_id);
+            setDeals((prev) => prev.filter((d) => d.id !== dealId));
           }
         }
       } catch {

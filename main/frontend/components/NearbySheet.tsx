@@ -3,15 +3,12 @@ import {
   Animated,
   Dimensions,
   FlatList,
-  PanResponder,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { useTranslation } from "react-i18next";
 import { BlurView } from 'expo-blur';
 import { useDeviceType } from '../hooks/useDeviceType';
 import { MapItem } from '../types/map';
@@ -21,8 +18,8 @@ import CategoryMonogram from './CategoryMonogram';
 import Icon from './Icon';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-const COLLAPSED_HEIGHT = 100;
-const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.5;
+const COLLAPSED_HEIGHT = 52;
+const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.82;
 
 interface Props {
   items: MapItem[];
@@ -35,15 +32,14 @@ interface Props {
 function NearbyItem({
   item,
   selected,
-  onPress,
-  onNavigate,
+  onShowInMap,
+  onOpenDetails,
 }: {
   item: MapItem;
   selected: boolean;
-  onPress: () => void;
-  onNavigate: () => void;
+  onShowInMap: () => void;
+  onOpenDetails: () => void;
 }) {
-  const { t } = useTranslation();
   const { colors, typography, space } = useTheme();
   const rating = item.metadata?.rating as number | undefined;
   const distance = item.distance_m > 0 ? formatDistance(item.distance_m) : '';
@@ -55,9 +51,9 @@ function NearbyItem({
       paddingVertical: space.md,
       paddingHorizontal: space.md,
       marginBottom: 1,
-      backgroundColor: selected ? 'rgba(255, 255, 255, 0.05)' : 'transparent',
+      backgroundColor: selected ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
       borderBottomWidth: 1,
-      borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+      borderBottomColor: 'rgba(255, 255, 255, 0.06)',
     },
     itemIconBox: {
       width: 48,
@@ -93,72 +89,79 @@ function NearbyItem({
       color: colors.inkMuted,
       fontWeight: '500',
     },
-    navBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: colors.ink,
+    actionsCol: {
+      gap: 8,
+      marginLeft: 8,
+    },
+    mapBtn: {
+      height: 30,
+      paddingHorizontal: 10,
+      borderRadius: 999,
+      backgroundColor: '#22C55E',
       alignItems: 'center',
       justifyContent: 'center',
-      marginLeft: 8,
-    }
+    },
+    mapBtnText: {
+      color: '#fff',
+      fontSize: 11,
+      fontWeight: '700',
+      fontFamily: typography.body,
+    },
+    detailBtn: {
+      height: 30,
+      paddingHorizontal: 10,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.25)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    detailBtnText: {
+      color: colors.ink,
+      fontSize: 11,
+      fontWeight: '600',
+      fontFamily: typography.body,
+    },
   }), [colors, typography, selected, space]);
 
   return (
-    <TouchableOpacity
-      style={styles.itemRow}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
+    <View style={styles.itemRow}>
       <View style={styles.itemIconBox}>
-        <CategoryMonogram 
-          categoryId={item.category_id} 
-          label={item.title} 
-          size={44} 
+        <CategoryMonogram
+          categoryId={item.category_id}
+          label={item.title}
+          size={44}
           variant={selected ? 'filled' : 'ring'}
         />
       </View>
+
       <View style={styles.itemContent}>
         <Text style={styles.itemTitle} numberOfLines={1}>
           {item.title}
         </Text>
         <View style={styles.itemMeta}>
-          {rating != null && (
-            <Text style={styles.itemRating}>★ {rating.toFixed(1)}</Text>
-          )}
-          {distance ? (
-            <Text style={styles.itemDistance}>
-              {rating != null ? ' · ' : ''}{distance}
-            </Text>
-          ) : null}
+          {rating != null ? <Text style={styles.itemRating}>★ {rating.toFixed(1)}</Text> : null}
+          {distance ? <Text style={styles.itemDistance}>{rating != null ? ' · ' : ''}{distance}</Text> : null}
         </View>
       </View>
-      {selected && (
-        <TouchableOpacity
-          onPress={onNavigate}
-          style={styles.navBtn}
-          activeOpacity={0.8}
-        >
-          <Icon name="arrow-right" size={16} color={colors.shell} strokeWidth={2.5} />
+
+      <View style={styles.actionsCol}>
+        <TouchableOpacity onPress={onShowInMap} style={styles.mapBtn} activeOpacity={0.85}>
+          <Text style={styles.mapBtnText}>Mostrar en mapa</Text>
         </TouchableOpacity>
-      )}
-    </TouchableOpacity>
+        <TouchableOpacity onPress={onOpenDetails} style={styles.detailBtn} activeOpacity={0.85}>
+          <Text style={styles.detailBtnText}>Ver ficha</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
 export default function NearbySheet({ items, selectedId, onSelectItem, loading, hasSearched }: Props) {
-  const { t } = useTranslation();
-  const { colors, radii, shadows, typography, space } = useTheme();
+  const { colors, typography, space } = useTheme();
   const { isDesktop } = useDeviceType();
   const [expanded, setExpanded] = useState(false);
   const animHeight = useRef(new Animated.Value(COLLAPSED_HEIGHT)).current;
-
-  React.useEffect(() => {
-    if (selectedId) {
-      setExpanded(true);
-      Animated.spring(animHeight, { toValue: EXPANDED_HEIGHT, useNativeDriver: false, friction: 10 }).start();
-    }
-  }, [selectedId]);
 
   const styles = useMemo(() => StyleSheet.create({
     container: {
@@ -166,94 +169,126 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
       bottom: 0,
       left: 0,
       right: 0,
-      borderTopLeftRadius: 32,
-      borderTopRightRadius: 32,
+      borderTopLeftRadius: 26,
+      borderTopRightRadius: 26,
       overflow: 'hidden',
     },
     blurView: {
       flex: 1,
-      backgroundColor: 'rgba(24, 26, 35, 0.85)',
+      backgroundColor: 'rgba(24, 26, 35, 0.88)',
       borderTopWidth: 1,
-      borderTopColor: 'rgba(255, 255, 255, 0.05)',
+      borderTopColor: 'rgba(255, 255, 255, 0.06)',
     },
-    header: {
+    collapsedLauncher: {
+      height: COLLAPSED_HEIGHT,
       alignItems: 'center',
-      paddingTop: space.sm,
-      paddingBottom: space.md,
-      paddingHorizontal: space.lg,
+      justifyContent: 'center',
+      paddingHorizontal: 20,
     },
-    handle: {
-      width: 40,
-      height: 4,
-      backgroundColor: colors.strokeStrong,
-      borderRadius: 2,
-      marginBottom: space.sm,
+    launcherPill: {
+      height: 34,
+      borderRadius: 999,
+      paddingHorizontal: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(255,255,255,0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.18)',
+      flexDirection: 'row',
+      gap: 8,
     },
-    headerText: {
-      fontSize: 14,
-      fontWeight: '700',
-      fontFamily: typography.heading,
+    launcherText: {
       color: colors.ink,
-      letterSpacing: -0.1,
+      fontSize: 12,
+      fontWeight: '700',
+      fontFamily: typography.body,
+    },
+    topRow: {
+      paddingTop: space.md,
+      paddingHorizontal: space.md,
+      paddingBottom: space.sm,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    topTitle: {
+      color: colors.ink,
+      fontSize: 16,
+      fontWeight: '800',
+      fontFamily: typography.heading,
+    },
+    mapBackBtn: {
+      height: 34,
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.22)',
+      backgroundColor: 'rgba(255,255,255,0.08)',
+      flexDirection: 'row',
+      gap: 6,
+    },
+    mapBackText: {
+      color: colors.ink,
+      fontSize: 12,
+      fontWeight: '700',
+      fontFamily: typography.body,
     },
     list: {
-      paddingBottom: 40,
+      paddingBottom: 36,
     },
-  }), [colors, radii, shadows, typography, space]);
+    emptyState: {
+      paddingHorizontal: 20,
+      paddingVertical: 28,
+      color: colors.inkMuted,
+      fontSize: 14,
+      fontFamily: typography.body,
+    },
+  }), [colors, typography, space]);
 
-  const toggle = useCallback(() => {
-    const toExpanded = !expanded;
-    setExpanded(toExpanded);
+  const expand = useCallback(() => {
+    setExpanded(true);
     Animated.spring(animHeight, {
-      toValue: toExpanded ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT,
+      toValue: EXPANDED_HEIGHT,
       useNativeDriver: false,
       friction: 10,
+      tension: 80,
     }).start();
-  }, [expanded, animHeight]);
+  }, [animHeight]);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 5,
-      onPanResponderRelease: (_, g) => {
-        if (g.dy < -30) {
-          setExpanded(true);
-          Animated.spring(animHeight, {
-            toValue: EXPANDED_HEIGHT,
-            useNativeDriver: false,
-            friction: 10,
-          }).start();
-        } else if (g.dy > 30) {
-          setExpanded(false);
-          Animated.spring(animHeight, {
-            toValue: COLLAPSED_HEIGHT,
-            useNativeDriver: false,
-            friction: 10,
-          }).start();
-        }
-      },
-    }),
-  ).current;
+  const collapse = useCallback(() => {
+    Animated.spring(animHeight, {
+      toValue: COLLAPSED_HEIGHT,
+      useNativeDriver: false,
+      friction: 10,
+      tension: 80,
+    }).start(() => setExpanded(false));
+  }, [animHeight]);
 
   const renderItem = useCallback(
     ({ item }: { item: MapItem }) => (
       <NearbyItem
         item={item}
         selected={selectedId === item.item_id}
-        onPress={() => onSelectItem(item.item_id)}
-        onNavigate={() => {
+        onShowInMap={() => {
+          onSelectItem(item.item_id);
+          collapse();
+        }}
+        onOpenDetails={() => {
           const pathname = item.item_type === 'event' ? '/(modals)/event-details' : '/(modals)/place-details';
           router.push({ pathname: pathname as any, params: { id: item.item_id, type: item.item_type } });
         }}
       />
     ),
-    [selectedId, onSelectItem],
+    [selectedId, onSelectItem, collapse],
   );
 
   const desktopWidth = 600;
   const desktopLeft = 40;
 
-  if (!selectedId && !hasSearched && (!items || items.length === 0) && !loading) return null;
+  if ((!items || items.length === 0) && !loading) return null;
+  if (!expanded && !selectedId) return null;
 
   return (
     <Animated.View
@@ -265,36 +300,44 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
           left: desktopLeft,
           bottom: 24,
           borderRadius: 24,
-          maxHeight: SCREEN_HEIGHT - 240,
+          maxHeight: SCREEN_HEIGHT - 120,
         },
       ]}
     >
       <BlurView intensity={80} tint="dark" style={styles.blurView}>
-        <View {...panResponder.panHandlers}>
-          <TouchableOpacity 
-            style={styles.header} 
-            onPress={toggle} 
-            activeOpacity={0.9}
-          >
-            <View style={styles.handle} />
-            <Text style={styles.headerText}>
-              {loading
-                ? t('common.loading')
-                : (items && items.length > 0)
-                  ? t('explore.showingPlaces', { count: items.length })
-                  : (hasSearched ? t('flow.noResults') : '')}
-            </Text>
+        {!expanded ? (
+          <TouchableOpacity style={styles.collapsedLauncher} onPress={expand} activeOpacity={0.9}>
+            <View style={styles.launcherPill}>
+              <Icon name="tag" size={14} color={colors.ink} strokeWidth={2} />
+              <Text style={styles.launcherText}>Mostrar en modo lista</Text>
+            </View>
           </TouchableOpacity>
-        </View>
+        ) : (
+          <>
+            <View style={styles.topRow}>
+              <Text style={styles.topTitle}>Modo lista</Text>
+              <TouchableOpacity style={styles.mapBackBtn} onPress={collapse} activeOpacity={0.85}>
+                <Icon name="map" size={14} color={colors.ink} strokeWidth={2} />
+                <Text style={styles.mapBackText}>Volver al mapa</Text>
+              </TouchableOpacity>
+            </View>
 
-        <FlatList
-          data={items}
-          keyExtractor={(item) => item.item_id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          scrollEnabled={expanded}
-        />
+            {loading ? (
+              <Text style={styles.emptyState}>Cargando lugares...</Text>
+            ) : (hasSearched && items.length === 0) ? (
+              <Text style={styles.emptyState}>No hay resultados para mostrar.</Text>
+            ) : (
+              <FlatList
+                data={items}
+                keyExtractor={(item) => item.item_id}
+                renderItem={renderItem}
+                contentContainerStyle={styles.list}
+                showsVerticalScrollIndicator={false}
+                scrollEnabled
+              />
+            )}
+          </>
+        )}
       </BlurView>
     </Animated.View>
   );

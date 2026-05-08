@@ -283,6 +283,7 @@ POSTGRES_SCHEMA = [
         firebase_uid TEXT UNIQUE,
         display_name TEXT,
         avatar_url TEXT,
+        restaurant_photo_url TEXT,
         anon_fingerprint TEXT UNIQUE,
         reputation_score INTEGER DEFAULT 0,
         reports_count INTEGER DEFAULT 0,
@@ -396,6 +397,9 @@ POSTGRES_SCHEMA = [
     """,
     """
     ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_cuisines TEXT DEFAULT '[]'
+    """,
+    """
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_photo_url TEXT
     """,
     """
     CREATE TABLE IF NOT EXISTS deals (
@@ -773,6 +777,7 @@ async def _init_sqlite() -> None:
                 firebase_uid TEXT UNIQUE,
                 display_name TEXT,
                 avatar_url TEXT,
+                restaurant_photo_url TEXT,
                 anon_fingerprint TEXT UNIQUE,
                 reputation_score INTEGER DEFAULT 0,
                 reports_count INTEGER DEFAULT 0,
@@ -896,7 +901,7 @@ async def _init_sqlite() -> None:
             """
             CREATE TABLE IF NOT EXISTS reservations (
                 id TEXT PRIMARY KEY,
-                deal_id TEXT NOT NULL,
+                deal_id TEXT NOT NULL UNIQUE,
                 customer_uid TEXT,
                 customer_name TEXT NOT NULL,
                 customer_phone TEXT NOT NULL,
@@ -908,6 +913,9 @@ async def _init_sqlite() -> None:
             """,
             """
             CREATE INDEX IF NOT EXISTS idx_reservations_deal ON reservations(deal_id, status)
+            """,
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_reservations_deal_unique ON reservations(deal_id)
             """,
         ]:
             await db.execute(statement)
@@ -926,6 +934,7 @@ async def _init_sqlite() -> None:
             ("restaurant_lat", "REAL"),
             ("restaurant_lng", "REAL"),
             ("restaurant_cuisines", "TEXT DEFAULT '[]'"),
+            ("restaurant_photo_url", "TEXT"),
         ]
         for col_name, col_type in profile_additions:
             if col_name not in existing:

@@ -98,7 +98,15 @@ def create_reservation(deal_id: str, reservation: dict[str, Any]) -> None:
 
     payload = _doc_payload({**reservation, "deal_id": deal_id})
     client.collection("reservations").document(str(reservation_id)).set(payload, merge=True)
-    client.collection("deals").document(str(deal_id)).set({"reservation": payload, "updated_at": _iso_now()}, merge=True)
+    now_iso = _iso_now()
+    client.collection("deals").document(str(deal_id)).set(
+        {
+            "reservation": payload,
+            "is_active": False,
+            "updated_at": now_iso,
+        },
+        merge=True,
+    )
 
 
 def update_reservation_status(deal_id: str, status: str, reason: str | None = None) -> None:
