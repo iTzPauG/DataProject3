@@ -1,4 +1,4 @@
-import { Restaurant } from '../types/restaurant';
+mport { Restaurant } from '../types/restaurant';
 import { auth } from './supabase';
 import { storage } from '../utils/storage';
 import { Category, CommunityReport, MapItem, ReportType, SavedItem, RestaurantDBResult } from '../types';
@@ -1111,12 +1111,14 @@ export async function searchRestaurantDB({
   lng,
   radiusM,
   useBrain,
+  category,
 }: {
   query: string;
   lat: number;
   lng: number;
   radiusM?: number;
   useBrain?: boolean;
+  category?: string;
 }): Promise<RestaurantDBResult[]> {
   try {
     const url = new URL(`${RESTAURANT_DB_URL}/search/universal`);
@@ -1125,6 +1127,7 @@ export async function searchRestaurantDB({
     url.searchParams.set('lng', lng.toString());
     if (radiusM != null) url.searchParams.set('radius_m', radiusM.toString());
     if (useBrain != null) url.searchParams.set('use_brain', useBrain.toString());
+    if (category != null) url.searchParams.set('category', category);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
