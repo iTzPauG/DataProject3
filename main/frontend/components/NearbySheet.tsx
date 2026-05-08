@@ -276,6 +276,10 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
           collapse();
         }}
         onOpenDetails={() => {
+          if (item.item_id.startsWith('deal:')) {
+            onSelectItem(item.item_id);
+            return;
+          }
           const pathname = item.item_type === 'event' ? '/(modals)/event-details' : '/(modals)/place-details';
           router.push({ pathname: pathname as any, params: { id: item.item_id, type: item.item_type } });
         }}

@@ -65,8 +65,10 @@ type PublishValidation = {
   originalPrice?: string;
   seats?: string;
   offerDate?: string;
+  reservationDeadlineTime?: string;
   startTime?: string;
   endTime?: string;
+  reservationRelation?: string;
   timeRelation?: string;
   startRelation?: string;
 };
@@ -78,11 +80,10 @@ export default function PublishTab() {
   const [price, setPrice] = useState('19.90');
   const [originalPrice, setOriginalPrice] = useState('29.90');
   const [seats, setSeats] = useState('2');
-  const [onlyToday, setOnlyToday] = useState(true);
   const [offerDate, setOfferDate] = useState(getTodayDateInput());
+  const [reservationDeadlineTime, setReservationDeadlineTime] = useState(getDefaultDeadlineTime());
   const [startTime, setStartTime] = useState('20:00');
-  const [endTime, setEndTime] = useState(getDefaultDeadlineTime());
-  const [temporalPreset, setTemporalPreset] = useState<'none' | 'lunch' | 'afternoon' | 'dinner'>('none');
+  const [endTime, setEndTime] = useState('23:00');
   const [description, setDescription] = useState('Mesa libre ahora mismo.');
   const [submitting, setSubmitting] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
@@ -319,7 +320,7 @@ export default function PublishTab() {
     const op = originalPrice.trim().length ? Number(originalPrice) : null;
     const seatCount = Number(seats);
     const nextErrors: PublishValidation = {};
-    const dateInput = onlyToday ? getTodayDateInput() : offerDate.trim();
+    const dateInput = offerDate.trim();
 
     if (!Number.isFinite(p) || p <= 0) {
       nextErrors.price = 'El precio debe ser un número mayor que 0.';
@@ -333,8 +334,12 @@ export default function PublishTab() {
       nextErrors.seats = 'Indica al menos una mesa disponible.';
     }
 
-    if (!onlyToday && !dateInput.match(/^(\d{4})-(\d{2})-(\d{2})$/)) {
+    if (!dateInput.match(/^(\d{4})-(\d{2})-(\d{2})$/)) {
       nextErrors.offerDate = 'La fecha debe usar formato AAAA-MM-DD.';
+    }
+
+    if (!reservationDeadlineTime.trim().match(/^([01]\d|2[0-3]):([0-5]\d)$/)) {
+      nextErrors.reservationDeadlineTime = 'La hora máxima de reserva debe ir en formato HH:MM.';
     }
 
     if (!startTime.trim().match(/^([01]\d|2[0-3]):([0-5]\d)$/)) {
@@ -344,15 +349,28 @@ export default function PublishTab() {
       nextErrors.endTime = 'La hora de fin debe ir en formato HH:MM.';
     }
 
+    const reservationDeadlineAt = parseLocalDateTime(dateInput, reservationDeadlineTime.trim());
     const availableAt = parseLocalDateTime(dateInput, startTime.trim());
     const expiresAt = parseLocalDateTime(dateInput, endTime.trim());
     const now = new Date();
+
+    if (!reservationDeadlineAt && !nextErrors.reservationDeadlineTime) {
+      nextErrors.reservationDeadlineTime = 'No se pudo interpretar la hora máxima de reserva.';
+    }
 
     if (!availableAt && !nextErrors.startTime) {
       nextErrors.startTime = 'No se pudo interpretar la fecha/hora de inicio.';
     }
     if (!expiresAt && !nextErrors.endTime) {
       nextErrors.endTime = 'No se pudo interpretar la fecha/hora de fin.';
+    }
+
+    if (
+      reservationDeadlineAt &&
+      availableAt &&
+      reservationDeadlineAt.getTime() > availableAt.getTime()
+    ) {
+      nextErrors.reservationRelation = 'La hora máxima para aceptar reservas no puede ser posterior al inicio.';
     }
 
     if (availableAt && expiresAt && expiresAt.getTime() <= availableAt.getTime()) {
@@ -386,6 +404,7 @@ export default function PublishTab() {
           original_price: op,
           seats: seatCount,
           description,
+          reservation_deadline_at: (reservationDeadlineAt as Date).toISOString(),
           expires_at: (expiresAt as Date).toISOString(),
           available_at: (availableAt as Date).toISOString(),
         }),
@@ -400,11 +419,10 @@ export default function PublishTab() {
       setPrice('19.90');
       setOriginalPrice('29.90');
       setSeats('2');
-      setOnlyToday(true);
       setOfferDate(getTodayDateInput());
+      setReservationDeadlineTime(getDefaultDeadlineTime());
       setStartTime('20:00');
-      setEndTime(getDefaultDeadlineTime());
-      setTemporalPreset('none');
+      setEndTime('23:00');
       setFieldErrors({});
       setSubmitError(null);
       setPublishModalOpen(true);
@@ -493,87 +511,42 @@ export default function PublishTab() {
                 />
                 {fieldErrors.seats ? <Text style={styles.fieldError}>{fieldErrors.seats}</Text> : null}
 
-                <Text style={styles.label}>¿Esta oferta es solo para hoy?</Text>
-                <View style={styles.segmentedRow}>
-                  <TouchableOpacity
-                    style={[styles.segmentedBtn, onlyToday ? styles.segmentedBtnActive : null]}
-                    onPress={() => {
-                      setOnlyToday(true);
-                      setOfferDate(getTodayDateInput());
-                      if (fieldErrors.offerDate) setFieldErrors((prev) => ({ ...prev, offerDate: undefined }));
-                      if (submitError) setSubmitError(null);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.segmentedText}>Solo hoy</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.segmentedBtn, !onlyToday ? styles.segmentedBtnActive : null]}
-                    onPress={() => {
-                      setOnlyToday(false);
-                      setTemporalPreset('none');
-                      if (submitError) setSubmitError(null);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.segmentedText}>Día posterior</Text>
-                  </TouchableOpacity>
-                </View>
+                <Text style={styles.label}>Fecha de la oferta (AAAA-MM-DD)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={offerDate}
+                  onChangeText={(value) => {
+                    setOfferDate(value);
+                    if (fieldErrors.offerDate) setFieldErrors((prev) => ({ ...prev, offerDate: undefined }));
+                    if (submitError) setSubmitError(null);
+                  }}
+                  keyboardType="numbers-and-punctuation"
+                  placeholder="Ej: 2026-05-10"
+                  placeholderTextColor={colors.inkFaint}
+                />
+                {fieldErrors.offerDate ? <Text style={styles.fieldError}>{fieldErrors.offerDate}</Text> : null}
 
-                {!onlyToday ? (
-                  <>
-                    <Text style={styles.label}>Fecha de la mesa (AAAA-MM-DD)</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={offerDate}
-                      onChangeText={(value) => {
-                        setOfferDate(value);
-                        if (fieldErrors.offerDate) setFieldErrors((prev) => ({ ...prev, offerDate: undefined }));
-                        if (submitError) setSubmitError(null);
-                      }}
-                      keyboardType="numbers-and-punctuation"
-                      placeholder="Ej: 2026-05-10"
-                      placeholderTextColor={colors.inkFaint}
-                    />
-                    {fieldErrors.offerDate ? <Text style={styles.fieldError}>{fieldErrors.offerDate}</Text> : null}
-                  </>
-                ) : null}
-
-                {onlyToday ? (
-                  <>
-                    <Text style={styles.label}>Filtro de temporalidad (solo hoy)</Text>
-                    <View style={styles.segmentedRow}>
-                      {[
-                        { key: 'lunch', label: 'Comida', start: '13:00', end: '16:00' },
-                        { key: 'afternoon', label: 'Tarde', start: '17:00', end: '20:00' },
-                        { key: 'dinner', label: 'Cena', start: '20:00', end: '23:30' },
-                      ].map((preset) => (
-                        <TouchableOpacity
-                          key={preset.key}
-                          style={[styles.segmentedBtn, temporalPreset === preset.key ? styles.segmentedBtnActive : null]}
-                          onPress={() => {
-                            setTemporalPreset(preset.key as 'lunch' | 'afternoon' | 'dinner');
-                            setStartTime(preset.start);
-                            setEndTime(preset.end);
-                            if (fieldErrors.startTime || fieldErrors.endTime || fieldErrors.timeRelation || fieldErrors.startRelation) {
-                              setFieldErrors((prev) => ({
-                                ...prev,
-                                startTime: undefined,
-                                endTime: undefined,
-                                timeRelation: undefined,
-                                startRelation: undefined,
-                              }));
-                            }
-                            if (submitError) setSubmitError(null);
-                          }}
-                          activeOpacity={0.8}
-                        >
-                          <Text style={styles.segmentedText}>{preset.label}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </>
-                ) : null}
+                <Text style={styles.label}>Hora maxima para aceptar reserva (HH:MM)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={reservationDeadlineTime}
+                  onChangeText={(value) => {
+                    setReservationDeadlineTime(value);
+                    if (fieldErrors.reservationDeadlineTime || fieldErrors.reservationRelation) {
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        reservationDeadlineTime: undefined,
+                        reservationRelation: undefined,
+                      }));
+                    }
+                    if (submitError) setSubmitError(null);
+                  }}
+                  keyboardType="numbers-and-punctuation"
+                  placeholder="Ej: 19:45"
+                  placeholderTextColor={colors.inkFaint}
+                />
+                {fieldErrors.reservationDeadlineTime ? <Text style={styles.fieldError}>{fieldErrors.reservationDeadlineTime}</Text> : null}
+                {fieldErrors.reservationRelation ? <Text style={styles.fieldError}>{fieldErrors.reservationRelation}</Text> : null}
 
                 <Text style={styles.label}>Hora de inicio (HH:MM)</Text>
                 <TextInput
@@ -581,7 +554,6 @@ export default function PublishTab() {
                   value={startTime}
                   onChangeText={(value) => {
                     setStartTime(value);
-                    setTemporalPreset('none');
                     if (fieldErrors.startTime || fieldErrors.timeRelation || fieldErrors.startRelation) {
                       setFieldErrors((prev) => ({
                         ...prev,
@@ -604,7 +576,6 @@ export default function PublishTab() {
                   value={endTime}
                   onChangeText={(value) => {
                     setEndTime(value);
-                    setTemporalPreset('none');
                     if (fieldErrors.endTime || fieldErrors.timeRelation) {
                       setFieldErrors((prev) => ({
                         ...prev,
@@ -654,7 +625,11 @@ export default function PublishTab() {
                     </View>
                     <View style={styles.issueRow}>
                       <View style={styles.issueBullet}><Text style={{ color: '#DC2626', fontSize: 11 }}>!</Text></View>
-                      <Text style={styles.issueText}>Para día posterior, la fecha debe ir en formato AAAA-MM-DD.</Text>
+                      <Text style={styles.issueText}>La hora maxima de reserva no puede ser posterior al inicio.</Text>
+                    </View>
+                    <View style={styles.issueRow}>
+                      <View style={styles.issueBullet}><Text style={{ color: '#DC2626', fontSize: 11 }}>!</Text></View>
+                      <Text style={styles.issueText}>La fecha debe ir en formato AAAA-MM-DD.</Text>
                     </View>
                     <View style={styles.issueRow}>
                       <View style={styles.issueBullet}><Text style={{ color: '#DC2626', fontSize: 11 }}>!</Text></View>

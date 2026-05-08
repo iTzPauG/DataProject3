@@ -60,6 +60,29 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
     return `Caduca en ${Math.floor(mins / 60)}h ${mins % 60}min`;
   }, [deal.expires_at]);
 
+  const scheduleText = useMemo(() => {
+    if (!deal.available_at || !deal.expires_at) return null;
+    const start = new Date(deal.available_at);
+    const end = new Date(deal.expires_at);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+    const dateText = start.toLocaleDateString('es-ES');
+    const startText = start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    const endText = end.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    return `${dateText} · ${startText} - ${endText}`;
+  }, [deal.available_at, deal.expires_at]);
+
+  const reservationDeadlineText = useMemo(() => {
+    if (!deal.reservation_deadline_at) return null;
+    const value = new Date(deal.reservation_deadline_at);
+    if (Number.isNaN(value.getTime())) return null;
+    return value.toLocaleString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }, [deal.reservation_deadline_at]);
+
   const handleReserve = useCallback(async () => {
     if (!profile) {
       setLoginPromptOpen(true);
@@ -361,7 +384,16 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
             </Text>
           </View>
         ) : null}
+        {reservationDeadlineText ? (
+          <View style={styles.metaChip}>
+            <Text style={styles.metaText}>⛔ Reserva hasta {reservationDeadlineText}</Text>
+          </View>
+        ) : null}
       </View>
+
+      {scheduleText ? (
+        <Text style={[styles.descriptionText, { marginTop: 10 }]}>Franja: {scheduleText}</Text>
+      ) : null}
 
       {/* CTA */}
       <TouchableOpacity

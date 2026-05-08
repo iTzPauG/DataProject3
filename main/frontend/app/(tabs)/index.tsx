@@ -76,6 +76,7 @@ export default function MapTab() {
   const [loading, setLoading] = useState(false);
   const [selectedFoodSubcat, setSelectedFoodSubcat] = useState<string | null>(null);
   const [showDealsOnly, setShowDealsOnly] = useState(true);
+  const [todayDealsOnly, setTodayDealsOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [acResults, setAcResults] = useState<AutocompleteResult[]>([]);
   const [selectedSearchItem, setSelectedSearchItem] = useState<AutocompleteResult | null>(null);
@@ -471,7 +472,21 @@ export default function MapTab() {
   }, [isHydrated]);
 
   const liveDealItems = useMemo<MapItem[]>(() => {
-    return liveDeals.map((deal: LiveDeal) => ({
+    const now = new Date();
+    const filteredDeals = liveDeals.filter((deal: LiveDeal) => {
+      if (!todayDealsOnly) return true;
+      const source = deal.available_at || deal.created_at;
+      if (!source) return false;
+      const d = new Date(source);
+      if (Number.isNaN(d.getTime())) return false;
+      return (
+        d.getFullYear() === now.getFullYear() &&
+        d.getMonth() === now.getMonth() &&
+        d.getDate() === now.getDate()
+      );
+    });
+
+    return filteredDeals.map((deal: LiveDeal) => ({
       item_id: `deal:${deal.id}`,
       item_type: 'place',
       title: `${deal.restaurant_name}${deal.cuisine ? ` (${deal.cuisine})` : ''} · ${deal.price.toFixed(2)} EUR`,
@@ -492,7 +507,7 @@ export default function MapTab() {
         description: deal.description,
       },
     }));
-  }, [liveDeals]);
+  }, [liveDeals, todayDealsOnly]);
 
   const displayItems = useMemo(() => {
     // In "deals only" mode, show only deal pins (no restaurants)
@@ -569,7 +584,7 @@ export default function MapTab() {
                         }}
                       />
                       <Text style={{ fontSize: 10, color: '#FFFFFF', fontWeight: '700' }}>
-                        LIVE {liveDeals.length}
+                        LIVE {liveDealItems.length}
                       </Text>
                     </View>
 
@@ -655,7 +670,24 @@ export default function MapTab() {
                     activeOpacity={0.7}
                   >
                     <Text style={{ fontSize: 12, fontWeight: '700', color: showDealsOnly ? '#fff' : '#F97316' }}>
-                      🔥 Anuncios{liveDeals.length > 0 ? ` (${liveDeals.length})` : ''}
+                      🔥 Anuncios{liveDealItems.length > 0 ? ` (${liveDealItems.length})` : ''}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Solo hoy (aplica a anuncios en mapa/lista) */}
+                  <TouchableOpacity
+                    style={[
+                      styles.foodSubcatChip,
+                      {
+                        borderColor: '#22C55E',
+                        backgroundColor: todayDealsOnly ? '#22C55E' : 'rgba(34,197,94,0.14)',
+                      },
+                    ]}
+                    onPress={() => setTodayDealsOnly((prev: boolean) => !prev)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: todayDealsOnly ? '#fff' : '#22C55E' }}>
+                      Hoy
                     </Text>
                   </TouchableOpacity>
 
@@ -726,7 +758,7 @@ export default function MapTab() {
         </View>
 
         <NearbySheet
-          items={nearbyItems}
+          items={displayItems}
           selectedId={selectedId}
           onSelectItem={handleSheetItemPress}
           loading={loading}

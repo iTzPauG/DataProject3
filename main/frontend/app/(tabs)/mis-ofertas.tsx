@@ -35,8 +35,10 @@ interface DealWithReservation {
   seats: number;
   description?: string | null;
   is_active: number | boolean;
+  available_at?: string | null;
   created_at?: string;
   expires_at?: string | null;
+  reservation_deadline_at?: string | null;
   cancelled_at?: string | null;
   not_presented_at?: string | null;
   reservation?: {
@@ -81,8 +83,10 @@ function normalizeDeal(raw: any): DealWithReservation {
     seats: Number(raw.seats ?? 0),
     description: raw.description ?? null,
     is_active: raw.is_active,
+    available_at: raw.available_at ?? null,
     created_at: raw.created_at ?? undefined,
     expires_at: raw.expires_at ?? null,
+    reservation_deadline_at: raw.reservation_deadline_at ?? null,
     cancelled_at: raw.cancelled_at ?? null,
     not_presented_at: raw.not_presented_at ?? null,
     reservation: raw.reservation
@@ -645,6 +649,11 @@ export default function MisOfertasTab() {
             <Text style={styles.cardDate}>
               Franja: {formatDealWindow(item.available_at, item.expires_at)}
             </Text>
+            {item.reservation_deadline_at ? (
+              <Text style={styles.cardDate}>
+                Reserva hasta: {formatDealDate(item.reservation_deadline_at)}
+              </Text>
+            ) : null}
           </View>
           {isReserved && (
             <View style={styles.reservedBadge}>

@@ -94,6 +94,7 @@ class DealCreate(BaseModel):
     original_price: Optional[float] = None
     seats: int
     available_at: datetime
+    reservation_deadline_at: Optional[datetime] = None
     description: Optional[str] = None
     expires_at: Optional[datetime] = None
     expires_in_minutes: Optional[int] = 120
@@ -216,8 +217,16 @@ async def create_deal(body: DealCreate, request: Request):
         if expires_at <= body.available_at:
             raise HTTPException(status_code=400, detail="La hora limite debe ser posterior a la disponibilidad")
 
+        reservation_deadline_at = body.reservation_deadline_at
+        if reservation_deadline_at is not None and reservation_deadline_at > body.available_at:
+            raise HTTPException(
+                status_code=400,
+                detail="La hora maxima para aceptar reserva no puede ser posterior al inicio",
+            )
+
         available_at_value = body.available_at
         expires_at_value = expires_at
+        reservation_deadline_value = reservation_deadline_at
         restaurant_cuisines = _parse_cuisines(profile.get("restaurant_cuisines"))
         primary_cuisine = restaurant_cuisines[0] if restaurant_cuisines else "general"
         restaurant_cuisines_value = json.dumps(restaurant_cuisines)
@@ -235,6 +244,7 @@ async def create_deal(body: DealCreate, request: Request):
             "cuisine": primary_cuisine,
             "restaurant_cuisines": restaurant_cuisines,
             "available_at": body.available_at.isoformat(),
+            "reservation_deadline_at": reservation_deadline_at.isoformat() if reservation_deadline_at else None,
             "description": body.description,
             "expires_at": expires_at.isoformat(),
             "is_active": True,
@@ -246,8 +256,8 @@ async def create_deal(body: DealCreate, request: Request):
                 """INSERT INTO deals
                    (id, owner_uid, restaurant_id, restaurant_name, restaurant_place_id, lat, lng,
                           price, original_price, seats, cuisine, restaurant_cuisines,
-                          available_at, description, expires_at)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                          available_at, reservation_deadline_at, description, expires_at)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     deal_id,
                     profile["firebase_uid"],
@@ -262,6 +272,7 @@ async def create_deal(body: DealCreate, request: Request):
                     primary_cuisine,
                     restaurant_cuisines_value,
                     available_at_value,
+                    reservation_deadline_value,
                     body.description,
                     expires_at_value,
                 ),

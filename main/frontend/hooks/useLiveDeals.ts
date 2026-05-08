@@ -16,6 +16,7 @@ export interface LiveDeal {
   original_price?: number | null;
   seats: number;
   available_at: string;
+  reservation_deadline_at?: string | null;
   description?: string | null;
   is_active: boolean | number;
   created_at?: string;
@@ -51,6 +52,7 @@ function normalizeDeal(raw: any): LiveDeal {
     original_price: raw.original_price == null ? null : Number(raw.original_price),
     seats: Number(raw.seats ?? 1),
     available_at: String(raw.available_at ?? new Date().toISOString()),
+    reservation_deadline_at: raw.reservation_deadline_at ?? null,
     description: raw.description ?? null,
     is_active: raw.is_active,
     created_at: raw.created_at ?? undefined,
