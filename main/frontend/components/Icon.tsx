@@ -28,6 +28,7 @@ export type IconName =
   | 'chevron-down'
   | 'chevron-left'
   | 'arrow-left'
+  | 'tag'
   | 'arrow-right'
   | 'crosshair'
   | 'pin'
@@ -781,6 +782,39 @@ const ICONS: Record<IconName, IconRenderer> = {
             borderTopWidth: sw,
             borderColor: color,
             transform: [{ rotate: '45deg' }],
+          })}
+        />
+      </View>
+    );
+  },
+  // Price tag icon for "Mis Ofertas"
+  tag: ({ size, color, strokeWidth: sw }) => {
+    const s = size * 0.72;
+    const offset = (size - s) / 2;
+    return (
+      <View style={{ width: size, height: size }}>
+        {/* tag body (square rotated 45deg) */}
+        <View
+          style={box({
+            top: offset,
+            left: offset,
+            width: s,
+            height: s,
+            borderWidth: sw,
+            borderColor: color,
+            borderRadius: 3,
+            transform: [{ rotate: '45deg' }],
+          })}
+        />
+        {/* dot (hole) */}
+        <View
+          style={box({
+            top: size * 0.25,
+            left: size * 0.25,
+            width: sw * 2.5,
+            height: sw * 2.5,
+            borderRadius: sw * 1.25,
+            backgroundColor: color,
           })}
         />
       </View>

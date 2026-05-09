@@ -26,6 +26,7 @@ export default function LoginModal() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
 
   const styles = useMemo(() => StyleSheet.create({
     container: {
@@ -113,6 +114,13 @@ export default function LoginModal() {
       color: '#FFF',
       fontFamily: typography.heading,
     },
+    errorText: {
+      color: '#B42318',
+      fontSize: 14,
+      textAlign: 'center',
+      fontFamily: typography.body,
+      marginTop: -4,
+    },
     divider: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -162,16 +170,17 @@ export default function LoginModal() {
 
   async function handleLogin() {
     if (!email || !password) {
-      Alert.alert(t('common.error'), t('auth.fillFields'));
+      setLoginError(t('auth.fillFields'));
       return;
     }
 
+    setLoginError('');
     setLoading(true);
     try {
       await signInWithEmail(email, password);
       router.replace('/(tabs)');
     } catch (error: any) {
-      Alert.alert(t('common.error'), error.message || t('auth.errorLogin'));
+      setLoginError((error?.message as string) || t('auth.errorLogin'));
     } finally {
       setLoading(false);
     }
@@ -225,6 +234,10 @@ export default function LoginModal() {
                 secureTextEntry
               />
             </View>
+
+            {loginError ? (
+              <Text style={styles.errorText}>{loginError}</Text>
+            ) : null}
 
             <TouchableOpacity
               style={[styles.primaryButton, loading && styles.disabledButton]}
