@@ -24,10 +24,7 @@
     "nope": "Nope",
     "likedIt": "Liked it",
     "beFirstToRate": "Be the first to rate",
-    "all": "All",
-    "reviews": "reviews",
-    "noPhone": "Phone not available",
-    "saved": "Saved"
+    "all": "All"
   },
   "splash": {
     "slogans": [
@@ -70,7 +67,8 @@
     "hola": "Hola",
     "saved": "Saved",
     "index": "Karte",
-    "foryou": "Für Dich"
+    "publish": "Verkaufen",
+    "mis-ofertas": "Meine Angebote"
   },
   "home": {
     "locationNow": "València · Now",

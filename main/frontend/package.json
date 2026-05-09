@@ -8,7 +8,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build:web": "expo export --platform web",
-    "render-build": "expo export --platform web"
+    "render-build": "expo export --platform web",
+    "firestore:rules:deploy": "firebase deploy --only firestore:rules --project project1grupo7",
+    "firestore:rules:test": "firebase emulators:exec --only firestore \"echo Firestore rules loaded\""
   },
   "dependencies": {
     "@expo/metro-runtime": "~55.0.6",

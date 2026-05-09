@@ -1,28 +1,26 @@
-﻿import { Tabs } from 'expo-router';
+import { Tabs } from 'expo-router';
 import React, { useMemo } from 'react';
 import { useTranslation } from "react-i18next";
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import Icon, { IconName } from '../../components/Icon';
-import { useAppState } from '../../hooks/useAppState';
+import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../utils/theme';
-import { resolveUiLanguage } from '../../utils/language';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TAB_GLYPHS: Record<string, IconName> = {
   index: 'map',
   explore: 'compass',
-  foryou: 'heart',
+  publish: 'plus',
+  'mis-ofertas': 'tag',
   profile: 'person',
 };
 
 export default function TabsLayout() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { colors, typography } = useTheme();
-  const { mapPreferences, setMapPreferences } = useAppState();
-  const insets = useSafeAreaInsets();
+  const { profile } = useAuth();
+  const isBusiness = profile?.role === 'business';
 
-  const TAB_H = Platform.OS === 'ios' ? 88 : Platform.OS === 'web' ? 70 : 72;
-  const activeLanguage = resolveUiLanguage(i18n.resolvedLanguage || mapPreferences.language);
+  const TAB_H = Platform.OS === 'ios' ? 86 : Platform.OS === 'web' ? 64 : 68;
 
   const styles = useMemo(
     () =>
@@ -32,9 +30,8 @@ export default function TabsLayout() {
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: colors.stroke,
           height: TAB_H,
-          paddingHorizontal: 12,
-          paddingTop: 10,
-          paddingBottom: Platform.OS === 'ios' ? 22 : 10,
+          paddingTop: 8,
+          paddingBottom: Platform.OS === 'ios' ? 22 : 8,
           elevation: 0,
           shadowOpacity: 0,
           position: Platform.OS === 'web' ? undefined : 'absolute',
@@ -45,139 +42,106 @@ export default function TabsLayout() {
           alignItems: 'center',
         },
         item: {
-          flexDirection: 'column',
+          flex: 1,
+          maxWidth: 132,
           alignItems: 'center',
-          justifyContent: 'center',
-          gap: 4,
-          paddingHorizontal: 18,
-          paddingVertical: 6,
-          borderRadius: 14,
-          minWidth: 90,
-        },
-        itemActive: {
-          backgroundColor: colors.ink + '10',
+          justifyContent: 'flex-start',
+          gap: 6,
+          paddingTop: 4,
         },
         label: {
-          fontSize: 11,
+          fontSize: 9,
+          letterSpacing: 0.8,
+          textTransform: 'uppercase',
           fontFamily: typography.body,
-          fontWeight: '700',
-          letterSpacing: 0,
+          fontWeight: '600',
+          textAlign: 'center',
+          width: '100%',
         },
-        languageDock: {
-          position: 'absolute',
-          right: 12,
-          zIndex: 500,
-          flexDirection: 'row',
-          alignItems: 'center',
-          borderRadius: 999,
-          borderWidth: 1,
-          borderColor: colors.stroke,
-          backgroundColor: colors.shell + 'D9',
-          padding: 2,
+        underline: {
+          marginTop: 5,
+          width: 18,
+          height: 1,
+          backgroundColor: colors.ink,
         },
-        languageChip: {
-          minWidth: 32,
-          height: 26,
-          borderRadius: 999,
-          alignItems: 'center',
-          justifyContent: 'center',
-          paddingHorizontal: 8,
-        },
-        languageChipActive: {
-          backgroundColor: colors.brand,
-        },
-        languageChipText: {
-          fontSize: 11,
-          fontFamily: typography.body,
-          fontWeight: '800',
-          color: colors.inkFaint,
-          letterSpacing: 0.3,
-        },
-        languageChipTextActive: {
-          color: '#FFFFFF',
+        underlinePlaceholder: {
+          marginTop: 5,
+          height: 1,
+          width: 18,
+          backgroundColor: 'transparent',
         },
       }),
     [colors, typography, TAB_H],
   );
 
-  const setLanguage = (next: 'es' | 'en') => {
-    setMapPreferences({ language: next });
-    if (i18n.language !== next) {
-      void i18n.changeLanguage(next);
-    }
-  };
-
-  const renderTab = (routeName: keyof typeof TAB_GLYPHS, focused: boolean) => {
-    const label = t(`tabs.${routeName === 'index' ? 'index' : routeName}`);
+  const renderTab = (routeName: 'index' | 'explore' | 'publish' | 'mis-ofertas' | 'profile', focused: boolean) => {
+    const label = t(`tabs.${routeName}`);
     const glyph = TAB_GLYPHS[routeName];
     const color = focused ? colors.ink : colors.inkFaint;
+    const labelStyle = routeName === 'mis-ofertas'
+      ? { fontSize: 8.2, letterSpacing: 0.2 }
+      : null;
     return (
-      <View style={[styles.item, focused && styles.itemActive]}>
-        <Icon name={glyph} size={20} color={color} strokeWidth={focused ? 2 : 1.6} />
-        <Text style={[styles.label, { color }]} numberOfLines={1}>
+      <View style={styles.item}>
+        <Icon name={glyph} size={18} color={color} strokeWidth={1.4} />
+        <Text
+          style={[styles.label, { color }, labelStyle]}
+          numberOfLines={1}
+        >
           {label}
         </Text>
+        <View
+          style={focused ? styles.underline : styles.underlinePlaceholder}
+        />
       </View>
     );
   };
 
   return (
-    <View style={{ flex: 1 }}>
       <Tabs
-        screenOptions={{
-          headerShown: false,
-          tabBarActiveTintColor: colors.ink,
-          tabBarInactiveTintColor: colors.inkFaint,
-          tabBarStyle: styles.tabBar,
-          tabBarItemStyle: { flex: 1, paddingHorizontal: 12 },
-          tabBarHideOnKeyboard: true,
-          tabBarShowLabel: false,
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: colors.ink,
+        tabBarInactiveTintColor: colors.inkFaint,
+        tabBarStyle: styles.tabBar,
+        tabBarItemStyle: { flex: 1, marginHorizontal: 10 },
+        tabBarHideOnKeyboard: true,
+        tabBarShowLabel: false,
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          tabBarIcon: ({ focused }) => renderTab('index', focused),
         }}
-      >
-        <Tabs.Screen
-          name="index"
-          options={{
-            tabBarIcon: ({ focused }) => renderTab('index', focused),
-          }}
-        />
-        <Tabs.Screen
-          name="explore"
-          options={{
-            tabBarIcon: ({ focused }) => renderTab('explore', focused),
-          }}
-        />
-        <Tabs.Screen
-          name="foryou"
-          options={{
-            tabBarIcon: ({ focused }) => renderTab('foryou', focused),
-          }}
-        />
-        <Tabs.Screen
-          name="profile"
-          options={{ href: null }}
-        />
-      </Tabs>
-
-      <View pointerEvents="box-none" style={StyleSheet.absoluteFillObject}>
-        <View style={[styles.languageDock, { bottom: TAB_H + (insets.bottom > 0 ? 8 : 12) }]}>
-          {(['es', 'en'] as const).map((lang) => {
-            const active = activeLanguage === lang;
-            return (
-              <Pressable
-                key={lang}
-                style={[styles.languageChip, active && styles.languageChipActive]}
-                onPress={() => setLanguage(lang)}
-                accessibilityRole="button"
-                accessibilityLabel={`${t('settings.language.title')}: ${lang.toUpperCase()}`}
-              >
-                <Text style={[styles.languageChipText, active && styles.languageChipTextActive]}>
-                  {lang.toUpperCase()}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-    </View>
+      />
+      <Tabs.Screen
+        name="explore"
+        options={{
+          href: isBusiness ? null : undefined,
+          tabBarIcon: ({ focused }) => renderTab('explore', focused),
+        }}
+      />
+      <Tabs.Screen
+        name="publish"
+        options={{
+          href: isBusiness ? undefined : null,
+          tabBarIcon: ({ focused }) => renderTab('publish', focused),
+        }}
+      />
+      <Tabs.Screen
+        name="mis-ofertas"
+        options={{
+          href: isBusiness ? undefined : null,
+          tabBarIcon: ({ focused }) => renderTab('mis-ofertas', focused),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          tabBarIcon: ({ focused }) => renderTab('profile', focused),
+        }}
+      />
+    </Tabs>
   );
 }

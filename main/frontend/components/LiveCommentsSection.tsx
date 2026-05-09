@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Easing,
   KeyboardAvoidingView,
   Modal,
   Platform,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -41,6 +44,7 @@ interface Props {
   lat: number;
   lng: number;
   language?: string;
+  canPost?: boolean;
 }
 
 const REPORT_TYPE_META: Record<string, { label: string; emoji: string; color: string }> = {
@@ -93,7 +97,7 @@ function LiveCommentIcon({ size = 22, color = '#FFFFFF' }: { size?: number; colo
   );
 }
 
-export default function LiveCommentsSection({ placeId, placeName, lat, lng, language = 'es' }: Props) {
+export default function LiveCommentsSection({ placeId, placeName, lat, lng, language = 'es', canPost = true }: Props) {
   const { t } = useTranslation();
   const { colors, typography, radii, shadows } = useTheme();
   
@@ -106,7 +110,6 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
   const [reportType, setReportType] = useState('comment');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const fetchComments = useCallback(async () => {
     try {
@@ -130,102 +133,71 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
   }, [fetchComments]);
 
   const handleSubmit = async () => {
-    setErrorMsg(null);
-    const trimmedTitle = title.trim();
-    const requiresCustomTitle = reportType === 'comment';
-    if (requiresCustomTitle && trimmedTitle.length < 2) {
-      setErrorMsg('En "Comentario" el titular es obligatorio (minimo 2 caracteres).');
+    if (title.trim().length < 2) {
+      Alert.alert('Aviso', 'El comentario debe ser más largo.');
       return;
     }
     setSubmitting(true);
     try {
-      const payload = {
-        place_id: placeId,
-        place_name: placeName,
-        lat,
-        lng,
-        title: requiresCustomTitle || trimmedTitle ? trimmedTitle : undefined,
-        description: description.trim() || undefined,
-        report_type: reportType,
-      };
       const res = await fetch(`${BASE_URL}/places/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          place_id: placeId,
+          place_name: placeName,
+          lat,
+          lng,
+          title: title.trim(),
+          description: description.trim() || undefined,
+          report_type: reportType,
+        }),
       });
       if (res.ok) {
         setShowModal(false);
         setTitle('');
         setDescription('');
         setReportType('comment');
-        setErrorMsg(null);
         setLoading(true);
         fetchComments();
       } else {
-        let detail = '';
-        try {
-          const j = await res.json();
-          detail = j?.detail || '';
-        } catch {}
-        console.error('[LiveComments] POST failed', res.status, detail);
-        setErrorMsg(`No se pudo publicar (${res.status}). ${detail}`);
+        Alert.alert('Error', 'No se pudo publicar el reporte.');
       }
-    } catch (e: any) {
-      console.error('[LiveComments] network error', e);
-      setErrorMsg('No se pudo conectar al servidor.');
+    } catch (e) {
+      Alert.alert('Error', 'No se pudo conectar al servidor.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const openModal = useCallback(() => {
-    setErrorMsg(null);
-    setTitle('');
-    setDescription('');
-    setReportType('comment');
-    setShowModal(true);
-  }, []);
-
   const styles = useMemo(() => StyleSheet.create({
     container: {
-      paddingTop: 24,
-      paddingBottom: 8,
-      marginTop: 8,
-      borderTopWidth: 1,
-      borderTopColor: colors.stroke,
+      backgroundColor: '#1E2436', // Dark contrast for the live section
+      borderRadius: radii.xl,
+      padding: 16,
+      marginBottom: 20,
     },
     headerRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      marginBottom: 16,
+      marginBottom: 12,
     },
     headerLeft: {
       flexDirection: 'row',
-      alignItems: 'baseline',
+      alignItems: 'center',
       gap: 8,
     },
     title: {
-      fontSize: 18,
-      fontWeight: '700',
-      color: colors.ink,
+      fontSize: 16,
+      fontWeight: '800',
+      color: '#FFFFFF',
       fontFamily: typography.heading,
-      letterSpacing: -0.2,
-    },
-    countText: {
-      fontSize: 14,
-      fontWeight: '500',
-      color: colors.inkMuted,
-      fontFamily: typography.body,
     },
     addBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      backgroundColor: colors.brand,
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 999,
+      backgroundColor: 'rgba(255,255,255,0.1)',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
     },
     addBtnText: {
       color: '#FFFFFF',
@@ -234,15 +206,15 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
       fontFamily: typography.heading,
     },
     summaryBox: {
-      backgroundColor: colors.bg,
+      backgroundColor: 'rgba(0,0,0,0.2)',
       borderRadius: radii.md,
       padding: 12,
-      marginBottom: 18,
+      marginBottom: 16,
       borderLeftWidth: 3,
-      borderLeftColor: colors.brand,
+      borderLeftColor: '#7C6CF2',
     },
     summaryText: {
-      color: colors.ink,
+      color: '#E2E8F0',
       fontSize: 14,
       lineHeight: 20,
       fontFamily: typography.body,
@@ -251,10 +223,10 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
     commentItem: {
       flexDirection: 'row',
       gap: 12,
-      marginBottom: 14,
-      paddingBottom: 14,
+      marginBottom: 12,
+      paddingBottom: 12,
       borderBottomWidth: 1,
-      borderBottomColor: colors.stroke,
+      borderBottomColor: 'rgba(255,255,255,0.05)',
     },
     commentIconWrap: {
       width: 36,
@@ -270,37 +242,36 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
       flex: 1,
     },
     commentTitle: {
-      color: colors.ink,
+      color: '#FFFFFF',
       fontSize: 15,
-      fontWeight: '600',
+      fontWeight: '700',
       fontFamily: typography.heading,
-      marginBottom: 3,
-      lineHeight: 20,
+      marginBottom: 2,
     },
     commentDesc: {
-      color: colors.inkMuted,
-      fontSize: 14,
-      lineHeight: 20,
+      color: '#94A3B8',
+      fontSize: 13,
+      lineHeight: 18,
       fontFamily: typography.body,
-      marginBottom: 6,
+      marginBottom: 4,
     },
     commentMetaRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
+      gap: 8,
     },
     commentMetaText: {
-      color: colors.inkFaint,
-      fontSize: 12,
-      fontWeight: '500',
+      color: '#64748B',
+      fontSize: 11,
+      fontWeight: '600',
       fontFamily: typography.body,
     },
     emptyText: {
-      color: colors.inkMuted,
+      color: '#94A3B8',
       fontSize: 14,
       fontFamily: typography.body,
       textAlign: 'center',
-      marginVertical: 16,
+      marginVertical: 10,
     },
 
     // Modal styles
@@ -366,13 +337,6 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
       fontFamily: typography.body,
       marginBottom: 12,
     },
-    titleHelperText: {
-      color: colors.inkMuted,
-      fontSize: 12,
-      fontFamily: typography.body,
-      marginTop: -6,
-      marginBottom: 12,
-    },
     textarea: {
       minHeight: 80,
       textAlignVertical: 'top',
@@ -402,28 +366,29 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
   if (loading && !data) {
     return (
       <View style={[styles.container, { alignItems: 'center', paddingVertical: 30 }]}>
-        <ActivityIndicator size="small" color={colors.brand} />
+        <ActivityIndicator size="small" color="#7C6CF2" />
       </View>
     );
   }
-
-  const commentCount = data?.comments?.length ?? 0;
-  const requiresCustomTitle = reportType === 'comment';
-  const titlePlaceholder = requiresCustomTitle
-    ? 'Comentario (obligatorio)'
-    : 'Titular opcional (se rellena solo si lo dejas vacio)';
 
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
-          <Text style={styles.title}>Comentarios</Text>
-          {commentCount > 0 && (
-            <Text style={styles.countText}>{commentCount}</Text>
-          )}
+          <Ionicons name="chatbubbles" size={20} color="#FFFFFF" />
+          <Text style={styles.title}>En directo</Text>
         </View>
-        <TouchableOpacity style={styles.addBtn} onPress={openModal} activeOpacity={0.85}>
-          <Text style={styles.addBtnText}>Comentar</Text>
+        <TouchableOpacity
+          style={[styles.addBtn, !canPost && { opacity: 0.55 }]}
+          onPress={() => {
+            if (!canPost) {
+              Alert.alert('Acceso restringido', 'Inicia sesión para comentar.');
+              return;
+            }
+            setShowModal(true);
+          }}
+        >
+          <Text style={styles.addBtnText}>+ Añadir</Text>
         </TouchableOpacity>
       </View>
 
@@ -434,7 +399,7 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
       )}
 
       {(!data?.comments || data.comments.length === 0) ? (
-        <Text style={styles.emptyText}>Sé el primero en dejar un comentario.</Text>
+        <Text style={styles.emptyText}>No hay reportes recientes. ¡Sé el primero!</Text>
       ) : (
         <View>
           {data.comments.map((comment) => {
@@ -480,10 +445,7 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
                   <TouchableOpacity 
                     key={key} 
                     style={[styles.typeBtn, active && styles.typeBtnActive]}
-                    onPress={() => {
-                      setReportType(key);
-                      setErrorMsg(null);
-                    }}
+                    onPress={() => setReportType(key)}
                   >
                     <Text>{meta.emoji}</Text>
                     <Text style={styles.typeBtnText}>{meta.label}</Text>
@@ -494,17 +456,12 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
 
             <TextInput
               style={styles.input}
-              placeholder={titlePlaceholder}
+              placeholder="Titular breve (ej. Cola de 20 mins)"
               placeholderTextColor={colors.inkMuted}
               value={title}
               onChangeText={setTitle}
               maxLength={60}
             />
-            <Text style={styles.titleHelperText}>
-              {requiresCustomTitle
-                ? 'Obligatorio solo para la opcion Comentario.'
-                : 'En opciones rapidas puedes publicarlo sin escribir titular.'}
-            </Text>
 
             <TextInput
               style={[styles.input, styles.textarea]}
@@ -516,14 +473,8 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
               maxLength={200}
             />
 
-            {errorMsg ? (
-              <Text style={{ color: '#FF6B6B', fontSize: 13, marginBottom: 8, textAlign: 'center' }}>
-                {errorMsg}
-              </Text>
-            ) : null}
-
-            <TouchableOpacity
-              style={[styles.submitBtn, submitting && { opacity: 0.7 }]}
+            <TouchableOpacity 
+              style={[styles.submitBtn, submitting && { opacity: 0.7 }]} 
               onPress={handleSubmit}
               disabled={submitting}
             >
@@ -539,4 +490,3 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
     </View>
   );
 }
-

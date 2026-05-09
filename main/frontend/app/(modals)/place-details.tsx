@@ -403,6 +403,7 @@ export default function PlaceDetailsModal() {
                   itemType={item.item_type as 'place' | 'event'}
                   initial={voteData}
                   title={t('vote.worthIt')}
+                  canVote={!!user}
                 />
               </View>
             )}
@@ -461,6 +462,7 @@ export default function PlaceDetailsModal() {
                 placeName={item.title}
                 lat={item.lat}
                 lng={item.lng}
+                canPost={!!user}
               />
             )}
 

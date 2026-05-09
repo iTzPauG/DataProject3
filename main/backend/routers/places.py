@@ -2,8 +2,8 @@
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from datetime import datetime, timezone, timedelta
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -11,33 +11,14 @@ from pydantic import BaseModel, Field
 from auth import get_optional_user, get_voter_id
 from database import get_db
 from models.schemas import PlaceResult
-from .report_helpers import insert_community_report, report_row_to_dict
 from services.brain_service import ask_brain
 from services.cache_service import cache_get, cache_set
 from services.recommendation.tools import search_generic_category_places
-from services.recommendation.tools import _normalize_google_price_level
 from services.overpass_service import search_overpass
 from services.recommendation.pipeline import enrich_place_result
 from services.live_data_service import get_live_data
 
-logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/places", tags=["places"])
-
-
-def _normalize_query_price_level(raw_price_level: object) -> int | None:
-    return _normalize_google_price_level(raw_price_level)
-
-
-def _coerce_optional_int(raw_value: object) -> int | None:
-    if raw_value is None:
-        return None
-    text = str(raw_value).strip()
-    if not text:
-        return None
-    try:
-        return int(text)
-    except ValueError:
-        return None
 
 
 @router.get("/nearby")
@@ -113,7 +94,7 @@ async def nearby_items(
                     (lat - 0.05, lat + 0.05, lng - 0.05, lng + 0.05, now_iso),
                 )
                 rows = await cursor.fetchall()
-                reports = [report_row_to_dict(r) for r in rows]
+                reports = [dict(r) for r in rows]
 
             if "event" in item_types:
                 cursor = await db.execute(
@@ -226,12 +207,10 @@ async def place_take(
     address: str = "",
     photo_url: str = "",
     rating: Optional[float] = None,
-    price_level: Optional[str] = None,
-    user_rating_count: Optional[str] = None,
+    price_level: Optional[int] = None,
+    user_rating_count: Optional[int] = None,
 ):
     try:
-        normalized_price_level = _normalize_query_price_level(price_level)
-        normalized_user_rating_count = _coerce_optional_int(user_rating_count)
         return await enrich_place_result(
             place_id=place_id,
             parent_category=category,
@@ -243,8 +222,8 @@ async def place_take(
             address=address,
             photo_url=photo_url,
             rating=rating,
-            price_level=normalized_price_level,
-            user_rating_count=normalized_user_rating_count,
+            price_level=price_level,
+            user_rating_count=user_rating_count,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -256,46 +235,10 @@ class PlaceCommentCreate(BaseModel):
     place_name: Optional[str] = None
     lat: float
     lng: float
-    title: Optional[str] = Field(default=None, max_length=140)
+    title: str = Field(..., min_length=2, max_length=140)
     description: Optional[str] = None
     report_type: str = "comment"
     duration_hours: int = 6
-
-_REPORT_TYPE_FALLBACK_TITLES: dict[str, str] = {
-    "comment": "Comentario",
-    "queue": "Cola larga",
-    "noise": "Ruidoso",
-    "live_music": "Musica en vivo",
-    "free_stuff": "Gratis",
-    "food_truck": "Food truck",
-    "popup_market": "Mercadillo",
-    "street_show": "Espectaculo",
-    "other": "Otro",
-}
-
-
-def _normalize_report_title(report_type: str, raw_title: Optional[str]) -> str:
-    normalized_type = (report_type or "comment").strip().lower() or "comment"
-    title = (raw_title or "").strip()
-
-    # Custom comments require user-provided text.
-    if normalized_type == "comment":
-        if len(title) < 2:
-            raise HTTPException(
-                status_code=422,
-                detail="El titular es obligatorio para la opcion comentario.",
-            )
-        return title
-
-    # Quick presets can be sent without title; we synthesize one from the type.
-    if title:
-        return title
-
-    fallback = _REPORT_TYPE_FALLBACK_TITLES.get(normalized_type)
-    if fallback:
-        return fallback
-    humanized = normalized_type.replace("_", " ").strip()
-    return humanized.title() if humanized else "Aviso"
 
 def _bbox_for(lat: float, lng: float, radius_m: float) -> tuple[float, float, float, float]:
     delta = radius_m / 111000.0
@@ -324,7 +267,7 @@ async def list_place_comments(
             cursor = await db.execute(
                 """SELECT * FROM community_reports
                    WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?
-                     AND is_active
+                     AND is_active = 1
                      AND created_at >= ?
                    ORDER BY created_at DESC
                    LIMIT 30""",
@@ -337,7 +280,7 @@ async def list_place_comments(
 
     comments: list[dict] = []
     for row in rows:
-        d = report_row_to_dict(row)
+        d = dict(row)
         dist = _haversine_m(lat, lng, d.get("lat", lat), d.get("lng", lng))
         if dist > radius_m:
             continue
@@ -345,56 +288,40 @@ async def list_place_comments(
         comments.append(d)
     return {"comments": comments}
 
-def _safe_uuid_or_none(value: Optional[str]) -> Optional[str]:
-    """Return value if it parses as a UUID; otherwise None.
-
-    Cloud SQL community_reports.created_by is UUID. The local auth bypass
-    returns the literal string 'local-user' which Postgres rejects, so we
-    fall back to anonymous mode for any non-UUID identifier.
-    """
-    if not value:
-        return None
-    try:
-        uuid.UUID(str(value))
-        return str(value)
-    except (ValueError, AttributeError, TypeError):
-        return None
-
-
 @router.post("/comments")
 async def create_place_comment(req: PlaceCommentCreate, request: Request):
-    raw_user_id = get_optional_user(request)
-    # Postgres needs a real UUID or NULL; treat dev-mode/non-UUID tokens as anon.
-    safe_user_id = _safe_uuid_or_none(raw_user_id)
-    anon_fp = get_voter_id(request) if safe_user_id is None else None
+    user_id = get_optional_user(request)
+    anon_fp = None if user_id else get_voter_id(request)
 
     now = datetime.now(timezone.utc)
     expires_at = (now + timedelta(hours=max(1, req.duration_hours))).isoformat()
     report_id = str(uuid.uuid4())
-    report_type = (req.report_type or "comment").strip().lower() or "comment"
 
     async with get_db() as db:
         try:
-            await insert_community_report(
-                db,
-                report_id=report_id,
-                created_by=safe_user_id,
-                anon_fingerprint=anon_fp,
-                report_type=report_type,
-                title=_normalize_report_title(report_type, req.title),
-                description=(req.description or "").strip() or None,
-                lat=req.lat,
-                lng=req.lng,
-                address_hint=req.place_name,
-                created_at=now.isoformat(),
-                expires_at=expires_at,
+            await db.execute(
+                """INSERT INTO community_reports
+                       (id, created_by, anon_fingerprint, report_type, title, description,
+                        lat, lng, address_hint, created_at, expires_at, is_active, confirmations, denials, confidence)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,1,0,0,0.5)""",
+                (
+                    report_id,
+                    user_id,
+                    anon_fp,
+                    req.report_type or "comment",
+                    req.title.strip(),
+                    (req.description or "").strip() or None,
+                    req.lat,
+                    req.lng,
+                    req.place_name,
+                    now.isoformat(),
+                    expires_at,
+                ),
             )
             await db.commit()
             cursor = await db.execute("SELECT * FROM community_reports WHERE id=?", (report_id,))
             row = await cursor.fetchone()
-            return {"comment": report_row_to_dict(row) if row else {"id": report_id}}
-        except HTTPException:
-            raise
+            return {"comment": dict(row) if row else {"id": report_id}}
         except Exception as exc:
             logger.error("Error creating place comment: %s", exc)
             raise HTTPException(status_code=500, detail=f"Could not create comment: {str(exc)}")

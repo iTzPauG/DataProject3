@@ -87,6 +87,7 @@ module "cloud_run" {
   region               = var.region
   project_id           = var.project_id
   workspace            = terraform.workspace
+  firebase_storage_bucket = var.firebase_storage_bucket
   image                = module.registry.image
   build_id             = module.registry.build_id
   cloud_sql_connection = module.cloud_sql.connection_name
