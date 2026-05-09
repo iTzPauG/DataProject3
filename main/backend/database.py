@@ -416,7 +416,7 @@ POSTGRES_SCHEMA = [
         cuisine TEXT NOT NULL DEFAULT 'general',
         restaurant_cuisines TEXT DEFAULT '[]',
         available_at TEXT NOT NULL,
-        reservation_deadline_at TEXT,
+        reservation_deadline_at TIMESTAMPTZ,
         description TEXT,
         is_active INTEGER DEFAULT 1,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -454,7 +454,7 @@ POSTGRES_SCHEMA = [
     ALTER TABLE deals ADD COLUMN IF NOT EXISTS available_at TEXT
     """,
     """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS reservation_deadline_at TEXT
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS reservation_deadline_at TIMESTAMPTZ
     """,
     """
     ALTER TABLE deals ADD COLUMN IF NOT EXISTS description TEXT
@@ -482,6 +482,9 @@ POSTGRES_SCHEMA = [
     """,
     """
     ALTER TABLE deals ALTER COLUMN available_at TYPE TIMESTAMPTZ USING available_at::TIMESTAMPTZ
+    """,
+    """
+    ALTER TABLE deals ALTER COLUMN reservation_deadline_at TYPE TIMESTAMPTZ USING reservation_deadline_at::TIMESTAMPTZ
     """,
         """
         DO $$

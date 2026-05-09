@@ -7,7 +7,7 @@ from pydantic import BaseModel
 import json
 
 from auth import get_optional_user
-from database import get_db
+from database import get_db, using_postgres
 from services.firestore_sync import (
     create_reservation as firestore_create_reservation,
     delete_deal as firestore_delete_deal,
@@ -150,7 +150,7 @@ async def list_deals(
                 raise HTTPException(status_code=401, detail="Autenticación requerida")
             deals = await _fetch_all(
                 db,
-                "SELECT * FROM deals WHERE owner_uid = ? AND is_active = TRUE ORDER BY created_at DESC",
+                "SELECT * FROM deals WHERE owner_uid = ? ORDER BY created_at DESC",
                 (uid,),
             )
             # Attach reservation info to each deal
@@ -226,7 +226,12 @@ async def create_deal(body: DealCreate, request: Request):
 
         available_at_value = body.available_at
         expires_at_value = expires_at
-        reservation_deadline_value = reservation_deadline_at
+        if reservation_deadline_at is None:
+            reservation_deadline_value = None
+        elif using_postgres():
+            reservation_deadline_value = reservation_deadline_at
+        else:
+            reservation_deadline_value = reservation_deadline_at.isoformat()
         restaurant_cuisines = _parse_cuisines(profile.get("restaurant_cuisines"))
         primary_cuisine = restaurant_cuisines[0] if restaurant_cuisines else "general"
         restaurant_cuisines_value = json.dumps(restaurant_cuisines)

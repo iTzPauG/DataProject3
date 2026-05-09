@@ -89,6 +89,10 @@ export default function PublishTab() {
   const [publishModalOpen, setPublishModalOpen] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<PublishValidation>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const activeIssues = useMemo(
+    () => Object.values(fieldErrors).filter((value): value is string => Boolean(value)),
+    [fieldErrors],
+  );
 
   const styles = useMemo(
     () =>
@@ -384,7 +388,7 @@ export default function PublishTab() {
     setFieldErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
-      setSubmitError('Corrige los avisos marcados antes de publicar.');
+      setSubmitError(null);
       return;
     }
 
@@ -606,43 +610,26 @@ export default function PublishTab() {
                   placeholderTextColor={colors.inkFaint}
                 />
 
-                <View style={styles.warningPanel}>
-                  <View style={styles.warningHeader}>
-                    <Text style={{ fontSize: 18 }}>⚠️</Text>
-                    <Text style={styles.warningTitle}>Antes de publicar</Text>
-                  </View>
-                  <Text style={styles.warningBody}>
-                    Si la oferta no cumple alguna restricción, el botón te mostrará el motivo exacto en esta pantalla.
-                  </Text>
-                  <View style={styles.issueList}>
-                    <View style={styles.issueRow}>
-                      <View style={styles.issueBullet}><Text style={{ color: '#DC2626', fontSize: 11 }}>!</Text></View>
-                      <Text style={styles.issueText}>Precio y mesas deben ser válidos.</Text>
+                {activeIssues.length > 0 || submitError ? (
+                  <View style={styles.warningPanel}>
+                    <View style={styles.warningHeader}>
+                      <Text style={{ fontSize: 18 }}>⚠️</Text>
+                      <Text style={styles.warningTitle}>Revisa esta oferta</Text>
                     </View>
-                    <View style={styles.issueRow}>
-                      <View style={styles.issueBullet}><Text style={{ color: '#DC2626', fontSize: 11 }}>!</Text></View>
-                      <Text style={styles.issueText}>La hora de fin debe ser posterior a la de inicio.</Text>
+                    <View style={styles.issueList}>
+                      {activeIssues.map((issue) => (
+                        <View key={issue} style={styles.issueRow}>
+                          <View style={styles.issueBullet}><Text style={{ color: '#DC2626', fontSize: 11 }}>!</Text></View>
+                          <Text style={styles.issueText}>{issue}</Text>
+                        </View>
+                      ))}
+                      {submitError ? (
+                        <View style={styles.issueRow}>
+                          <View style={styles.issueBullet}><Text style={{ color: '#DC2626', fontSize: 11 }}>!</Text></View>
+                          <Text style={styles.issueText}>{submitError}</Text>
+                        </View>
+                      ) : null}
                     </View>
-                    <View style={styles.issueRow}>
-                      <View style={styles.issueBullet}><Text style={{ color: '#DC2626', fontSize: 11 }}>!</Text></View>
-                      <Text style={styles.issueText}>La hora maxima de reserva no puede ser posterior al inicio.</Text>
-                    </View>
-                    <View style={styles.issueRow}>
-                      <View style={styles.issueBullet}><Text style={{ color: '#DC2626', fontSize: 11 }}>!</Text></View>
-                      <Text style={styles.issueText}>La fecha debe ir en formato AAAA-MM-DD.</Text>
-                    </View>
-                    <View style={styles.issueRow}>
-                      <View style={styles.issueBullet}><Text style={{ color: '#DC2626', fontSize: 11 }}>!</Text></View>
-                      <Text style={styles.issueText}>Si el backend rechaza la oferta, verás el mensaje exacto aquí.</Text>
-                    </View>
-                  </View>
-                </View>
-
-                {submitError ? (
-                  <View style={{ marginTop: 8, padding: 12, borderRadius: 12, backgroundColor: 'rgba(220,38,38,0.08)', borderWidth: 1, borderColor: 'rgba(220,38,38,0.18)' }}>
-                    <Text style={{ color: '#B91C1C', fontSize: 13, fontFamily: typography.body, fontWeight: '700' }}>
-                      {submitError}
-                    </Text>
                   </View>
                 ) : null}
 

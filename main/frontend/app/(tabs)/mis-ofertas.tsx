@@ -145,6 +145,24 @@ export default function MisOfertasTab() {
       }
       const data = await res.json();
       const normalized = Array.isArray(data.deals) ? data.deals.map(normalizeDeal) : [];
+
+      const previous = previousReservationsRef.current;
+      const current: Record<string, string | null> = {};
+      for (const deal of normalized) {
+        const status = deal.reservation?.status ?? null;
+        current[deal.id] = status;
+        if (
+          reservationsPrimedRef.current &&
+          previous[deal.id] !== 'confirmed' &&
+          status === 'confirmed' &&
+          deal.reservation?.customer_name
+        ) {
+          showToast(`🎉 Nueva reserva: ${deal.reservation.customer_name}`);
+        }
+      }
+      reservationsPrimedRef.current = true;
+      previousReservationsRef.current = current;
+
       setDeals(normalized);
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'No se pudieron cargar tus ofertas');
@@ -152,7 +170,7 @@ export default function MisOfertasTab() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [profile, getToken]);
+  }, [profile, getToken, showToast]);
 
   useEffect(() => {
     if (profile?.role !== 'business' || !profile.firebase_uid) return;
@@ -166,35 +184,9 @@ export default function MisOfertasTab() {
     setConnected(true);
     const unsubscribe = onSnapshot(
       dealsQuery,
-      (snapshot) => {
-        const nextDeals = snapshot.docs
-          .map((doc) => normalizeDeal({ id: doc.id, ...doc.data() }))
-          .sort((a, b) => {
-            const aTs = Date.parse(a.created_at ?? '') || 0;
-            const bTs = Date.parse(b.created_at ?? '') || 0;
-            return bTs - aTs;
-          });
-
-        const previous = previousReservationsRef.current;
-        const current: Record<string, string | null> = {};
-        for (const deal of nextDeals) {
-          const status = deal.reservation?.status ?? null;
-          current[deal.id] = status;
-          if (
-            reservationsPrimedRef.current &&
-            previous[deal.id] !== 'confirmed' &&
-            status === 'confirmed' &&
-            deal.reservation?.customer_name
-          ) {
-            showToast(`🎉 Nueva reserva: ${deal.reservation.customer_name}`);
-          }
-        }
-        reservationsPrimedRef.current = true;
-        previousReservationsRef.current = current;
-
-        setDeals(nextDeals);
-        setLoading(false);
-        setRefreshing(false);
+      () => {
+        // Firestore acts as realtime trigger; data source remains API to avoid race/inconsistent shapes.
+        void fetchDeals();
       },
       () => {
         setConnected(false);
@@ -205,7 +197,7 @@ export default function MisOfertasTab() {
       unsubscribe();
       setConnected(false);
     };
-  }, [profile?.role, profile?.firebase_uid, showToast]);
+  }, [profile?.role, profile?.firebase_uid, fetchDeals]);
 
   useEffect(() => {
     void fetchDeals();
