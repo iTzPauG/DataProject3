@@ -13,3 +13,4 @@ firebase-admin>=6.6.0
 python-multipart>=0.0.12
 Pillow>=11.0.0
 cachetools>=5.5.0
+google-cloud-bigquery>=3.17.0

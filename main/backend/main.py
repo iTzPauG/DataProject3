@@ -14,6 +14,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from config import ALLOWED_ORIGINS
 from database import init_db, using_postgres
 from routers import health, recommend, votes, places, events, reports, categories, bookmarks, search, brain, photos, preferences, compare, deals, reservations, interactions, internal, auth
+from routers import table_events, dashboard
 
 logger = logging.getLogger(__name__)
 
@@ -82,3 +83,5 @@ app.include_router(deals.router)
 app.include_router(reservations.router)
 app.include_router(interactions.router)
 app.include_router(internal.router)
+app.include_router(table_events.router)
+app.include_router(dashboard.router)
