@@ -394,8 +394,8 @@ async def create_reservation(deal_id: str, body: ReservationCreate, request: Req
         res_id = str(uuid.uuid4())
         try:
             await db.execute(
-                "INSERT INTO reservations (id, deal_id, customer_uid, customer_name, customer_phone) VALUES (?, ?, ?, ?, ?)",
-                (res_id, deal_id, uid, body.customer_name, body.customer_phone),
+                "INSERT INTO reservations (id, deal_id, restaurant_id, user_id, customer_name, customer_phone) VALUES (?, ?, ?, ?, ?, ?)",
+                (res_id, deal_id, deal["restaurant_id"], uid, body.customer_name, body.customer_phone),
             )
             await db.execute(
                 "UPDATE deals SET is_active = FALSE WHERE id = ?",
