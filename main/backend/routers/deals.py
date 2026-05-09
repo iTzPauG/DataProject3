@@ -391,14 +391,11 @@ async def create_reservation(deal_id: str, body: ReservationCreate, request: Req
         if not deal.get("is_active"):
             raise HTTPException(status_code=409, detail="Esta reserva ya ha sido consumida por otro usuario")
 
-        profile = await _fetch_one(db, "SELECT id FROM profiles WHERE firebase_uid = ?", (uid,))
-        profile_id = str(profile.get("id")) if profile and profile.get("id") is not None else None
-
         res_id = str(uuid.uuid4())
         try:
             await db.execute(
                 "INSERT INTO reservations (id, deal_id, restaurant_id, user_id, customer_name, customer_phone) VALUES (?, ?, ?, ?, ?, ?)",
-                (res_id, deal_id, deal["restaurant_id"], profile_id, body.customer_name, body.customer_phone),
+                (res_id, deal_id, deal["restaurant_id"], uid, body.customer_name, body.customer_phone),
             )
             await db.execute(
                 "UPDATE deals SET is_active = FALSE WHERE id = ?",
@@ -423,32 +420,6 @@ async def create_reservation(deal_id: str, body: ReservationCreate, request: Req
         "reservation": reservation,
     })
     return {"success": True, "reservation": reservation}
-
-
-@router.get("/my-reservations")
-async def my_reservations(request: Request):
-    """Get all reservations made by the current user (customer view)."""
-    uid = get_optional_user(request)
-    if not uid:
-        raise HTTPException(status_code=401, detail="Autenticación requerida")
-    async with get_db() as db:
-        rows = await _fetch_all(
-            db,
-            """
-            SELECT r.id, r.deal_id, r.status, r.status_reason, r.created_at,
-                   d.restaurant_name, d.price, d.original_price, d.seats,
-                   d.description, d.available_at, d.expires_at,
-                   d.reservation_deadline_at, d.restaurant_cuisines,
-                   d.cancelled_at, d.not_presented_at
-            FROM reservations r
-            JOIN deals d ON d.id = r.deal_id
-            WHERE r.customer_uid = ?
-            ORDER BY d.available_at DESC
-            """,
-            (uid,),
-        )
-        serialized = [_serialize_deal(dict(row)) for row in rows]
-    return {"reservations": serialized}
 
 
 @router.get("/{deal_id}/reservation")
