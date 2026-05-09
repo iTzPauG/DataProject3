@@ -24,7 +24,10 @@
     "nope": "No",
     "likedIt": "Me gusta",
     "beFirstToRate": "Sé el primero en votar",
-    "all": "Todo"
+    "all": "Todo",
+    "reviews": "reseñas",
+    "noPhone": "Teléfono no disponible",
+    "saved": "Guardado"
   },
   "splash": {
     "slogans": [

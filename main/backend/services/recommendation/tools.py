@@ -397,8 +397,8 @@ async def fetch_all_reviews(
     """Fetch Google, Yelp, and TripAdvisor reviews in parallel."""
     t0 = time.perf_counter()
     safe_name = str(name or "Unknown")
-    # v6 invalidates stale entries from older secondary-review matching logic.
-    cache_key = f"all_reviews_v6:{place_id}:{language}:{lat:.4f}:{lng:.4f}"
+    # v7 invalidates stale entries created before TripAdvisor secret/cache fixes.
+    cache_key = f"all_reviews_v7:{place_id}:{language}:{lat:.4f}:{lng:.4f}"
     cached = await cache_get(cache_key)
     if cached:
         return cached

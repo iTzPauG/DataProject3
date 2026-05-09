@@ -1,7 +1,15 @@
 locals {
   image      = "${var.region}-docker.pkg.dev/${var.project_id}/frontend/frontend:latest"
   source_dir = "${path.module}/../../../main/frontend"
-  source_files = tolist(fileset("${path.module}/../../../main/frontend", "**/*.{ts,tsx,js,jsx,json,Dockerfile}"))
+  source_files = [
+    for file in tolist(fileset(local.source_dir, "**/*.{ts,tsx,js,jsx,json,Dockerfile}")) : file
+    if length(regexall("(^|/)node_modules(/|$)", file)) == 0
+    && length(regexall("(^|/)dist(/|$)", file)) == 0
+    && length(regexall("(^|/)\\.expo(/|$)", file)) == 0
+    && length(regexall("(^|/)\\.next(/|$)", file)) == 0
+    && length(regexall("(^|/)coverage(/|$)", file)) == 0
+    && length(regexall("(^|/)\\.git(/|$)", file)) == 0
+  ]
 }
 
 resource "google_artifact_registry_repository" "frontend" {

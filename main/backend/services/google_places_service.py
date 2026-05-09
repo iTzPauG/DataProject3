@@ -478,13 +478,22 @@ async def get_place_details(place_id: str, language: str = "es", include_yelp: b
 
     if include_yelp:
         try:
-            yelp_reviews = await get_yelp_reviews(
+            yelp_payload = await get_yelp_reviews(
                 name=_get_display_name(data),
                 lat=float(data.get("location", {}).get("latitude") or 0.0),
                 lng=float(data.get("location", {}).get("longitude") or 0.0),
                 address=data.get("formattedAddress", ""),
                 language=language,
             )
+            # get_yelp_reviews returns a dict: {"reviews": [...], "total_count": N}
+            # Keep this function resilient if the contract changes.
+            if isinstance(yelp_payload, dict):
+                raw_reviews = yelp_payload.get("reviews", [])
+                yelp_reviews = raw_reviews if isinstance(raw_reviews, list) else []
+            elif isinstance(yelp_payload, list):
+                yelp_reviews = [r for r in yelp_payload if isinstance(r, dict)]
+            else:
+                yelp_reviews = []
         except Exception as exc:
             log.info("Yelp enrichment failed for %s: %s", place_id, exc)
             yelp_reviews = []

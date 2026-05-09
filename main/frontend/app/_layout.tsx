@@ -6,6 +6,7 @@ import { AppStateProvider, useAppState } from '../hooks/useAppState';
 import { useAuth } from '../hooks/useAuth';
 import { fetchRemotePreferences, toLocalPreferences } from '../services/preferences';
 import { GADOLogger } from '../utils/logger';
+import { resolveI18nLanguage } from '../utils/language';
 import WebFontLoader from '../components/WebFontLoader';
 import '../utils/i18n';
 import { useTranslation } from 'react-i18next';
@@ -17,14 +18,9 @@ function LanguageSyncer() {
 
   useEffect(() => {
     if (isHydrated && mapPreferences.language) {
-      let lang = mapPreferences.language;
-      if (lang === 'system') {
-        // Fallback or use expo-localization here if available
-        // For now, fallback to 'es' as default
-        lang = 'es';
-      }
+      const lang = resolveI18nLanguage(mapPreferences.language);
       if (i18n.language !== lang) {
-        i18n.changeLanguage(lang);
+        void i18n.changeLanguage(lang);
       }
     }
   }, [mapPreferences.language, isHydrated, i18n]);

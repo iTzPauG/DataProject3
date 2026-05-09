@@ -22,6 +22,7 @@ import { useLocation } from '../../hooks/useLocation';
 import { BASE_URL } from '../../services/api';
 import { fetchNearbyItems } from '../../services/mapService';
 import { MapItem } from '../../types';
+import { resolveI18nLanguage } from '../../utils/language';
 import { storage } from '../../utils/storage';
 import { useTheme } from '../../utils/theme';
 
@@ -359,7 +360,7 @@ export default function MapTab() {
                     ...i.metadata,
                     ...found.metadata,
                     photo_url: photoUrl?.startsWith('/')
-                      ? `${backendUrl}${photoUrl}`
+                      ? `${BASE_URL}${photoUrl}`
                       : photoUrl,
                     address:
                       found.address ?? found.metadata?.address ?? i.metadata?.address,
@@ -427,7 +428,7 @@ export default function MapTab() {
     const searchLng = mapRegion?.lng ?? location.lng ?? -0.3763;
     setLoading(true);
     try {
-      const lang = mapPreferences.language === 'system' ? 'es' : mapPreferences.language;
+      const lang = resolveI18nLanguage(mapPreferences.language);
       const items = await fetchNearbyItems(
         searchLat,
         searchLng,

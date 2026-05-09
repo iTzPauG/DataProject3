@@ -24,7 +24,10 @@
     "nope": "Nope",
     "likedIt": "Liked it",
     "beFirstToRate": "Be the first to rate",
-    "all": "All"
+    "all": "All",
+    "reviews": "reviews",
+    "noPhone": "Phone not available",
+    "saved": "Saved"
   },
   "splash": {
     "slogans": [

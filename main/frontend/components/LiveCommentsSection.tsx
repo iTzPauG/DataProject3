@@ -131,24 +131,27 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
 
   const handleSubmit = async () => {
     setErrorMsg(null);
-    if (title.trim().length < 2) {
-      setErrorMsg('El comentario debe ser más largo (mínimo 2 caracteres).');
+    const trimmedTitle = title.trim();
+    const requiresCustomTitle = reportType === 'comment';
+    if (requiresCustomTitle && trimmedTitle.length < 2) {
+      setErrorMsg('En "Comentario" el titular es obligatorio (minimo 2 caracteres).');
       return;
     }
     setSubmitting(true);
     try {
+      const payload = {
+        place_id: placeId,
+        place_name: placeName,
+        lat,
+        lng,
+        title: requiresCustomTitle || trimmedTitle ? trimmedTitle : undefined,
+        description: description.trim() || undefined,
+        report_type: reportType,
+      };
       const res = await fetch(`${BASE_URL}/places/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          place_id: placeId,
-          place_name: placeName,
-          lat,
-          lng,
-          title: title.trim(),
-          description: description.trim() || undefined,
-          report_type: reportType,
-        }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         setShowModal(false);
@@ -363,6 +366,13 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
       fontFamily: typography.body,
       marginBottom: 12,
     },
+    titleHelperText: {
+      color: colors.inkMuted,
+      fontSize: 12,
+      fontFamily: typography.body,
+      marginTop: -6,
+      marginBottom: 12,
+    },
     textarea: {
       minHeight: 80,
       textAlignVertical: 'top',
@@ -398,6 +408,10 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
   }
 
   const commentCount = data?.comments?.length ?? 0;
+  const requiresCustomTitle = reportType === 'comment';
+  const titlePlaceholder = requiresCustomTitle
+    ? 'Comentario (obligatorio)'
+    : 'Titular opcional (se rellena solo si lo dejas vacio)';
 
   return (
     <View style={styles.container}>
@@ -466,7 +480,10 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
                   <TouchableOpacity 
                     key={key} 
                     style={[styles.typeBtn, active && styles.typeBtnActive]}
-                    onPress={() => setReportType(key)}
+                    onPress={() => {
+                      setReportType(key);
+                      setErrorMsg(null);
+                    }}
                   >
                     <Text>{meta.emoji}</Text>
                     <Text style={styles.typeBtnText}>{meta.label}</Text>
@@ -477,12 +494,17 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
 
             <TextInput
               style={styles.input}
-              placeholder="Titular breve (ej. Cola de 20 mins)"
+              placeholder={titlePlaceholder}
               placeholderTextColor={colors.inkMuted}
               value={title}
               onChangeText={setTitle}
               maxLength={60}
             />
+            <Text style={styles.titleHelperText}>
+              {requiresCustomTitle
+                ? 'Obligatorio solo para la opcion Comentario.'
+                : 'En opciones rapidas puedes publicarlo sin escribir titular.'}
+            </Text>
 
             <TextInput
               style={[styles.input, styles.textarea]}
@@ -517,3 +539,4 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
     </View>
   );
 }
+

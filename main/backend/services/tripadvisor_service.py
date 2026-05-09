@@ -452,7 +452,7 @@ async def get_tripadvisor_reviews(
     if not location_id:
         return {"reviews": [], "total_count": 0}
 
-    cache_key = f"tripadvisor_reviews_v6:{location_id}:{language}"
+    cache_key = f"tripadvisor_reviews_v7:{location_id}:{language}"
     cached = await cache_get(cache_key)
     if cached:
         return {"reviews": cached, "total_count": review_count}
@@ -482,5 +482,6 @@ async def get_tripadvisor_reviews(
     if review_count <= 0 and reviews:
         review_count = len(reviews)
 
-    await cache_set(cache_key, reviews, ttl=3600 * 6)
+    ttl = 3600 * 6 if reviews else 300
+    await cache_set(cache_key, reviews, ttl=ttl)
     return {"reviews": reviews, "total_count": review_count}

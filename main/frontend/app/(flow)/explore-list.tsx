@@ -177,8 +177,8 @@ export default function ExploreListScreen() {
         activeOpacity={0.8}
         onPress={() =>
           router.push({
-            pathname: '/(modals)/place-details',
-            params: { id: item.item_id, type: item.item_type },
+            pathname: item.item_type === 'event' ? '/(modals)/event-details' : '/(modals)/place-details',
+            params: { id: item.item_id, type: item.item_type, prefill: JSON.stringify(item) },
           })
         }
       >

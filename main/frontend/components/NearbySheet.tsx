@@ -3,8 +3,8 @@ import {
   Animated,
   Dimensions,
   FlatList,
+  Image,
   PanResponder,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -17,8 +17,8 @@ import { useDeviceType } from '../hooks/useDeviceType';
 import { MapItem } from '../types/map';
 import { formatDistance } from '../utils/format';
 import { useTheme } from '../utils/theme';
-import CategoryMonogram from './CategoryMonogram';
 import Icon from './Icon';
+import WhimIcon from './WhimIcon';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const HEADER_H = 64;
@@ -46,10 +46,13 @@ function NearbyItem({
   onPress: () => void;
   onNavigate: () => void;
 }) {
-  const { t } = useTranslation();
   const { colors, typography, space } = useTheme();
   const rating = item.metadata?.rating as number | undefined;
   const distance = item.distance_m > 0 ? formatDistance(item.distance_m) : '';
+  const photoUrl = typeof item.metadata?.photo_url === 'string'
+    ? item.metadata.photo_url.trim()
+    : '';
+  const hasPhoto = photoUrl.length > 0;
 
   const styles = useMemo(() => StyleSheet.create({
     itemRow: {
@@ -68,6 +71,19 @@ function NearbyItem({
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: space.md,
+    },
+    itemPhotoFrame: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: selected ? colors.brand : colors.strokeStrong,
+      backgroundColor: colors.surfaceElevated,
+    },
+    itemPhoto: {
+      width: '100%',
+      height: '100%',
     },
     itemContent: {
       flex: 1,
@@ -114,12 +130,18 @@ function NearbyItem({
       activeOpacity={0.7}
     >
       <View style={styles.itemIconBox}>
-        <CategoryMonogram 
-          categoryId={item.category_id} 
-          label={item.title} 
-          size={44} 
-          variant={selected ? 'filled' : 'ring'}
-        />
+        {hasPhoto ? (
+          <View style={styles.itemPhotoFrame}>
+            <Image source={{ uri: photoUrl }} style={styles.itemPhoto} resizeMode="cover" />
+          </View>
+        ) : (
+          <WhimIcon
+            category={item.category_id}
+            name={item.item_type === 'place' ? 'restaurant' : item.item_type === 'event' ? 'event' : 'report'}
+            size={22}
+            color={selected ? colors.shell : colors.brand}
+          />
+        )}
       </View>
       <View style={styles.itemContent}>
         <Text style={styles.itemTitle} numberOfLines={1}>
@@ -246,7 +268,10 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
         onPress={() => onSelectItem(item.item_id)}
         onNavigate={() => {
           const pathname = item.item_type === 'event' ? '/(modals)/event-details' : '/(modals)/place-details';
-          router.push({ pathname: pathname as any, params: { id: item.item_id, type: item.item_type } });
+          router.push({
+            pathname: pathname as any,
+            params: { id: item.item_id, type: item.item_type, prefill: JSON.stringify(item) },
+          });
         }}
       />
     ),

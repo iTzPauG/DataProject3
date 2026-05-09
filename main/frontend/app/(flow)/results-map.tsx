@@ -34,6 +34,7 @@ import {
 import { Restaurant } from "../../types/restaurant";
 import { MapItem } from "../../types";
 import { formatPriceLevel } from "../../utils/format";
+import { resolveI18nLanguage } from "../../utils/language";
 import { useTheme } from "../../utils/theme";
 
 // Enable LayoutAnimation on Android
@@ -555,7 +556,7 @@ export default function ResultsMapScreen() {
     accumulatedRef.current = [];
     fetchingRef.current = true;
 
-    const lang = mapPreferences.language === "system" ? "es" : mapPreferences.language;
+    const lang = resolveI18nLanguage(mapPreferences.language);
 
     try {
       await recommendRestaurantsStream(

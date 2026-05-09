@@ -918,6 +918,7 @@ def _build_result(r: dict, ai_data: dict, live_data: dict) -> dict:
         "id": r["place_id"],
         "name": str(r.get("name") or ""),
         "address": r.get("address", "") or "",
+        "phone": r.get("phone", "") or "",
         "website": r.get("website"),
         "city": r.get("city") or _infer_city(r.get("address")),
         "rating": float(r.get("rating") or 0.0),
@@ -1140,6 +1141,21 @@ async def enrich_place_result(
         "tripadvisor_reviews": details.get("tripadvisor_reviews", []),
         "review_summary": review_summary or details.get("review_summary", ""),
     }
+
+    # Keep single-place /take aligned with the explore pipeline: fetch and merge
+    # secondary review sources (Yelp + TripAdvisor) plus richer contact fields.
+    try:
+        fetched = await fetch_all_reviews(
+            place_id=place_id,
+            name=str(candidate.get("name") or ""),
+            lat=lat,
+            lng=lng,
+            language=language,
+            address=str(candidate.get("address") or ""),
+        )
+        candidate = _merge_fetched_data(candidate, fetched)
+    except Exception as exc:
+        log.info("[TAKE] fetch_all_reviews failed for %s: %s", place_id, exc)
 
     ai_map = await _llm_batch([candidate], "balanced", language, parent_category, subcategory, price_level)
     ai_data = ai_map.get(place_id, {})

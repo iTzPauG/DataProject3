@@ -256,10 +256,46 @@ class PlaceCommentCreate(BaseModel):
     place_name: Optional[str] = None
     lat: float
     lng: float
-    title: str = Field(..., min_length=2, max_length=140)
+    title: Optional[str] = Field(default=None, max_length=140)
     description: Optional[str] = None
     report_type: str = "comment"
     duration_hours: int = 6
+
+_REPORT_TYPE_FALLBACK_TITLES: dict[str, str] = {
+    "comment": "Comentario",
+    "queue": "Cola larga",
+    "noise": "Ruidoso",
+    "live_music": "Musica en vivo",
+    "free_stuff": "Gratis",
+    "food_truck": "Food truck",
+    "popup_market": "Mercadillo",
+    "street_show": "Espectaculo",
+    "other": "Otro",
+}
+
+
+def _normalize_report_title(report_type: str, raw_title: Optional[str]) -> str:
+    normalized_type = (report_type or "comment").strip().lower() or "comment"
+    title = (raw_title or "").strip()
+
+    # Custom comments require user-provided text.
+    if normalized_type == "comment":
+        if len(title) < 2:
+            raise HTTPException(
+                status_code=422,
+                detail="El titular es obligatorio para la opcion comentario.",
+            )
+        return title
+
+    # Quick presets can be sent without title; we synthesize one from the type.
+    if title:
+        return title
+
+    fallback = _REPORT_TYPE_FALLBACK_TITLES.get(normalized_type)
+    if fallback:
+        return fallback
+    humanized = normalized_type.replace("_", " ").strip()
+    return humanized.title() if humanized else "Aviso"
 
 def _bbox_for(lat: float, lng: float, radius_m: float) -> tuple[float, float, float, float]:
     delta = radius_m / 111000.0
@@ -335,6 +371,7 @@ async def create_place_comment(req: PlaceCommentCreate, request: Request):
     now = datetime.now(timezone.utc)
     expires_at = (now + timedelta(hours=max(1, req.duration_hours))).isoformat()
     report_id = str(uuid.uuid4())
+    report_type = (req.report_type or "comment").strip().lower() or "comment"
 
     async with get_db() as db:
         try:
@@ -343,8 +380,8 @@ async def create_place_comment(req: PlaceCommentCreate, request: Request):
                 report_id=report_id,
                 created_by=safe_user_id,
                 anon_fingerprint=anon_fp,
-                report_type=req.report_type or "comment",
-                title=req.title.strip(),
+                report_type=report_type,
+                title=_normalize_report_title(report_type, req.title),
                 description=(req.description or "").strip() or None,
                 lat=req.lat,
                 lng=req.lng,
@@ -356,6 +393,8 @@ async def create_place_comment(req: PlaceCommentCreate, request: Request):
             cursor = await db.execute("SELECT * FROM community_reports WHERE id=?", (report_id,))
             row = await cursor.fetchone()
             return {"comment": report_row_to_dict(row) if row else {"id": report_id}}
+        except HTTPException:
+            raise
         except Exception as exc:
             logger.error("Error creating place comment: %s", exc)
             raise HTTPException(status_code=500, detail=f"Could not create comment: {str(exc)}")
