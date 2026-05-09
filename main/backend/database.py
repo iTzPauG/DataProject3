@@ -528,6 +528,25 @@ POSTGRES_SCHEMA = [
     """
     CREATE INDEX IF NOT EXISTS idx_reservations_deal ON reservations(deal_id, status)
     """,
+    """
+    CREATE TABLE IF NOT EXISTS table_events (
+        id TEXT PRIMARY KEY,
+        owner_uid TEXT NOT NULL,
+        restaurant_name TEXT NOT NULL,
+        price REAL NOT NULL,
+        seats INTEGER NOT NULL,
+        ends_at TEXT,
+        description TEXT,
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_table_events_active ON table_events(is_active, ends_at)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_table_events_owner ON table_events(owner_uid)
+    """,
 ]
 
 
@@ -924,6 +943,25 @@ async def _init_sqlite() -> None:
             """,
             """
             CREATE UNIQUE INDEX IF NOT EXISTS idx_reservations_deal_unique ON reservations(deal_id)
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS table_events (
+                id TEXT PRIMARY KEY,
+                owner_uid TEXT NOT NULL,
+                restaurant_name TEXT NOT NULL,
+                price REAL NOT NULL,
+                seats INTEGER NOT NULL,
+                ends_at TEXT,
+                description TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_table_events_active ON table_events(is_active, ends_at)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_table_events_owner ON table_events(owner_uid)
             """,
         ]:
             await db.execute(statement)
