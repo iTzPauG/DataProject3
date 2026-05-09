@@ -437,6 +437,8 @@ SCHEMA_STATEMENTS = [
     """ALTER TABLE deals ADD COLUMN IF NOT EXISTS cancellation_reason TEXT """,
     """ALTER TABLE deals ADD COLUMN IF NOT EXISTS cancelled_at TEXT """,
     """ALTER TABLE deals ADD COLUMN IF NOT EXISTS not_presented_at TEXT """,
+    """ALTER TABLE reservations ADD COLUMN IF NOT EXISTS restaurant_id TEXT """,
+    """ALTER TABLE reservations ADD COLUMN IF NOT EXISTS user_id TEXT """,
     """ALTER TABLE reservations ADD COLUMN IF NOT EXISTS status_reason TEXT """,
     """ALTER TABLE reservations ADD COLUMN IF NOT EXISTS status_updated_at TEXT """,
     # Indexes
@@ -564,6 +566,10 @@ class PostgresCompatConnection:
 
     async def commit(self):
         """No-op for asyncpg (auto-commits)."""
+        return None
+
+    async def rollback(self):
+        """No-op for asyncpg compatibility with sqlite-like call sites."""
         return None
 
 
