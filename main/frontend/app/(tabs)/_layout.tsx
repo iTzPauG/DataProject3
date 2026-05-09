@@ -11,7 +11,6 @@ const TAB_GLYPHS: Record<string, IconName> = {
   explore: 'compass',
   publish: 'plus',
   'mis-ofertas': 'tag',
-  profile: 'person',
 };
 
 export default function TabsLayout() {
@@ -20,7 +19,7 @@ export default function TabsLayout() {
   const { profile } = useAuth();
   const isBusiness = profile?.role === 'business';
 
-  const TAB_H = Platform.OS === 'ios' ? 86 : Platform.OS === 'web' ? 64 : 68;
+  const TAB_H = Platform.OS === 'ios' ? 78 : Platform.OS === 'web' ? 60 : 64;
 
   const styles = useMemo(
     () =>
@@ -30,8 +29,8 @@ export default function TabsLayout() {
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: colors.stroke,
           height: TAB_H,
-          paddingTop: 8,
-          paddingBottom: Platform.OS === 'ios' ? 22 : 8,
+          paddingTop: 6,
+          paddingBottom: Platform.OS === 'ios' ? 18 : 6,
           elevation: 0,
           shadowOpacity: 0,
           position: Platform.OS === 'web' ? undefined : 'absolute',
@@ -43,68 +42,59 @@ export default function TabsLayout() {
         },
         item: {
           flex: 1,
-          maxWidth: 132,
           alignItems: 'center',
-          justifyContent: 'flex-start',
-          gap: 6,
-          paddingTop: 4,
+          justifyContent: 'center',
+          gap: 4,
+          paddingTop: 2,
+          paddingBottom: 2,
         },
         label: {
-          fontSize: 9,
-          letterSpacing: 0.8,
-          textTransform: 'uppercase',
+          fontSize: 11,
+          letterSpacing: 0.2,
           fontFamily: typography.body,
           fontWeight: '600',
           textAlign: 'center',
-          width: '100%',
         },
         underline: {
-          marginTop: 5,
-          width: 18,
-          height: 1,
+          marginTop: 2,
+          width: 16,
+          height: 2,
+          borderRadius: 1,
           backgroundColor: colors.ink,
         },
         underlinePlaceholder: {
-          marginTop: 5,
-          height: 1,
-          width: 18,
+          marginTop: 2,
+          height: 2,
+          width: 16,
           backgroundColor: 'transparent',
         },
       }),
     [colors, typography, TAB_H],
   );
 
-  const renderTab = (routeName: 'index' | 'explore' | 'publish' | 'mis-ofertas' | 'profile', focused: boolean) => {
+  const renderTab = (routeName: 'index' | 'explore' | 'publish' | 'mis-ofertas', focused: boolean) => {
     const label = t(`tabs.${routeName}`);
     const glyph = TAB_GLYPHS[routeName];
     const color = focused ? colors.ink : colors.inkFaint;
-    const labelStyle = routeName === 'mis-ofertas'
-      ? { fontSize: 8.2, letterSpacing: 0.2 }
-      : null;
     return (
       <View style={styles.item}>
-        <Icon name={glyph} size={18} color={color} strokeWidth={1.4} />
-        <Text
-          style={[styles.label, { color }, labelStyle]}
-          numberOfLines={1}
-        >
+        <Icon name={glyph} size={20} color={color} strokeWidth={1.6} />
+        <Text style={[styles.label, { color }]} numberOfLines={1}>
           {label}
         </Text>
-        <View
-          style={focused ? styles.underline : styles.underlinePlaceholder}
-        />
+        <View style={focused ? styles.underline : styles.underlinePlaceholder} />
       </View>
     );
   };
 
   return (
-      <Tabs
+    <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.ink,
         tabBarInactiveTintColor: colors.inkFaint,
         tabBarStyle: styles.tabBar,
-        tabBarItemStyle: { flex: 1, marginHorizontal: 10 },
+        tabBarItemStyle: { flex: 1 },
         tabBarHideOnKeyboard: true,
         tabBarShowLabel: false,
       }}
@@ -136,10 +126,11 @@ export default function TabsLayout() {
           tabBarIcon: ({ focused }) => renderTab('mis-ofertas', focused),
         }}
       />
+      {/* Profile is now a floating avatar on the map; hide from bottom tab bar */}
       <Tabs.Screen
         name="profile"
         options={{
-          tabBarIcon: ({ focused }) => renderTab('profile', focused),
+          href: null,
         }}
       />
     </Tabs>

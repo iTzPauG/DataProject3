@@ -59,6 +59,7 @@ export default function Map({
   items,
   selectedId,
   onSelectItem,
+  onDoubleClickItem,
   onRegionChange,
   region,
   mapType = 'standard',
@@ -236,7 +237,16 @@ export default function Map({
           <Marker
             key={item.item_id}
             coordinate={{ latitude: item.lat, longitude: item.lng }}
-            onPress={() => onSelectItem?.(item.item_id)}
+            onPress={() => {
+              // Native maps don't have a true "double-tap" event, so we
+              // emulate it: a second tap on an already-selected marker
+              // is treated as a double-click.
+              if (selectedId === item.item_id && onDoubleClickItem) {
+                onDoubleClickItem(item.item_id, item.item_type);
+              } else {
+                onSelectItem?.(item.item_id);
+              }
+            }}
           >
             <View style={styles.markerContainer}>
               {highlightLive ? (

@@ -1,6 +1,7 @@
-import { Stack } from 'expo-router';
+import { Stack, router, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppStateProvider, useAppState } from '../hooks/useAppState';
 import { useAuth } from '../hooks/useAuth';
@@ -24,6 +25,41 @@ function LanguageSyncer() {
       }
     }
   }, [mapPreferences.language, isHydrated, i18n]);
+
+  return null;
+}
+
+// On the web, when a user lands on a deep link (e.g. /catalogo, /(tabs)/foryou,
+// or any route other than '/'), bounce them through the splash/main screen first
+// so AppState, Auth and preferences hydrate before the deep route renders.
+// We remember the intended URL in sessionStorage so the splash screen can
+// forward them back after the redirect — a refresh on the same deep link
+// "just works" but always passes through the bootstrapping flow.
+function ColdStartDeepLinkRedirector() {
+  const pathname = usePathname();
+  const handled = useRef(false);
+
+  useEffect(() => {
+    if (handled.current) return;
+    if (Platform.OS !== 'web') return;
+    if (typeof window === 'undefined') return;
+    handled.current = true;
+
+    // Only act on cold start: if there's already a "boot completed" marker
+    // set by the splash screen, the user is navigating in-app — leave them alone.
+    const BOOT_KEY = 'whim_boot_completed';
+    const bootCompleted = window.sessionStorage?.getItem(BOOT_KEY);
+    if (bootCompleted) return;
+
+    if (pathname && pathname !== '/' && pathname !== '/index') {
+      try {
+        window.sessionStorage?.setItem('whim_intended_path', pathname + (window.location.search || ''));
+      } catch {
+        /* sessionStorage may be unavailable in private mode — ignore */
+      }
+      router.replace('/');
+    }
+  }, [pathname]);
 
   return null;
 }
@@ -66,6 +102,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AppStateProvider>
         <WebFontLoader />
+        <ColdStartDeepLinkRedirector />
         <PreferencesSyncer />
         <LanguageSyncer />
         <StatusBar style="light" />

@@ -23,6 +23,7 @@ import { monogramFor } from '../../constants/design';
 import { useAuth } from '../../hooks/useAuth';
 import { BASE_URL } from '../../services/api';
 import { useTheme } from '../../utils/theme';
+import { resolveAccountName, resolveGreetingName } from '../../utils/account';
 
 const { width, height } = Dimensions.get('window');
 
@@ -472,8 +473,11 @@ export default function ProfileTab() {
     }
   }
 
-  const displayName = profile?.display_name || user?.email?.split('@')[0] || t('profile.guest');
-  const firstName = displayName.split(/[\s@]/)[0];
+  // Single source of truth for "what name should we show?".
+  // For business accounts this returns the restaurant brand name (e.g. "La Pepica")
+  // instead of the truncated personal display_name (which previously rendered as "La.").
+  const displayName = resolveAccountName(profile, user) || t('profile.guest');
+  const firstName = resolveGreetingName(profile, user) || displayName;
 
   const guestTitleParts = t('profile.guestTitle').split(',');
   const guestTitleMain = guestTitleParts[0];

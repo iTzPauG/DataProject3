@@ -182,12 +182,28 @@ export default function SplashScreen() {
       }, 3000);
     }
 
-    // Phase 5: Fade out and navigate
+    // Phase 5: Fade out and navigate.
+    // If the user originally landed on a deep link, ColdStartDeepLinkRedirector
+    // saved that path; we honor it after splash so a refresh on /catalogo or
+    // /(tabs)/foryou ends up where the user intended (but with full bootstrap done).
     const navTimer = setTimeout(() => {
       if (navigated.current) return;
       navigated.current = true;
       containerOpacity.value = withTiming(0, { duration: 600 });
-      setTimeout(() => router.replace('/(tabs)'), 600);
+      let target: string = '/(tabs)';
+      try {
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+          const intended = window.sessionStorage.getItem('whim_intended_path');
+          if (intended && intended !== '/' && intended !== '/index') {
+            target = intended;
+            window.sessionStorage.removeItem('whim_intended_path');
+          }
+          window.sessionStorage.setItem('whim_boot_completed', '1');
+        }
+      } catch {
+        /* ignore — sessionStorage unavailable */
+      }
+      setTimeout(() => router.replace(target as any), 600);
     }, 5000);
 
     return () => {

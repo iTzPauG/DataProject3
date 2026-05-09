@@ -22,6 +22,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { fetchPlaceExtra, getPlaceData, toggleBookmark } from '../../services/api';
 import { formatDistance } from '../../utils/format';
+import { synthesizeFallbackTake } from '../../utils/placeTake';
 import { useTheme } from '../../utils/theme';
 
 const CATEGORY_STYLES: Record<string, { color: string; icon: string; label: string }> = {
@@ -229,68 +230,14 @@ export default function PlaceDetailsModal() {
    *  - Pros are only included when they contain a SPECIFIC mention (food name,
    *    service descriptor, price/value); generic praise like "muy bueno" gets dropped.
    */
+  // Delegate to the shared synthesizer so the same honesty rules apply
+  // everywhere a Whim's Take is rendered (modal, flow screen, etc.).
   const fallbackTake = useMemo(() => {
     if (!item || item.item_type !== 'place') return null;
-    const rating = (item.metadata?.rating as number | undefined) ?? null;
-    const reviews = ((item.metadata as any)?.google_reviews ?? []) as Array<{ text?: string; rating?: number }>;
-    if (rating == null && reviews.length === 0) return null;
-
-    const lowRated = reviews.filter(r => (r.rating ?? 5) <= 3).length;
-    const reviewCount = reviews.length;
-    const hasMixedSignal = rating != null && rating >= 4.2 && lowRated >= Math.max(1, Math.floor(reviewCount * 0.25));
-
-    const verdict = (() => {
-      if (rating == null) return 'Sin nota disponible — el análisis se basa solo en reseñas individuales.';
-      if (hasMixedSignal) {
-        return `★ ${rating.toFixed(1)} de media, pero ${lowRated} de ${reviewCount} reseñas son críticas — la nota engaña, lee abajo antes de fiarte.`;
-      }
-      if (rating >= 4.6) return `★ ${rating.toFixed(1)} con ${reviewCount} reseñas — el consenso es claro, pero sigue habiendo matices que conviene leer.`;
-      if (rating >= 4.2) return `★ ${rating.toFixed(1)} (${reviewCount} reseñas) — bien valorado en general, sin grandes alarmas.`;
-      if (rating >= 3.5) return `★ ${rating.toFixed(1)} (${reviewCount} reseñas) — opiniones partidas: lee tanto las buenas como las malas antes de ir.`;
-      return `★ ${rating.toFixed(1)} (${reviewCount} reseñas) — críticas frecuentes y patrones negativos repetidos. Pasa de largo salvo que no tengas alternativa.`;
-    })();
-
-    // Specific positives only. We require either a noun-like signal (sushi, pizza,
-    // servicio, atención…) OR a strong superlative paired with a concrete detail.
-    const SPECIFIC_POSITIVE = /(servicio|atenci[oó]n|trato|sushi|pizza|pasta|carne|postre|vino|cerveza|terraza|ambiente|carta|menú|men[ñn]u|precio|relación calidad|relaci[oó]n calidad|napolitana|fresc[oa])/i;
-    const STRONG_POSITIVE = /(brutal|excelente|delici[oa]|increíble|incre[ií]ble|espectacular|recomend|el mejor|los mejores|fant[aá]stic|wonderful|outstanding)/i;
-    const NEGATIVE_PATTERNS = /(tarde|tard[oó]|fría|frío|fri[oa]|caro|car[ií]simo|sucio|lent[oa]|esperar|cola|peor|horrible|nada del otro mundo|del montón|mediocre|regular|nothing special|slow|cold|overpriced|rude|not worth)/i;
-
-    const pros: string[] = [];
-    const cons: string[] = [];
-    const seen = new Set<string>();
-
-    for (const r of reviews.slice(0, 8)) {
-      const text = (r.text || '').replace(/\s+/g, ' ').trim();
-      if (!text) continue;
-      const sentences = text.split(/(?<=[.!?])\s+/).filter((s) => s.length > 22 && s.length < 200);
-      for (const raw of sentences) {
-        const s = raw.trim();
-        const key = s.slice(0, 40).toLowerCase();
-        if (seen.has(key)) continue;
-
-        if (
-          pros.length < 2 &&
-          (r.rating ?? 5) >= 4 &&
-          STRONG_POSITIVE.test(s) &&
-          SPECIFIC_POSITIVE.test(s)
-        ) {
-          pros.push(s);
-          seen.add(key);
-          continue;
-        }
-        if (
-          cons.length < 2 &&
-          NEGATIVE_PATTERNS.test(s) &&
-          ((r.rating ?? 5) <= 3 || hasMixedSignal)
-        ) {
-          cons.push(s);
-          seen.add(key);
-        }
-      }
-    }
-
-    return { verdict, pros, cons };
+    return synthesizeFallbackTake({
+      rating: item.metadata?.rating as number | undefined,
+      reviews: ((item.metadata as any)?.google_reviews ?? []) as Array<{ text?: string; rating?: number }>,
+    });
   }, [item]);
 
   const renderBoldText = (text: string, baseStyle: any) => {

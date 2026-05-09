@@ -18,6 +18,8 @@ from services.overpass_service import search_overpass
 from services.recommendation.pipeline import enrich_place_result
 from services.live_data_service import get_live_data
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/places", tags=["places"])
 
 

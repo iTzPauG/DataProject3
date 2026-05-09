@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,6 +19,7 @@ import Icon from '../../components/Icon';
 import Map from '../../components/map/Map';
 import NearbySheet from '../../components/NearbySheet';
 import { useAppState } from '../../hooks/useAppState';
+import { useAuth } from '../../hooks/useAuth';
 import { useDeviceType } from '../../hooks/useDeviceType';
 import { useLiveDeals, type LiveDeal } from '../../hooks/useLiveDeals';
 import { useLocation } from '../../hooks/useLocation';
@@ -26,6 +28,7 @@ import { fetchNearbyItems } from '../../services/mapService';
 import { MapItem } from '../../types';
 import { storage } from '../../utils/storage';
 import { useTheme } from '../../utils/theme';
+import { getInitials } from '../../utils/account';
 
 const SAVED_PINS_KEY = 'whim_saved_pins';
 
@@ -60,6 +63,9 @@ export default function MapTab() {
   const insets = useSafeAreaInsets();
   const { isDesktop, width: windowWidth } = useDeviceType();
   const location = useLocation();
+  const { user, profile } = useAuth();
+  const accountInitials = useMemo(() => getInitials(profile, user), [profile, user]);
+  const accountAvatarUrl = (profile as any)?.avatar_url || (profile as any)?.restaurant_photo_url || null;
   const {
     nearbyItems,
     setNearbyItems,
@@ -86,7 +92,9 @@ export default function MapTab() {
   const fetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const desktopWidth = Math.min(windowWidth - 40, 620);
   const leftOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
-  const rightOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
+  // Reserve ~64px on the right of the search panel for the floating profile avatar.
+  // On desktop the panel is already centered, so we don't need extra offset.
+  const rightOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 70;
   const minimalist = mapPreferences.mapStyle === 'minimal';
   const { deals: liveDeals, connected: dealsConnected } = useLiveDeals({
     lat: mapRegion?.lat ?? location.lat ?? undefined,
@@ -345,6 +353,27 @@ export default function MapTab() {
     [],
   );
 
+  // Double-click on a map marker → open the place's full details modal.
+  // Passing the full item as `prefill` avoids a second backend round-trip
+  // when the modal hydrates (the metadata, photo, lat/lng all come along).
+  const handleDoubleClickItem = useCallback(
+    (id: string, type: string) => {
+      if (type === 'event') {
+        router.push({ pathname: '/(modals)/event-details', params: { id } });
+        return;
+      }
+      const item = nearbyItems.find((i) => i.item_id === id);
+      router.push({
+        pathname: '/(modals)/place-details',
+        params: {
+          id,
+          ...(item ? { prefill: JSON.stringify(item) } : {}),
+        },
+      });
+    },
+    [nearbyItems],
+  );
+
   useEffect(() => {
     if (!selectedId) return;
     const item = nearbyItems.find((i) => i.item_id === selectedId);
@@ -444,13 +473,19 @@ export default function MapTab() {
   const performSearch = useCallback(async () => {
     const searchLat = mapRegion?.lat ?? location.lat ?? 39.4699;
     const searchLng = mapRegion?.lng ?? location.lng ?? -0.3763;
+    // Respect the user's "search by radius" vs "search by city" preference (settings).
+    // 'city' mode broadens the radius to 25 km so we cover the whole city around
+    // the user, regardless of where the map is centered.
+    const radius = mapPreferences.searchMode === 'city'
+      ? Math.max(mapPreferences.defaultRadiusM, 25_000)
+      : mapPreferences.defaultRadiusM;
     setLoading(true);
     try {
       const lang = mapPreferences.language === 'system' ? 'es' : mapPreferences.language;
       const items = await fetchNearbyItems(
         searchLat,
         searchLng,
-        mapPreferences.defaultRadiusM,
+        radius,
         'food',
         lang,
         ['place'],
@@ -462,7 +497,7 @@ export default function MapTab() {
     } finally {
       setLoading(false);
     }
-  }, [selectedFoodSubcat, mapRegion?.lat, mapRegion?.lng, location.lat, location.lng, mapPreferences.language, mapPreferences.defaultRadiusM]);
+  }, [selectedFoodSubcat, mapRegion?.lat, mapRegion?.lng, location.lat, location.lng, mapPreferences.language, mapPreferences.defaultRadiusM, mapPreferences.searchMode]);
 
   // Initial load once hydrated
   useEffect(() => {
@@ -470,6 +505,18 @@ export default function MapTab() {
       void performSearch();
     }
   }, [isHydrated]);
+
+  // Re-search whenever the user picks a different subcategory chip.
+  // Without this, the chip selection only filters locally — the user reported
+  // tapping "Pizza"/"Sushi" and getting Valencia results because the request
+  // never re-fired with their current location + the new subcategory.
+  const lastSubcatRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (lastSubcatRef.current === selectedFoodSubcat) return;
+    lastSubcatRef.current = selectedFoodSubcat;
+    void performSearch();
+  }, [selectedFoodSubcat, isHydrated, performSearch]);
 
   const liveDealItems = useMemo<MapItem[]>(() => {
     const now = new Date();
@@ -543,12 +590,50 @@ export default function MapTab() {
             items={displayItems}
             selectedId={selectedId}
             onSelectItem={handleSheetItemPress}
+            onDoubleClickItem={handleDoubleClickItem}
             onRegionChange={handleRegionChange}
             region={mapRegion ?? undefined}
             mapType={mapPreferences.mapStyle}
             minimalist={minimalist}
             gadoOverlay={mapPreferences.gadoOverlay}
           />
+
+          {/* Floating profile avatar — top-right of the map.
+              Routes to the (now hidden) profile screen.
+              Shows the avatar image when available, otherwise initials. */}
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/profile')}
+            activeOpacity={0.85}
+            accessibilityLabel={t('profile.greeting') || 'Perfil'}
+            accessibilityRole="button"
+            style={{
+              position: 'absolute',
+              top: insets.top + 14,
+              right: 14,
+              zIndex: 20,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              overflow: 'hidden',
+              backgroundColor: colors.shell,
+              borderWidth: 1.5,
+              borderColor: 'rgba(255,255,255,0.6)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              ...shadows.card,
+            }}
+          >
+            {accountAvatarUrl ? (
+              <Image
+                source={{ uri: accountAvatarUrl }}
+                style={{ width: '100%', height: '100%' }}
+              />
+            ) : (
+              <Text style={{ fontSize: 14, fontWeight: '700', color: colors.ink, fontFamily: typography.body }}>
+                {accountInitials}
+              </Text>
+            )}
+          </TouchableOpacity>
 
           <View
             style={{

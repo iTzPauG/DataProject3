@@ -25,6 +25,7 @@ import { MapItem } from "../../types";
 import { Restaurant } from "../../types/restaurant";
 import { BASE_URL, fetchPlaceExtra, getPlaceData, getPlaceLiveData, getPlaceTake, getVotes, LiveDataResult, VoteData } from "../../services/api";
 import { formatDistance, formatPriceLevel, formatRating, formatReviews } from "../../utils/format";
+import { synthesizeFallbackTake } from "../../utils/placeTake";
 import { shareRestaurant } from "../../utils/share";
 import { storage } from "../../utils/storage";
 import { useTheme } from "../../utils/theme";
@@ -669,24 +670,57 @@ export default function DetailsScreen() {
             <Text style={styles.metaText}>{effectivePhone || t("common.noPhone")}</Text>
           </View>
 
-          <View style={styles.takeCard}>
-            <Text style={styles.sectionEyebrow}>{t("placeDetails.whimTake")}</Text>
-            <Text style={styles.verdict}>{restaurant.verdict || restaurant.why}</Text>
-            <Text style={styles.blockTitle}>{t("placeDetails.theBest")}</Text>
-            {(restaurant.pros || []).map((pro) => (
-              <View key={pro} style={styles.listRow}>
-                <WhimIcon name="like" category="feedback" size={14} color={colors.success} />
-                {renderBoldText(pro, styles.listText, "#FFFFFF")}
+          {(() => {
+            // Single source of truth for "what to display in the Whim's Take card".
+            // 1. Backend take (LLM-generated) is preferred when present and non-empty.
+            // 2. Otherwise, synthesize one from the rating + reviews so we never
+            //    fall through to "Análisis no disponible".
+            const backendTake = {
+              verdict: restaurant.verdict || restaurant.why,
+              pros: restaurant.pros || [],
+              cons: restaurant.cons || [],
+            };
+            const hasBackend =
+              (backendTake.verdict && backendTake.verdict.trim().length > 0) ||
+              backendTake.pros.length > 0 ||
+              backendTake.cons.length > 0;
+            const fallback = hasBackend
+              ? null
+              : synthesizeFallbackTake({
+                  rating: restaurant.rating,
+                  reviews: (restaurant.reviews || []) as Array<{ text?: string; rating?: number }>,
+                });
+            const effective = hasBackend ? backendTake : fallback;
+            if (!effective) return null;
+            return (
+              <View style={styles.takeCard}>
+                <Text style={styles.sectionEyebrow}>{t("placeDetails.whimTake")}</Text>
+                {effective.verdict ? <Text style={styles.verdict}>{effective.verdict}</Text> : null}
+                {effective.pros && effective.pros.length > 0 ? (
+                  <>
+                    <Text style={styles.blockTitle}>{t("placeDetails.theBest")}</Text>
+                    {effective.pros.map((pro) => (
+                      <View key={pro} style={styles.listRow}>
+                        <WhimIcon name="like" category="feedback" size={14} color={colors.success} />
+                        {renderBoldText(pro, styles.listText, "#FFFFFF")}
+                      </View>
+                    ))}
+                  </>
+                ) : null}
+                {effective.cons && effective.cons.length > 0 ? (
+                  <>
+                    <Text style={styles.blockTitle}>{t("placeDetails.watchOut")}</Text>
+                    {effective.cons.map((con) => (
+                      <View key={con} style={styles.listRow}>
+                        <WhimIcon name="warning" category="feedback" size={14} color={colors.warning} />
+                        {renderBoldText(con, styles.listText, "#FFFFFF")}
+                      </View>
+                    ))}
+                  </>
+                ) : null}
               </View>
-            ))}
-            <Text style={styles.blockTitle}>{t("placeDetails.watchOut")}</Text>
-            {(restaurant.cons || []).map((con) => (
-              <View key={con} style={styles.listRow}>
-                <WhimIcon name="warning" category="feedback" size={14} color={colors.warning} />
-                {renderBoldText(con, styles.listText, "#FFFFFF")}
-              </View>
-            ))}
-          </View>
+            );
+          })()}
 
           <ReviewList reviews={restaurant.reviews} />
 
