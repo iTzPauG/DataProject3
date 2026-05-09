@@ -13,11 +13,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
+import DealDetailSheet from '../../components/DealDetailSheet';
 import Icon from '../../components/Icon';
 import Map from '../../components/map/Map';
 import NearbySheet from '../../components/NearbySheet';
 import { useAppState } from '../../hooks/useAppState';
 import { useDeviceType } from '../../hooks/useDeviceType';
+import { useLiveDeals, type LiveDeal } from '../../hooks/useLiveDeals';
 import { useLocation } from '../../hooks/useLocation';
 import { BASE_URL } from '../../services/api';
 import { fetchNearbyItems } from '../../services/mapService';
@@ -70,8 +72,11 @@ export default function MapTab() {
   } = useAppState();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedDeal, setSelectedDeal] = useState<LiveDeal | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedFoodSubcat, setSelectedFoodSubcat] = useState<string | null>(null);
+  const [showDealsOnly, setShowDealsOnly] = useState(true);
+  const [todayDealsOnly, setTodayDealsOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [acResults, setAcResults] = useState<AutocompleteResult[]>([]);
   const [selectedSearchItem, setSelectedSearchItem] = useState<AutocompleteResult | null>(null);
@@ -83,6 +88,13 @@ export default function MapTab() {
   const leftOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
   const rightOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
   const minimalist = mapPreferences.mapStyle === 'minimal';
+  const { deals: liveDeals, connected: dealsConnected } = useLiveDeals({
+    lat: mapRegion?.lat ?? location.lat ?? undefined,
+    lng: mapRegion?.lng ?? location.lng ?? undefined,
+    radiusM: mapPreferences.defaultRadiusM,
+    enabled: true,
+    ownerUid: null,
+  });
 
   const styles = useMemo(
     () =>
@@ -298,8 +310,14 @@ export default function MapTab() {
   );
 
   const handleSheetItemPress = useCallback((id: string) => {
+    if (id.startsWith('deal:')) {
+      const dealId = id.replace('deal:', '');
+      const deal = liveDeals.find((d: LiveDeal) => d.id === dealId) ?? null;
+      setSelectedDeal(deal);
+      return;
+    }
     setSelectedId(id);
-  }, []);
+  }, [liveDeals]);
 
   const handleRegionChange = useCallback(
     (lat: number, lng: number, latDelta: number, lngDelta: number) => {
@@ -320,7 +338,10 @@ export default function MapTab() {
   }, [location, setMapRegion]);
 
   const handleFoodSubcatSelect = useCallback(
-    (subcatId: string | null) => { setSelectedFoodSubcat(subcatId); },
+    (subcatId: string | null) => {
+      setSelectedFoodSubcat(subcatId);
+      setShowDealsOnly(false);
+    },
     [],
   );
 
@@ -368,13 +389,17 @@ export default function MapTab() {
       .catch(() => {});
   }, [selectedId]);
 
-  // Always work in food mode; deep-link param can override the subcategory
+  // Default to deals-only view; deep-link param can override to food subcategory
   useEffect(() => {
-    setSelectedCategory('food');
     if (params.category) {
       const sub = FOOD_SUBCATEGORIES.find((s) => s.id === params.category);
-      if (sub) setSelectedFoodSubcat(params.category);
+      if (sub) {
+        setSelectedFoodSubcat(params.category);
+        setShowDealsOnly(false);
+        setSelectedCategory('food');
+      }
     }
+    // else: stay in showDealsOnly=true mode
   }, []);
 
   // Load locally saved restaurant pins
@@ -446,7 +471,49 @@ export default function MapTab() {
     }
   }, [isHydrated]);
 
+  const liveDealItems = useMemo<MapItem[]>(() => {
+    const now = new Date();
+    const filteredDeals = liveDeals.filter((deal: LiveDeal) => {
+      if (!todayDealsOnly) return true;
+      const source = deal.available_at || deal.created_at;
+      if (!source) return false;
+      const d = new Date(source);
+      if (Number.isNaN(d.getTime())) return false;
+      return (
+        d.getFullYear() === now.getFullYear() &&
+        d.getMonth() === now.getMonth() &&
+        d.getDate() === now.getDate()
+      );
+    });
+
+    return filteredDeals.map((deal: LiveDeal) => ({
+      item_id: `deal:${deal.id}`,
+      item_type: 'place',
+      title: `${deal.restaurant_name}${deal.cuisine ? ` (${deal.cuisine})` : ''} · ${deal.price.toFixed(2)} EUR`,
+      category_id: 'food',
+      lat: deal.lat,
+      lng: deal.lng,
+      distance_m: 0,
+      color: '#F97316',
+      icon: '🔥',
+      metadata: {
+        deal: true,
+        deal_id: deal.id,
+        cuisine: deal.cuisine,
+        restaurant_cuisines: deal.restaurant_cuisines,
+        seats: deal.seats,
+        price: deal.price,
+        original_price: deal.original_price,
+        description: deal.description,
+      },
+    }));
+  }, [liveDeals, todayDealsOnly]);
+
   const displayItems = useMemo(() => {
+    // In "deals only" mode, show only deal pins (no restaurants)
+    if (showDealsOnly && !selectedSearchItem) {
+      return liveDealItems;
+    }
     let base: MapItem[] = nearbyItems;
     if (selectedSearchItem) {
       const pin: MapItem = {
@@ -462,9 +529,11 @@ export default function MapTab() {
     }
     // Append locally saved pins that aren't already present
     const baseIds = new Set(base.map((i) => i.item_id));
-    const extra = savedPins.filter((sp) => !baseIds.has(sp.item_id));
+    const dealPins = liveDealItems.filter((d: MapItem) => !baseIds.has(d.item_id));
+    const savedPinsOnly = savedPins.filter((sp: MapItem) => !baseIds.has(sp.item_id));
+    const extra = [...dealPins, ...savedPinsOnly];
     return extra.length > 0 ? [...base, ...extra] : base;
-  }, [nearbyItems, selectedSearchItem, savedPins]);
+  }, [nearbyItems, selectedSearchItem, savedPins, liveDealItems, showDealsOnly]);
 
   return (
     <AnimatedTabScene>
@@ -494,22 +563,48 @@ export default function MapTab() {
               <BlurView intensity={60} tint="dark" style={styles.panelBlur}>
                 <View style={styles.eyebrowRow}>
                   <Text style={styles.eyebrow}>{t("home.locationNow")}</Text>
-                  <TouchableOpacity
-                    onPress={handleCenterOnUser}
-                    activeOpacity={0.7}
-                    accessibilityLabel={t("home.recenter")}
-                    accessibilityRole="button"
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-                  >
-                    <Icon
-                      name="crosshair"
-                      size={13}
-                      color="#FFFFFF"
-                      strokeWidth={1.2}
-                    />
-                    <Text style={styles.eyebrowAction}>{t("home.recenter")}</Text>
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 6,
+                        backgroundColor: dealsConnected ? 'rgba(34,197,94,0.22)' : 'rgba(239,68,68,0.22)',
+                        borderRadius: 999,
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: 3,
+                          backgroundColor: dealsConnected ? '#22C55E' : '#EF4444',
+                        }}
+                      />
+                      <Text style={{ fontSize: 10, color: '#FFFFFF', fontWeight: '700' }}>
+                        LIVE {liveDealItems.length}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      onPress={handleCenterOnUser}
+                      activeOpacity={0.7}
+                      accessibilityLabel={t("home.recenter")}
+                      accessibilityRole="button"
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                    >
+                      <Icon
+                        name="crosshair"
+                        size={13}
+                        color="#FFFFFF"
+                        strokeWidth={1.2}
+                      />
+                      <Text style={styles.eyebrowAction}>{t("home.recenter")}</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 <View style={styles.searchRow}>
@@ -554,49 +649,81 @@ export default function MapTab() {
               </BlurView>
             </View>
 
-            {/* Food type filter row */}
+            {/* Filter chips row: Anuncios → Favoritos → tipologías */}
             <View style={styles.filterPanel}>
               <BlurView intensity={60} tint="dark" style={[styles.panelBlur, { borderRadius: 16 }]}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.foodSubcatRow}
-              >
-                <TouchableOpacity
-                  style={[styles.foodSubcatChip, selectedFoodSubcat === null && styles.foodSubcatChipActive]}
-                  onPress={() => handleFoodSubcatSelect(null)}
-                  activeOpacity={0.7}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.foodSubcatRow}
                 >
-                  <Text style={[styles.foodSubcatChipText, selectedFoodSubcat === null && styles.foodSubcatChipTextActive]}>
-                    Todo 🍴
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.foodSubcatChip, { borderColor: '#FFD700', backgroundColor: 'rgba(255,215,0,0.1)' }]}
-                  onPress={() => router.push('/(modals)/saved-items')}
-                  activeOpacity={0.7}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#FFD700' }}>⭐ Favoritos</Text>
-                </TouchableOpacity>
-                {FOOD_SUBCATEGORIES.map((sub) => {
-                  const active = selectedFoodSubcat === sub.id;
-                  return (
-                    <TouchableOpacity
-                      key={sub.id}
-                      style={[styles.foodSubcatChip, active && styles.foodSubcatChipActive]}
-                      onPress={() => handleFoodSubcatSelect(active ? null : sub.id)}
-                      activeOpacity={0.7}
-                    >
-                      <Text>{sub.emoji}</Text>
-                      <Text style={[styles.foodSubcatChipText, active && styles.foodSubcatChipTextActive]}>
-                        {sub.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </BlurView>
-          </View>
+                  {/* Anuncios */}
+                  <TouchableOpacity
+                    style={[
+                      styles.foodSubcatChip,
+                      { borderColor: '#F97316', backgroundColor: showDealsOnly ? '#F97316' : 'rgba(249,115,22,0.15)' },
+                    ]}
+                    onPress={() => {
+                      setShowDealsOnly(true);
+                      setSelectedFoodSubcat(null);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: showDealsOnly ? '#fff' : '#F97316' }}>
+                      🔥 Anuncios{liveDealItems.length > 0 ? ` (${liveDealItems.length})` : ''}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Solo hoy (aplica a anuncios en mapa/lista) */}
+                  <TouchableOpacity
+                    style={[
+                      styles.foodSubcatChip,
+                      {
+                        borderColor: '#22C55E',
+                        backgroundColor: todayDealsOnly ? '#22C55E' : 'rgba(34,197,94,0.14)',
+                      },
+                    ]}
+                    onPress={() => setTodayDealsOnly((prev: boolean) => !prev)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: todayDealsOnly ? '#fff' : '#22C55E' }}>
+                      Hoy
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Favoritos */}
+                  <TouchableOpacity
+                    style={[styles.foodSubcatChip, { borderColor: '#FFD700', backgroundColor: 'rgba(255,215,0,0.1)' }]}
+                    onPress={() => router.push('/(modals)/saved-items')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#FFD700' }}>⭐ Favoritos</Text>
+                  </TouchableOpacity>
+
+                  {/* Tipologías */}
+                  {FOOD_SUBCATEGORIES.map((sub) => {
+                    const active = !showDealsOnly && selectedFoodSubcat === sub.id;
+                    return (
+                      <TouchableOpacity
+                        key={sub.id}
+                        style={[styles.foodSubcatChip, active && styles.foodSubcatChipActive]}
+                        onPress={() => {
+                          setShowDealsOnly(false);
+                          setSelectedCategory('food');
+                          handleFoodSubcatSelect(active ? null : sub.id);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text>{sub.emoji}</Text>
+                        <Text style={[styles.foodSubcatChipText, active && styles.foodSubcatChipTextActive]}>
+                          {sub.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </BlurView>
+            </View>
 
           {acResults.length > 0 && (
             <View style={styles.dropdown}>
@@ -630,35 +757,20 @@ export default function MapTab() {
           )}
         </View>
 
-        <TouchableOpacity
-          onPress={() => router.push('/(tabs)/profile')}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Perfil"
-          style={{
-            position: 'absolute',
-            top: insets.top + 14,
-            right: 16,
-            zIndex: 20,
-            width: 44,
-            height: 44,
-            borderRadius: 22,
-            backgroundColor: 'rgba(30,30,40,0.7)',
-            borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.18)',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Icon name="person" size={20} color="#FFFFFF" strokeWidth={1.4} />
-        </TouchableOpacity>
         <NearbySheet
-          items={nearbyItems}
+          items={displayItems}
           selectedId={selectedId}
           onSelectItem={handleSheetItemPress}
           loading={loading}
           hasSearched={true}
         />
+
+        {selectedDeal && (
+          <DealDetailSheet
+            deal={selectedDeal}
+            onClose={() => setSelectedDeal(null)}
+          />
+        )}
       </View>
     </View>
     </AnimatedTabScene>

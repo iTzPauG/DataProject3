@@ -44,6 +44,7 @@ interface Props {
   lat: number;
   lng: number;
   language?: string;
+  canPost?: boolean;
 }
 
 const REPORT_TYPE_META: Record<string, { label: string; emoji: string; color: string }> = {
@@ -96,7 +97,7 @@ function LiveCommentIcon({ size = 22, color = '#FFFFFF' }: { size?: number; colo
   );
 }
 
-export default function LiveCommentsSection({ placeId, placeName, lat, lng, language = 'es' }: Props) {
+export default function LiveCommentsSection({ placeId, placeName, lat, lng, language = 'es', canPost = true }: Props) {
   const { t } = useTranslation();
   const { colors, typography, radii, shadows } = useTheme();
   
@@ -377,7 +378,16 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
           <Ionicons name="chatbubbles" size={20} color="#FFFFFF" />
           <Text style={styles.title}>En directo</Text>
         </View>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setShowModal(true)}>
+        <TouchableOpacity
+          style={[styles.addBtn, !canPost && { opacity: 0.55 }]}
+          onPress={() => {
+            if (!canPost) {
+              Alert.alert('Acceso restringido', 'Inicia sesión para comentar.');
+              return;
+            }
+            setShowModal(true);
+          }}
+        >
           <Text style={styles.addBtnText}>+ Añadir</Text>
         </TouchableOpacity>
       </View>

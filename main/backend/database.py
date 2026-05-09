@@ -283,6 +283,7 @@ POSTGRES_SCHEMA = [
         firebase_uid TEXT UNIQUE,
         display_name TEXT,
         avatar_url TEXT,
+        restaurant_photo_url TEXT,
         anon_fingerprint TEXT UNIQUE,
         reputation_score INTEGER DEFAULT 0,
         reports_count INTEGER DEFAULT 0,
@@ -390,6 +391,147 @@ POSTGRES_SCHEMA = [
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     )
+    """,
+    """
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'
+    """,
+    """
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_name TEXT
+    """,
+    """
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_address TEXT
+    """,
+    """
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_phone TEXT
+    """,
+    """
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_place_id TEXT
+    """,
+    """
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_lat REAL
+    """,
+    """
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_lng REAL
+    """,
+    """
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_cuisines TEXT DEFAULT '[]'
+    """,
+    """
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_photo_url TEXT
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS deals (
+        id TEXT PRIMARY KEY,
+        owner_uid TEXT NOT NULL,
+        restaurant_id TEXT NOT NULL,
+        restaurant_name TEXT NOT NULL,
+        restaurant_place_id TEXT,
+        lat REAL NOT NULL,
+        lng REAL NOT NULL,
+        price REAL NOT NULL,
+        original_price REAL,
+        seats INTEGER NOT NULL,
+        cuisine TEXT NOT NULL DEFAULT 'general',
+        restaurant_cuisines TEXT DEFAULT '[]',
+        available_at TEXT NOT NULL,
+        reservation_deadline_at TIMESTAMPTZ,
+        description TEXT,
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        expires_at TEXT
+    )
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS restaurant_name TEXT
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS restaurant_id TEXT
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS restaurant_place_id TEXT
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS lat REAL
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS lng REAL
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS original_price REAL
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS seats INTEGER
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS cuisine TEXT NOT NULL DEFAULT 'general'
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS restaurant_cuisines TEXT DEFAULT '[]'
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS available_at TEXT
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS reservation_deadline_at TIMESTAMPTZ
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS description TEXT
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS expires_at TEXT
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS cancellation_reason TEXT
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS cancelled_at TEXT
+    """,
+    """
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS not_presented_at TEXT
+    """,
+    """
+    ALTER TABLE deals ALTER COLUMN expires_at TYPE TIMESTAMPTZ USING expires_at::TIMESTAMPTZ
+    """,
+    """
+    ALTER TABLE deals ALTER COLUMN available_at TYPE TIMESTAMPTZ USING available_at::TIMESTAMPTZ
+    """,
+    """
+    ALTER TABLE deals ALTER COLUMN reservation_deadline_at TYPE TIMESTAMPTZ USING reservation_deadline_at::TIMESTAMPTZ
+    """,
+        """
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                    AND table_name = 'deals'
+                    AND column_name = 'cuisine'
+            ) THEN
+                EXECUTE 'ALTER TABLE deals ALTER COLUMN cuisine SET DEFAULT ''general''';
+            END IF;
+        END $$;
+        """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_deals_active ON deals(is_active, available_at)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_deals_owner ON deals(owner_uid)
+    """,
+    """
+    ALTER TABLE reservations ADD COLUMN IF NOT EXISTS status_reason TEXT
+    """,
+    """
+    ALTER TABLE reservations ADD COLUMN IF NOT EXISTS status_updated_at TEXT
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_reservations_deal ON reservations(deal_id, status)
     """,
 ]
 
@@ -647,6 +789,7 @@ async def _init_sqlite() -> None:
                 firebase_uid TEXT UNIQUE,
                 display_name TEXT,
                 avatar_url TEXT,
+                restaurant_photo_url TEXT,
                 anon_fingerprint TEXT UNIQUE,
                 reputation_score INTEGER DEFAULT 0,
                 reports_count INTEGER DEFAULT 0,
@@ -737,26 +880,67 @@ async def _init_sqlite() -> None:
                 is_active BOOLEAN DEFAULT 1
             )
             """,
-            """
-            CREATE TABLE IF NOT EXISTS reservations (
-                id TEXT PRIMARY KEY,
-                deal_id TEXT,
-                restaurant_id TEXT NOT NULL,
-                user_id TEXT,
-                customer_name TEXT NOT NULL,
-                customer_phone TEXT,
-                reservation_date DATETIME NOT NULL,
-                party_size INTEGER NOT NULL,
-                notes TEXT,
-                status TEXT DEFAULT 'confirmed',
-                status_reason TEXT,
-                status_updated_at DATETIME,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            """,
         ]:
             await db.execute(statement)
+
+        # SQLite does not support ADD COLUMN IF NOT EXISTS, so we add profile
+        # columns only when missing.
+        cols_cursor = await db.execute("PRAGMA table_info(profiles)")
+        cols = await cols_cursor.fetchall()
+        existing = {row[1] for row in cols}
+        profile_additions = [
+            ("role", "TEXT NOT NULL DEFAULT 'user'"),
+            ("restaurant_name", "TEXT"),
+            ("restaurant_address", "TEXT"),
+            ("restaurant_phone", "TEXT"),
+            ("restaurant_place_id", "TEXT"),
+            ("restaurant_lat", "REAL"),
+            ("restaurant_lng", "REAL"),
+            ("restaurant_cuisines", "TEXT DEFAULT '[]'"),
+            ("restaurant_photo_url", "TEXT"),
+        ]
+        for col_name, col_type in profile_additions:
+            if col_name not in existing:
+                await db.execute(f"ALTER TABLE profiles ADD COLUMN {col_name} {col_type}")
+
+        deal_cols_cursor = await db.execute("PRAGMA table_info(deals)")
+        deal_cols = await deal_cols_cursor.fetchall()
+        existing_deal_cols = {row[1] for row in deal_cols}
+        deal_additions = [
+            ("restaurant_name", "TEXT"),
+            ("restaurant_id", "TEXT"),
+            ("restaurant_place_id", "TEXT"),
+            ("lat", "REAL"),
+            ("lng", "REAL"),
+            ("original_price", "REAL"),
+            ("seats", "INTEGER"),
+            ("cuisine", "TEXT NOT NULL DEFAULT 'general'"),
+            ("restaurant_cuisines", "TEXT DEFAULT '[]'"),
+            ("available_at", "TEXT"),
+            ("reservation_deadline_at", "TEXT"),
+            ("description", "TEXT"),
+            ("is_active", "INTEGER DEFAULT 1"),
+            ("cancellation_reason", "TEXT"),
+            ("cancelled_at", "TEXT"),
+            ("not_presented_at", "TEXT"),
+            ("created_at", "TEXT DEFAULT CURRENT_TIMESTAMP"),
+            ("expires_at", "TEXT"),
+        ]
+        for col_name, col_type in deal_additions:
+            if col_name not in existing_deal_cols:
+                await db.execute(f"ALTER TABLE deals ADD COLUMN {col_name} {col_type}")
+
+        reservation_cols_cursor = await db.execute("PRAGMA table_info(reservations)")
+        reservation_cols = await reservation_cols_cursor.fetchall()
+        existing_reservation_cols = {row[1] for row in reservation_cols}
+        reservation_additions = [
+            ("status_reason", "TEXT"),
+            ("status_updated_at", "TEXT"),
+        ]
+        for col_name, col_type in reservation_additions:
+            if col_name not in existing_reservation_cols:
+                await db.execute(f"ALTER TABLE reservations ADD COLUMN {col_name} {col_type}")
+
         await db.commit()
         await _seed_sqlite(db)
 
