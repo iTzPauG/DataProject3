@@ -40,7 +40,7 @@ async def list_bookmarks(request: Request):
             LEFT JOIN community_reports r ON s.item_type = 'report' AND s.item_id = r.id
             WHERE s.user_id = ?
         """
-        cursor = await db.execute(query, (profile["id"],))
+        cursor = await db.execute(query, (str(profile["id"]),))
         rows = await cursor.fetchall()
         
         bookmarks = []
@@ -79,7 +79,7 @@ async def add_bookmark(req: BookmarkRequest, request: Request):
         try:
             await db.execute(
                 "INSERT INTO saved_items (id, user_id, item_type, item_id) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING",
-                (str(uuid.uuid4()), profile["id"], req.item_type, req.item_id)
+                (str(uuid.uuid4()), str(profile["id"]), req.item_type, req.item_id)
             )
             await db.commit()
             return {"status": "ok"}
@@ -100,7 +100,7 @@ async def remove_bookmark(item_id: str, request: Request):
             
         await db.execute(
             "DELETE FROM saved_items WHERE user_id=? AND item_id=?",
-            (profile["id"], item_id)
+            (str(profile["id"]), item_id)
         )
         await db.commit()
     return {"status": "ok"}

@@ -678,6 +678,15 @@ async def _init_postgres() -> None:
                 await conn.execute(statement)
             except Exception as e:
                 logger.debug(f"Postgres schema statement failed (may be expected): {e}")
+        # saved_items.item_id was originally UUID but must be TEXT to support
+        # Google Place IDs (e.g. ChIJ...) which are not valid UUIDs.
+        try:
+            await conn.execute(
+                "ALTER TABLE saved_items ALTER COLUMN item_id TYPE TEXT USING item_id::TEXT"
+            )
+            logger.info("Migrated saved_items.item_id from UUID to TEXT")
+        except Exception as e:
+            logger.debug(f"saved_items.item_id migration (expected if already TEXT): {e}")
         await _seed_db(db)
     finally:
         await conn.close()

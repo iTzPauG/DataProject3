@@ -13,6 +13,8 @@ from database import get_db
 from models.schemas import PlaceResult
 from services.brain_service import ask_brain
 from services.cache_service import cache_get, cache_set
+
+logger = logging.getLogger(__name__)
 from services.recommendation.tools import search_generic_category_places
 from services.overpass_service import search_overpass
 from services.recommendation.pipeline import enrich_place_result
@@ -267,7 +269,7 @@ async def list_place_comments(
             cursor = await db.execute(
                 """SELECT * FROM community_reports
                    WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?
-                     AND is_active = 1
+                     AND is_active IS NOT FALSE
                      AND created_at >= ?
                    ORDER BY created_at DESC
                    LIMIT 30""",
