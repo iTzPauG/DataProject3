@@ -68,11 +68,19 @@ def _get_http_client() -> httpx.AsyncClient:
 
 
 def _is_api_key_configured() -> bool:
+    """A real API key is required — placeholder values like 'mock', 'changeme',
+    or 'TODO' are explicitly treated as missing so we don't burn requests on
+    guaranteed-401 responses.
+    """
     global _missing_api_key_logged
-    if YELP_API_KEY:
+    placeholder_values = {"", "mock", "changeme", "todo", "placeholder", "none"}
+    if YELP_API_KEY and YELP_API_KEY.strip().lower() not in placeholder_values:
         return True
     if not _missing_api_key_logged:
-        log.warning("YELP_API_KEY is not configured. Yelp review enrichment is disabled.")
+        log.warning(
+            "YELP_API_KEY is not configured (value=%r). Yelp review enrichment is disabled.",
+            (YELP_API_KEY or "")[:8] + ("..." if len(YELP_API_KEY or "") > 8 else ""),
+        )
         _missing_api_key_logged = True
     return False
 

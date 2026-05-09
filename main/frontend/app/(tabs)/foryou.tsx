@@ -105,21 +105,56 @@ function getOrderedSections(
 }
 
 /**
- * Construye una query de búsqueda a partir de los positiveTags del usuario.
- * Usa los tokens más distintivos (filtrando palabras genéricas) y siempre
- * añade la ciudad detectada para acotar geográficamente.
+ * Construye una query para "Por tus gustos" combinando varias señales.
+ *
+ *   1. Hasta 3 tokens **personales** del usuario (saved + recent views) que
+ *      no sean stopwords genéricas. Capturan lo distintivo del perfil.
+ *   2. Los tags del **cluster asignado** (asiático / tradicional / healthy).
+ *      Aporta sinónimos de la categoría para que el motor encuentre más sitios
+ *      aunque el usuario sólo haya visitado un nombre concreto.
+ *   3. La ciudad detectada para acotar geográficamente.
+ *
+ * Se expone `getRecommendationSignals()` para que la UI pueda enseñar al
+ * usuario qué señales se están usando ("estamos recomendando porque vimos
+ * X, Y, Z").
  */
 const GENERIC_STOPWORDS = new Set([
   'restaurante', 'restaurant', 'bar', 'cafe', 'café', 'food', 'comida',
   'valencia', 'madrid', 'barcelona', 'plaza', 'calle', 'avda', 'avenida',
+  'gran', 'casa', 'local', 'sitio', 'place', 'good', 'best',
 ]);
 
-function buildPersonalizedQuery(positiveTags: Set<string>, city: string): string {
-  const candidates = Array.from(positiveTags)
+interface RecommendationSignals {
+  personalTokens: string[];
+  clusterTags: string[];
+  cluster: UserCluster;
+  city: string;
+}
+
+function getRecommendationSignals(positiveTags: Set<string>, city: string): RecommendationSignals {
+  const personalTokens = Array.from(positiveTags)
     .filter(t => !GENERIC_STOPWORDS.has(t))
-    .slice(0, 4);
-  const terms = candidates.length > 0 ? candidates : ['popular', 'destacado'];
-  return [...terms, city].join(' ');
+    .slice(0, 3);
+  const cluster = assignCluster(positiveTags);
+  // Use a slice of the cluster's centroid to broaden recall without flooding
+  // the query with noise.
+  const clusterTags = cluster.tags.slice(0, 5);
+  return { personalTokens, clusterTags, cluster, city };
+}
+
+function buildPersonalizedQuery(positiveTags: Set<string>, city: string): string {
+  const sig = getRecommendationSignals(positiveTags, city);
+  const terms = [...sig.personalTokens, ...sig.clusterTags];
+  // Deduplicate while preserving order so personal tokens stay first.
+  const seen = new Set<string>();
+  const unique = terms.filter(t => {
+    const k = t.toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  if (unique.length === 0) unique.push('popular', 'destacado');
+  return [...unique, city].join(' ');
 }
 
 // ── Collaborative filtering (clustering) ─────────────────────────────────────
@@ -228,6 +263,12 @@ interface SectionRowProps {
   trending?: boolean;
   surprise?: boolean;
   newish?: boolean;
+  /** Optional one-line subtitle shown under the section title. */
+  subtitle?: string;
+  /** Search radius in meters. Defaults to 5000. */
+  radiusM?: number;
+  /** Maximum number of cards to display. */
+  maxItems?: number;
   /** Mutable Set of restaurant ids already shown in earlier sections. */
   seenIdsRef?: React.MutableRefObject<Set<string>>;
   /**
@@ -253,6 +294,9 @@ function SectionRow({
   trending,
   surprise,
   newish,
+  subtitle,
+  radiusM,
+  maxItems,
   seenIdsRef,
   feedDedupeOnly,
   colors,
@@ -272,7 +316,7 @@ function SectionRow({
           query,
           lat,
           lng,
-          radiusM: 5000,
+          radiusM: radiusM ?? 5000,
           useBrain: false,
           category: 'restaurant',
         });
@@ -294,6 +338,7 @@ function SectionRow({
           sorted.forEach(r => seenIdsRef.current.add(r.id));
         }
 
+        if (maxItems != null) sorted = sorted.slice(0, maxItems);
         setRestaurants(sorted);
       } catch (e) {
         setRestaurants([]);
@@ -303,7 +348,7 @@ function SectionRow({
     };
 
     fetchRestaurants();
-  }, [query, lat, lng, trending, seenIdsRef, feedDedupeOnly]);
+  }, [query, lat, lng, trending, seenIdsRef, feedDedupeOnly, radiusM, maxItems]);
 
   // Don't render if no results
   if (!loading && restaurants.length === 0) {
@@ -318,6 +363,21 @@ function SectionRow({
           {title}
         </Text>
       </View>
+      {subtitle ? (
+        <Text
+          style={{
+            color: colors.inkMuted,
+            fontFamily: typography.body,
+            fontSize: 12,
+            marginLeft: 16,
+            marginBottom: 8,
+            opacity: 0.85,
+          }}
+          numberOfLines={2}
+        >
+          {subtitle}
+        </Text>
+      ) : null}
 
       {loading ? (
         <View style={sectionStyles.loadingContainer}>
@@ -682,23 +742,37 @@ export default function ForYouTab() {
               onRestaurantPress={handleRestaurantPress}
             />
           ))}
-          {/* Personalized — only render if we have at least one positive tag */}
-          {profile.positiveTags.size > 0 && (
-            <SectionRow
-              key="personalized"
-              title="Por tus gustos"
-              emoji="✨"
-              query={buildPersonalizedQuery(profile.positiveTags, city)}
-              lat={location.lat}
-              lng={location.lng}
-              seenIdsRef={seenIdsRef}
-              colors={colors}
-              typography={typography}
-              radii={radii}
-              shadows={shadows}
-              onRestaurantPress={handleRestaurantPress}
-            />
-          )}
+          {/* Personalized — only render if we have at least one positive tag.
+              The subtitle explicitly tells the user which signals are being
+              used, so the recommendation feels less like a black box. */}
+          {profile.positiveTags.size > 0 && (() => {
+            const sig = getRecommendationSignals(profile.positiveTags, city);
+            const personalLabel = sig.personalTokens.length > 0
+              ? sig.personalTokens.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ')
+              : null;
+            const sub = personalLabel
+              ? `Basado en lo que has visto y guardado: ${personalLabel}. Cluster · ${sig.cluster.id}.`
+              : `Basado en tu cluster · ${sig.cluster.id}.`;
+            return (
+              <SectionRow
+                key="personalized"
+                title="Por tus gustos"
+                emoji="✨"
+                subtitle={sub}
+                query={buildPersonalizedQuery(profile.positiveTags, city)}
+                lat={location.lat}
+                lng={location.lng}
+                radiusM={8000}
+                maxItems={12}
+                seenIdsRef={seenIdsRef}
+                colors={colors}
+                typography={typography}
+                radii={radii}
+                shadows={shadows}
+                onRestaurantPress={handleRestaurantPress}
+              />
+            );
+          })()}
           {/* Collaborative-style cluster recommendation */}
           <SectionRow
             key="tribe"
