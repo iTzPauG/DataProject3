@@ -11,6 +11,7 @@ const TAB_GLYPHS: Record<string, IconName> = {
   explore: 'compass',
   publish: 'plus',
   'mis-ofertas': 'tag',
+  profile: 'person',
 };
 
 export default function TabsLayout() {
@@ -19,7 +20,9 @@ export default function TabsLayout() {
   const { profile } = useAuth();
   const isBusiness = profile?.role === 'business';
 
-  const TAB_H = Platform.OS === 'ios' ? 78 : Platform.OS === 'web' ? 60 : 64;
+  // A few extra px on every platform so the icon + label + underline never get
+  // clipped together (iOS already adds safe-area padding inside `paddingBottom`).
+  const TAB_H = Platform.OS === 'ios' ? 82 : Platform.OS === 'web' ? 68 : 70;
 
   const styles = useMemo(
     () =>
@@ -42,18 +45,20 @@ export default function TabsLayout() {
         },
         item: {
           flex: 1,
+          minWidth: 56,
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 4,
-          paddingTop: 2,
+          gap: 3,
+          paddingTop: 4,
           paddingBottom: 2,
         },
         label: {
-          fontSize: 11,
-          letterSpacing: 0.2,
+          fontSize: 12,
+          letterSpacing: 0.1,
           fontFamily: typography.body,
           fontWeight: '600',
           textAlign: 'center',
+          marginTop: 2,
         },
         underline: {
           marginTop: 2,
@@ -72,13 +77,25 @@ export default function TabsLayout() {
     [colors, typography, TAB_H],
   );
 
-  const renderTab = (routeName: 'index' | 'explore' | 'publish' | 'mis-ofertas', focused: boolean) => {
-    const label = t(`tabs.${routeName}`);
+  const renderTab = (
+    routeName: 'index' | 'explore' | 'publish' | 'mis-ofertas' | 'profile',
+    focused: boolean,
+  ) => {
+    // Mapped Spanish-friendly labels with safe fallbacks. We keep them short so
+    // none get clipped at small widths (4–5 visible tabs).
+    const labelMap: Record<string, string> = {
+      index: t('tabs.index') || 'Mapa',
+      explore: t('tabs.explore') || 'Explorar',
+      publish: t('tabs.publish') || 'Publicar',
+      'mis-ofertas': t('tabs.mis-ofertas') || 'Ofertas',
+      profile: t('tabs.profile') || 'Perfil',
+    };
+    const label = labelMap[routeName];
     const glyph = TAB_GLYPHS[routeName];
     const color = focused ? colors.ink : colors.inkFaint;
     return (
       <View style={styles.item}>
-        <Icon name={glyph} size={20} color={color} strokeWidth={1.6} />
+        <Icon name={glyph} size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
         <Text style={[styles.label, { color }]} numberOfLines={1}>
           {label}
         </Text>
@@ -126,11 +143,11 @@ export default function TabsLayout() {
           tabBarIcon: ({ focused }) => renderTab('mis-ofertas', focused),
         }}
       />
-      {/* Profile is now a floating avatar on the map; hide from bottom tab bar */}
+      {/* Profile lives in the bottom tab bar (the floating map avatar was removed). */}
       <Tabs.Screen
         name="profile"
         options={{
-          href: null,
+          tabBarIcon: ({ focused }) => renderTab('profile', focused),
         }}
       />
     </Tabs>

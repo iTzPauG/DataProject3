@@ -3,7 +3,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -28,7 +27,7 @@ import { fetchNearbyItems } from '../../services/mapService';
 import { MapItem } from '../../types';
 import { storage } from '../../utils/storage';
 import { useTheme } from '../../utils/theme';
-import { getInitials } from '../../utils/account';
+import LocationGate from '../../components/LocationGate';
 
 const SAVED_PINS_KEY = 'whim_saved_pins';
 
@@ -63,13 +62,13 @@ export default function MapTab() {
   const insets = useSafeAreaInsets();
   const { isDesktop, width: windowWidth } = useDeviceType();
   const location = useLocation();
-  const { user, profile } = useAuth();
-  const accountInitials = useMemo(() => getInitials(profile, user), [profile, user]);
-  const accountAvatarUrl = (profile as any)?.avatar_url || (profile as any)?.restaurant_photo_url || null;
+  // Auth state is consumed elsewhere in the tree (NearbySheet, etc.); this
+  // module no longer uses the avatar/profile fields directly so we don't
+  // destructure here to avoid lint warnings on unused locals.
+  useAuth();
   const {
     nearbyItems,
     setNearbyItems,
-    selectedCategory,
     setSelectedCategory,
     mapRegion,
     setMapRegion,
@@ -82,19 +81,18 @@ export default function MapTab() {
   const [loading, setLoading] = useState(false);
   const [selectedFoodSubcat, setSelectedFoodSubcat] = useState<string | null>(null);
   const [showDealsOnly, setShowDealsOnly] = useState(true);
-  const [todayDealsOnly, setTodayDealsOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [acResults, setAcResults] = useState<AutocompleteResult[]>([]);
   const [selectedSearchItem, setSelectedSearchItem] = useState<AutocompleteResult | null>(null);
   const [savedPins, setSavedPins] = useState<MapItem[]>([]);
   const hasAutoCentered = useRef(false);
   const acTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const fetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const desktopWidth = Math.min(windowWidth - 40, 620);
   const leftOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
-  // Reserve ~64px on the right of the search panel for the floating profile avatar.
-  // On desktop the panel is already centered, so we don't need extra offset.
-  const rightOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 70;
+  // Search panel now spans the full available width — the floating avatar was
+  // moved into the bottom tab bar, so the previous 70px right reserve isn't
+  // needed anymore.
+  const rightOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
   const minimalist = mapPreferences.mapStyle === 'minimal';
   const { deals: liveDeals, connected: dealsConnected } = useLiveDeals({
     lat: mapRegion?.lat ?? location.lat ?? undefined,
@@ -519,21 +517,7 @@ export default function MapTab() {
   }, [selectedFoodSubcat, isHydrated, performSearch]);
 
   const liveDealItems = useMemo<MapItem[]>(() => {
-    const now = new Date();
-    const filteredDeals = liveDeals.filter((deal: LiveDeal) => {
-      if (!todayDealsOnly) return true;
-      const source = deal.available_at || deal.created_at;
-      if (!source) return false;
-      const d = new Date(source);
-      if (Number.isNaN(d.getTime())) return false;
-      return (
-        d.getFullYear() === now.getFullYear() &&
-        d.getMonth() === now.getMonth() &&
-        d.getDate() === now.getDate()
-      );
-    });
-
-    return filteredDeals.map((deal: LiveDeal) => ({
+    return liveDeals.map((deal: LiveDeal) => ({
       item_id: `deal:${deal.id}`,
       item_type: 'place',
       title: `${deal.restaurant_name}${deal.cuisine ? ` (${deal.cuisine})` : ''} · ${deal.price.toFixed(2)} EUR`,
@@ -554,7 +538,7 @@ export default function MapTab() {
         description: deal.description,
       },
     }));
-  }, [liveDeals, todayDealsOnly]);
+  }, [liveDeals]);
 
   const displayItems = useMemo(() => {
     // In "deals only" mode, show only deal pins (no restaurants)
@@ -584,6 +568,7 @@ export default function MapTab() {
 
   return (
     <AnimatedTabScene>
+      <LocationGate>
       <View style={{ flex: 1, position: 'relative' }}>
         <View style={styles.container}>
           <Map
@@ -597,43 +582,6 @@ export default function MapTab() {
             minimalist={minimalist}
             gadoOverlay={mapPreferences.gadoOverlay}
           />
-
-          {/* Floating profile avatar — top-right of the map.
-              Routes to the (now hidden) profile screen.
-              Shows the avatar image when available, otherwise initials. */}
-          <TouchableOpacity
-            onPress={() => router.push('/(tabs)/profile')}
-            activeOpacity={0.85}
-            accessibilityLabel={t('profile.greeting') || 'Perfil'}
-            accessibilityRole="button"
-            style={{
-              position: 'absolute',
-              top: insets.top + 14,
-              right: 14,
-              zIndex: 20,
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              overflow: 'hidden',
-              backgroundColor: colors.shell,
-              borderWidth: 1.5,
-              borderColor: 'rgba(255,255,255,0.6)',
-              alignItems: 'center',
-              justifyContent: 'center',
-              ...shadows.card,
-            }}
-          >
-            {accountAvatarUrl ? (
-              <Image
-                source={{ uri: accountAvatarUrl }}
-                style={{ width: '100%', height: '100%' }}
-              />
-            ) : (
-              <Text style={{ fontSize: 14, fontWeight: '700', color: colors.ink, fontFamily: typography.body }}>
-                {accountInitials}
-              </Text>
-            )}
-          </TouchableOpacity>
 
           <View
             style={{
@@ -759,23 +707,6 @@ export default function MapTab() {
                     </Text>
                   </TouchableOpacity>
 
-                  {/* Solo hoy (aplica a anuncios en mapa/lista) */}
-                  <TouchableOpacity
-                    style={[
-                      styles.foodSubcatChip,
-                      {
-                        borderColor: '#22C55E',
-                        backgroundColor: todayDealsOnly ? '#22C55E' : 'rgba(34,197,94,0.14)',
-                      },
-                    ]}
-                    onPress={() => setTodayDealsOnly((prev: boolean) => !prev)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: todayDealsOnly ? '#fff' : '#22C55E' }}>
-                      Hoy
-                    </Text>
-                  </TouchableOpacity>
-
                   {/* Favoritos */}
                   <TouchableOpacity
                     style={[styles.foodSubcatChip, { borderColor: '#FFD700', backgroundColor: 'rgba(255,215,0,0.1)' }]}
@@ -858,6 +789,7 @@ export default function MapTab() {
         )}
       </View>
     </View>
+      </LocationGate>
     </AnimatedTabScene>
   );
 }

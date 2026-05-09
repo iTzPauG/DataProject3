@@ -136,7 +136,31 @@ export default function PlaceDetailsModal() {
       try {
         let currentItem = nearbyItems.find(i => i.item_id === id);
         if (!currentItem && prefill) {
-          try { const p = JSON.parse(prefill as string); setParsedPlaceData(p); currentItem = p; } catch {}
+          try {
+            const p = JSON.parse(prefill as string);
+            // Normalize the prefill blob into the MapItem shape this screen
+            // expects. Different callers send different keys (`name` vs
+            // `title`, top-level `address` vs nested in metadata, etc.) —
+            // saved-items in particular sends the bookmark response which
+            // uses `name`/top-level address, so without this normalization
+            // `item.title` was undefined and the screen rendered "Lugar no
+            // encontrado".
+            const normalized: any = {
+              item_id: p.item_id ?? p.id ?? id,
+              item_type: p.item_type ?? 'place',
+              title: p.title ?? p.name ?? '',
+              category_id: p.category_id ?? 'food',
+              lat: p.lat,
+              lng: p.lng,
+              distance_m: p.distance_m ?? 0,
+              metadata: {
+                ...(p.metadata ?? {}),
+                address: p.metadata?.address ?? p.address,
+              },
+            };
+            setParsedPlaceData(normalized);
+            currentItem = normalized;
+          } catch {}
         }
         if (!currentItem) {
           const baseData = await getPlaceData(id);

@@ -76,6 +76,13 @@
     "searchPlaceholder": "Un sitio, una calle, un evento…",
     "liveReport": "Reportar en vivo"
   },
+  "location": {
+    "locating": "Localizándote…",
+    "gateTitle": "Activa tu ubicación",
+    "gateBody": "Necesitamos saber dónde estás para mostrarte ofertas, restaurantes y eventos a tu alrededor en tiempo real.",
+    "enable": "Activar ubicación",
+    "openSettings": "Abrir ajustes del navegador"
+  },
   "profile": {
     "dossier": "Tu dossier",
     "reputation": "Reputación",
@@ -205,6 +212,8 @@
     "searchingNearbyDots": "Buscando cerca...",
     "foundCount": "Encontrados {{count}}",
     "foundCountOf": "Encontrados {{count}} de {{total}}...",
+    "loadMore": "Buscar más sitios",
+    "allResultsShown": "Has visto todos los resultados disponibles.",
     "showingPlaces": "Mostrando {{count}} lugares",
     "searchingBestPlaces": "Buscando los mejores lugares...",
     "analyzingDescriptionShort": "Analizando reseñas, calidad y ambiente.",
