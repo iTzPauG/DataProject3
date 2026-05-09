@@ -373,6 +373,24 @@ POSTGRES_SCHEMA = [
         is_active INTEGER DEFAULT 1
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS reservations (
+        id TEXT PRIMARY KEY,
+        deal_id TEXT,
+        restaurant_id TEXT NOT NULL,
+        user_id TEXT,
+        customer_name TEXT NOT NULL,
+        customer_phone TEXT,
+        reservation_date TIMESTAMPTZ NOT NULL,
+        party_size INTEGER NOT NULL,
+        notes TEXT,
+        status TEXT DEFAULT 'confirmed',
+        status_reason TEXT,
+        status_updated_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    )
+    """,
 ]
 
 
@@ -717,6 +735,24 @@ async def _init_sqlite() -> None:
                 duration_h INTEGER DEFAULT 2,
                 sort_order INTEGER,
                 is_active BOOLEAN DEFAULT 1
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS reservations (
+                id TEXT PRIMARY KEY,
+                deal_id TEXT,
+                restaurant_id TEXT NOT NULL,
+                user_id TEXT,
+                customer_name TEXT NOT NULL,
+                customer_phone TEXT,
+                reservation_date DATETIME NOT NULL,
+                party_size INTEGER NOT NULL,
+                notes TEXT,
+                status TEXT DEFAULT 'confirmed',
+                status_reason TEXT,
+                status_updated_at DATETIME,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
             """,
         ]:
