@@ -129,6 +129,52 @@ function buildSurpriseQuery(positiveTags: Set<string>, city: string): string {
   return pool.map(s => s.query.split(' ')[0]).join(' ') + ' ' + city;
 }
 
+const CLUSTER_MAP: [string[], string][] = [
+  [['sushi','japonés','asiático','ramen','poke','thai','chino'], 'Asian'],
+  [['pizza','italiana','pasta','risotto'], 'Italian'],
+  [['hamburguesa','burger','fast food','comida rápida'], 'Burgers'],
+  [['vegano','saludable','healthy','vegan','orgánico'], 'Healthy'],
+  [['brunch','café','coffee','desayuno'], 'Brunch'],
+  [['tapas','pintxos','español','tradicional'], 'Spanish'],
+  [['terraza','exterior','rooftop'], 'Outdoor'],
+];
+
+function getClusterId(positiveTags: Set<string>): string {
+  let best = 'Mixed';
+  let bestScore = 0;
+  for (const [tags, name] of CLUSTER_MAP) {
+    const score = tags.filter(t => positiveTags.has(t)).length;
+    if (score > bestScore) { bestScore = score; best = name; }
+  }
+  return best;
+}
+
+function getRecommendationSignals(
+  positiveTags: Set<string>,
+  _city: string,
+): { personalTokens: string[]; cluster: { id: string } } {
+  return {
+    personalTokens: [...positiveTags].slice(0, 3),
+    cluster: { id: getClusterId(positiveTags) },
+  };
+}
+
+function buildPersonalizedQuery(positiveTags: Set<string>, city: string): string {
+  const tags = [...positiveTags].slice(0, 3);
+  return (tags.length > 0 ? tags.join(' ') + ' restaurante' : 'restaurante recomendado') + ' ' + city;
+}
+
+function buildTribeQuery(positiveTags: Set<string>, city: string): string {
+  const affineSections = ALL_SECTIONS
+    .filter(s => !s.fixed)
+    .filter(s => (s.affinityTags ?? []).some(t => positiveTags.has(t.toLowerCase())))
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 2);
+  return affineSections.length > 0
+    ? affineSections.map(s => s.query.split(' ').slice(0, 2).join(' ')).join(' ') + ' ' + city
+    : 'restaurante popular recomendado ' + city;
+}
+
 // Tendencias: 60% volumen de reseñas + 40% rating + bonus viral
 // + pequeño bonus por palabras clave virales en reseñas (máx +0.1)
 const TRENDING_KEYWORDS = ['increíble', 'espectacular', 'imprescindible', 'lleno', 'cola', 'viral', 'amazing', 'incredible', 'must', 'packed', 'queue', 'incroyable', 'génial'];
