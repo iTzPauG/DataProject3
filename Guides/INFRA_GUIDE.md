@@ -30,12 +30,12 @@ terraform apply
 ### ✅ Compartido entre todos los entornos
 | Recurso | Motivo |
 |---|---|
-| Proyecto GCP (`pruebas-edem-dataproject3`) | Un solo proyecto |
+| Proyecto GCP (`project1grupo7`) | Un solo proyecto |
 | Secrets de Secret Manager (`google-maps-api-key`, `google-genai-api-key`, etc.) | Creados una vez, todos los entornos los leen |
 | Artifact Registry (`restaurant-api`) | Las imágenes Docker se suben aquí y todos los entornos las usan |
 | Cloud SQL (instancia) | Una sola instancia compartida |
 | Firebase / Supabase | Servicios externos, no gestionados por Terraform |
-| Bucket de tfstate (`pruebas-edem-dataproject3-tfstate`) | El bucket es uno, pero cada workspace tiene su propio prefix |
+| Bucket de tfstate (`project1grupo7-tfstate`) | El bucket es uno, pero cada workspace tiene su propio prefix |
 
 ### ❌ Aislado por entorno
 | Recurso | Dev-IA | Dev-Data |

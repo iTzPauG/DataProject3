@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 from difflib import SequenceMatcher
@@ -51,6 +52,8 @@ _INCOMPATIBLE_CATEGORY_TERMS = (
     "car",
 )
 
+_REVIEW_LANGUAGE_POOL = ("es", "en", "fr", "de", "pt", "it")
+
 
 def _get_http_client() -> httpx.AsyncClient:
     global _http_client
@@ -60,11 +63,19 @@ def _get_http_client() -> httpx.AsyncClient:
 
 
 def _is_api_key_configured() -> bool:
+    """A real API key is required — placeholder values like 'mock', 'changeme',
+    or 'TODO' are explicitly treated as missing so we don't burn requests on
+    guaranteed-401 responses.
+    """
     global _missing_api_key_logged
-    if TRIPADVISOR_API_KEY:
+    placeholder_values = {"", "mock", "changeme", "todo", "placeholder", "none"}
+    if TRIPADVISOR_API_KEY and TRIPADVISOR_API_KEY.strip().lower() not in placeholder_values:
         return True
     if not _missing_api_key_logged:
-        log.warning("TRIPADVISOR_API_KEY is not configured. TripAdvisor review enrichment is disabled.")
+        log.warning(
+            "TRIPADVISOR_API_KEY is not configured (value=%r). TripAdvisor review enrichment is disabled.",
+            (TRIPADVISOR_API_KEY or "")[:8] + ("..." if len(TRIPADVISOR_API_KEY or "") > 8 else ""),
+        )
         _missing_api_key_logged = True
     return False
 
@@ -74,6 +85,15 @@ def _language_code(language: str) -> str:
     if "-" in raw:
         raw = raw.split("-", 1)[0]
     return raw or "es"
+
+
+def _review_languages_for(language: str) -> list[str]:
+    preferred = _language_code(language)
+    ordered = [preferred]
+    for lang in _REVIEW_LANGUAGE_POOL:
+        if lang not in ordered:
+            ordered.append(lang)
+    return ordered
 
 
 def _similarity(a: str, b: str) -> float:
@@ -452,7 +472,7 @@ async def get_tripadvisor_reviews(
     if not location_id:
         return {"reviews": [], "total_count": 0}
 
-    cache_key = f"tripadvisor_reviews_v6:{location_id}:{language}"
+    cache_key = f"tripadvisor_reviews_v8:{location_id}:{language}"
     cached = await cache_get(cache_key)
     if cached:
         return {"reviews": cached, "total_count": review_count}
@@ -475,12 +495,26 @@ async def get_tripadvisor_reviews(
             return []
         return _extract_tripadvisor_reviews(payload, language=lang)
 
-    reviews = await _fetch_reviews_for(language)
-    if not reviews and _language_code(language) != "en":
-        reviews = await _fetch_reviews_for("en")
+    seen: set[tuple[str, int, str, str]] = set()
+    reviews: list[dict] = []
+    language_results = await asyncio.gather(*[_fetch_reviews_for(lang) for lang in _review_languages_for(language)])
+    for batch in language_results:
+        for review in batch:
+            text = " ".join(str(review.get("text") or "").strip().lower().split())
+            fingerprint = (
+                str(review.get("author") or "").strip().lower(),
+                int(review.get("rating") or 0),
+                str(review.get("relative_time") or "").strip().lower(),
+                text,
+            )
+            if not text or fingerprint in seen:
+                continue
+            seen.add(fingerprint)
+            reviews.append(review)
 
     if review_count <= 0 and reviews:
         review_count = len(reviews)
 
-    await cache_set(cache_key, reviews, ttl=3600 * 6)
+    ttl = 3600 * 6 if reviews else 300
+    await cache_set(cache_key, reviews, ttl=ttl)
     return {"reviews": reviews, "total_count": review_count}

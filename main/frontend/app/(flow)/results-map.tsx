@@ -34,6 +34,7 @@ import {
 import { Restaurant } from "../../types/restaurant";
 import { MapItem } from "../../types";
 import { formatPriceLevel } from "../../utils/format";
+import { resolveI18nLanguage } from "../../utils/language";
 import { useTheme } from "../../utils/theme";
 
 // Enable LayoutAnimation on Android
@@ -42,7 +43,13 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 const CARD_HEIGHT = 360;
-const MAX_RESULTS = 5;
+// We let the backend stream as many candidates as it has, then chunk the
+// rendered list so the user only sees a few at a time and can pull "Buscar
+// más" to expand. Capping the buffer at 50 keeps memory bounded for very wide
+// queries without putting an artificial ceiling on what the user can browse.
+const RESULTS_BUFFER_CAP = 50;
+const INITIAL_DISPLAY = 5;
+const PAGE_SIZE = 5;
 
 type Status = "loading" | "streaming" | "success" | "error";
 
@@ -492,6 +499,40 @@ export default function ResultsMapScreen() {
       color: colors.inkMuted,
       fontFamily: typography.body,
     },
+    loadMoreWrap: {
+      paddingVertical: 18,
+      alignItems: "center",
+      gap: 6,
+    },
+    loadMoreBtn: {
+      paddingVertical: 14,
+      paddingHorizontal: 28,
+      borderRadius: radii.pill,
+      backgroundColor: colors.brand,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      ...shadows.soft,
+    },
+    loadMoreText: {
+      color: "#FFFFFF",
+      fontSize: 15,
+      fontWeight: "700",
+      fontFamily: typography.heading,
+      letterSpacing: 0.2,
+    },
+    loadMoreCount: {
+      fontSize: 12,
+      color: colors.inkMuted,
+      fontFamily: typography.body,
+    },
+    loadMoreEnd: {
+      fontSize: 13,
+      color: colors.inkMuted,
+      fontFamily: typography.body,
+      paddingVertical: 16,
+      textAlign: "center",
+    },
   }), [colors, radii, shadows, typography]);
 
   const { mapPreferences } = useAppState();
@@ -505,6 +546,9 @@ export default function ResultsMapScreen() {
   const [votesMap, setVotesMap] = useState<Record<string, VoteData>>({});
   const [totalExpected, setTotalExpected] = useState<number | undefined>(undefined);
   const [savedItems, setSavedItems] = useState<MapItem[]>([]);
+  // How many of the buffered restaurants we render right now. The user grows
+  // this by tapping "Buscar más sitios" at the bottom of the list.
+  const [displayLimit, setDisplayLimit] = useState<number>(INITIAL_DISPLAY);
 
   const sheetRef = useRef<BottomSheetRef>(null);
   const fetchingRef = useRef(false);
@@ -537,9 +581,9 @@ export default function ResultsMapScreen() {
     }).catch(() => {});
 
     if (results !== null) {
-      setRestaurants(results.slice(0, MAX_RESULTS));
+      setRestaurants(results.slice(0, RESULTS_BUFFER_CAP));
       setStatus("success");
-      loadVotes(results.slice(0, MAX_RESULTS));
+      loadVotes(results.slice(0, RESULTS_BUFFER_CAP));
       return;
     }
 
@@ -552,39 +596,40 @@ export default function ResultsMapScreen() {
     setErrorMsg("");
     setRestaurants([]);
     setTotalExpected(undefined);
+    setDisplayLimit(INITIAL_DISPLAY);
     accumulatedRef.current = [];
     fetchingRef.current = true;
 
-    const lang = mapPreferences.language === "system" ? "es" : mapPreferences.language;
+    const lang = resolveI18nLanguage(mapPreferences.language);
 
     try {
       await recommendRestaurantsStream(
         { parentCategory, subcategory: category, mood, priceLevel, language: lang },
         {
           onMeta: ({ total }) => {
-            setTotalExpected(Math.min(total, MAX_RESULTS));
+            setTotalExpected(total);
           },
           onResult: (restaurant) => {
             LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-            if (accumulatedRef.current.length >= MAX_RESULTS) return;
-            accumulatedRef.current = [...accumulatedRef.current, restaurant].slice(0, MAX_RESULTS);
+            if (accumulatedRef.current.length >= RESULTS_BUFFER_CAP) return;
+            accumulatedRef.current = [...accumulatedRef.current, restaurant].slice(0, RESULTS_BUFFER_CAP);
             // Progressive UI update
             setRestaurants([...accumulatedRef.current]);
             // Keep flow state in sync while streaming so details can open safely
             // even if the user taps the first card before onDone fires.
-            setResults(accumulatedRef.current.slice(0, MAX_RESULTS));
+            setResults(accumulatedRef.current.slice(0, RESULTS_BUFFER_CAP));
             if (accumulatedRef.current.length === 1) {
               setStatus("streaming");
             }
           },
           onDone: (_total) => {
-            setResults(accumulatedRef.current.slice(0, MAX_RESULTS));
+            setResults(accumulatedRef.current.slice(0, RESULTS_BUFFER_CAP));
             setStatus("success");
-            loadVotes(accumulatedRef.current.slice(0, MAX_RESULTS));
+            loadVotes(accumulatedRef.current.slice(0, RESULTS_BUFFER_CAP));
           },
           onError: (err) => {
             if (accumulatedRef.current.length > 0) {
-              setResults(accumulatedRef.current.slice(0, MAX_RESULTS));
+              setResults(accumulatedRef.current.slice(0, RESULTS_BUFFER_CAP));
               setStatus("success");
             } else {
               setErrorMsg(err.message);
@@ -603,7 +648,7 @@ export default function ResultsMapScreen() {
           priceLevel,
           language: lang,
         });
-        const limited = top.slice(0, MAX_RESULTS);
+        const limited = top.slice(0, RESULTS_BUFFER_CAP);
         setRestaurants(limited);
         setResults(limited);
         setStatus("success");
@@ -645,8 +690,8 @@ export default function ResultsMapScreen() {
     if (moodLabel) return { key: "mood" as const, label: moodLabel };
     if (priceLabel) return { key: "price" as const, label: priceLabel };
     if (categoryLabel) return { key: "category" as const, label: categoryLabel };
-    return { key: "category" as const, label: "Filtros" };
-  }, [moodLabel, priceLabel, categoryLabel]);
+    return { key: "category" as const, label: t("flow.filtersLabel") };
+  }, [moodLabel, priceLabel, categoryLabel, t]);
 
   const handleRemoveConflictingFilter = useCallback(() => {
     if (conflictingFilter.key === "mood") {
@@ -709,19 +754,28 @@ export default function ResultsMapScreen() {
       );
     }
 
+    const visibleRestaurants = restaurants.slice(0, displayLimit);
+    const remaining = Math.max(restaurants.length - visibleRestaurants.length, 0);
+    const showLoadMore = !isStreaming && remaining > 0;
+    const reachedEnd =
+      !isStreaming && remaining === 0 && totalExpected != null && restaurants.length >= totalExpected;
+
     return (
       <>
         {showResultsSummary ? (
           <View style={styles.resultsSummary}>
             <View style={styles.resultsSummaryTop}>
               <View>
-                <Text style={styles.resultsSummaryTitle}>Resultados cercanos</Text>
+                <Text style={styles.resultsSummaryTitle}>{t('flow.nearbyResults')}</Text>
                 <Text style={styles.resultsSummaryCount}>
-                  {restaurants.length} {restaurants.length === 1 ? "sitio recomendado" : "sitios recomendados"}
+                  {`${visibleRestaurants.length} de ${restaurants.length} ${restaurants.length === 1 ? "sitio" : "sitios"}`}
+                  {totalExpected != null && totalExpected > restaurants.length
+                    ? ` · ${totalExpected} encontrados`
+                    : ""}
                 </Text>
               </View>
               <TouchableOpacity style={styles.resultsMapBtn} onPress={() => sheetRef.current?.snapToIndex(0)}>
-                <Text style={styles.resultsMapBtnText}>Ver mapa</Text>
+                <Text style={styles.resultsMapBtnText}>{t('flow.viewMap')}</Text>
               </TouchableOpacity>
             </View>
             {activeFilters.length > 0 ? (
@@ -735,7 +789,7 @@ export default function ResultsMapScreen() {
             ) : null}
           </View>
         ) : null}
-        {restaurants.map((restaurant, index) => (
+        {visibleRestaurants.map((restaurant, index) => (
           <AnimatedCard key={restaurant.id}>
             <RestaurantCard
               restaurant={restaurant}
@@ -747,8 +801,36 @@ export default function ResultsMapScreen() {
           </AnimatedCard>
         ))}
         {isStreaming && (
-          <StreamingIndicator found={restaurants.length} total={totalExpected != null ? Math.min(totalExpected, MAX_RESULTS) : undefined} />
+          <StreamingIndicator
+            found={restaurants.length}
+            total={totalExpected != null ? Math.min(totalExpected, RESULTS_BUFFER_CAP) : undefined}
+          />
         )}
+        {showLoadMore ? (
+          <View style={styles.loadMoreWrap}>
+            <TouchableOpacity
+              style={styles.loadMoreBtn}
+              activeOpacity={0.85}
+              onPress={() => setDisplayLimit((n) => n + PAGE_SIZE)}
+              accessibilityRole="button"
+              accessibilityLabel={t("flow.loadMore", { defaultValue: "Buscar más sitios" })}
+            >
+              <Text style={styles.loadMoreText}>
+                {t("flow.loadMore", { defaultValue: "Buscar más sitios" })}
+              </Text>
+            </TouchableOpacity>
+            <Text style={styles.loadMoreCount}>
+              {`${remaining} ${remaining === 1 ? "más disponible" : "más disponibles"}`}
+            </Text>
+          </View>
+        ) : null}
+        {reachedEnd ? (
+          <Text style={styles.loadMoreEnd}>
+            {t("flow.allResultsShown", {
+              defaultValue: "Has visto todos los resultados disponibles.",
+            })}
+          </Text>
+        ) : null}
       </>
     );
   })();

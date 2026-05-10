@@ -1,6 +1,8 @@
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
+  ActivityIndicator,
   Image,
   Linking,
   Pressable,
@@ -16,9 +18,15 @@ import PrimaryButton from "../../components/PrimaryButton";
 import ReviewList from "../../components/ReviewList";
 import VoteButtons from "../../components/VoteButtons";
 import WhimIcon from "../../components/WhimIcon";
+import { useAppState } from "../../hooks/useAppState";
 import { useFlowState } from "../../hooks/useFlowState";
-import { getPlaceLiveData, getVotes, LiveDataResult, VoteData } from "../../services/api";
+import { useUserProfile } from "../../hooks/useUserProfile";
+import { MapItem } from "../../types";
+import { Restaurant } from "../../types/restaurant";
+import { BASE_URL, fetchPlaceExtra, getPlaceData, getPlaceLiveData, getPlaceTake, getVotes, LiveDataResult, VoteData } from "../../services/api";
 import { formatDistance, formatPriceLevel, formatRating, formatReviews } from "../../utils/format";
+import { resolveI18nLanguage } from "../../utils/language";
+import { synthesizeFallbackTake } from "../../utils/placeTake";
 import { shareRestaurant } from "../../utils/share";
 import { storage } from "../../utils/storage";
 import { useTheme } from "../../utils/theme";
@@ -30,16 +38,90 @@ function openDirections(lat: number, lng: number, name: string) {
   Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=${encoded}`);
 }
 
+function normalizePriceLevel(raw: unknown): 1 | 2 | 3 {
+  if (typeof raw === "number") {
+    if (raw <= 1) return 1;
+    if (raw >= 3) return 3;
+    return 2;
+  }
+  const value = String(raw || "").toUpperCase().trim();
+  if (value === "PRICE_LEVEL_INEXPENSIVE") return 1;
+  if (value === "PRICE_LEVEL_EXPENSIVE" || value === "PRICE_LEVEL_VERY_EXPENSIVE") return 3;
+  return 2;
+}
+
+function withAbsolutePhotoUrl(raw: unknown): string {
+  const value = String(raw || "").trim();
+  if (!value) return "";
+  return value.startsWith("/") ? `${BASE_URL}${value}` : value;
+}
+
+function mapItemToRestaurant(item: MapItem, take?: Restaurant | null): Restaurant {
+  const metadata = (item.metadata || {}) as Record<string, unknown>;
+  const rating = Number(take?.rating ?? metadata.rating ?? 0);
+  const reviewsCount = Number(
+    take?.reviewsCount ??
+    metadata.user_rating_count ??
+    metadata.review_count ??
+    0,
+  );
+  const reviews = Array.isArray(take?.reviews)
+    ? take.reviews
+    : Array.isArray(metadata.google_reviews)
+      ? metadata.google_reviews
+          .filter((review) => review && typeof review === "object")
+          .map((review: any) => ({
+            author: String(review.author || "Anonymous"),
+            rating: Number(review.rating || 0),
+            text: String(review.text || ""),
+            relative_time: String(review.relative_time || ""),
+            source: "google" as const,
+          }))
+      : [];
+
+  return {
+    id: String(take?.id || item.item_id),
+    name: String(take?.name || item.title || ""),
+    priceLevel: normalizePriceLevel(take?.priceLevel ?? metadata.price_level),
+    rating: Number.isFinite(rating) ? rating : 0,
+    reviewsCount: Number.isFinite(reviewsCount) ? reviewsCount : 0,
+    address: String(take?.address || metadata.address || ""),
+    phone: String(take?.phone || metadata.phone || ""),
+    photoUrl: withAbsolutePhotoUrl(take?.photoUrl || metadata.photo_url),
+    tagline: String(take?.tagline || metadata.subcategory || ""),
+    why: String(take?.why || ""),
+    tags: Array.isArray(take?.tags) ? take.tags : [],
+    lat: Number(item.lat || 0),
+    lng: Number(item.lng || 0),
+    distanceM: Number(item.distance_m || 0),
+    bestReviewQuote: String(take?.bestReviewQuote || ""),
+    reviewQualityScore: Number(take?.reviewQualityScore || 0.5),
+    pros: Array.isArray(take?.pros) ? take.pros : [],
+    cons: Array.isArray(take?.cons) ? take.cons : [],
+    verdict: String(take?.verdict || ""),
+    reviews,
+    reviewSources: take?.reviewSources,
+    liveData: take?.liveData,
+  };
+}
+
 export default function DetailsScreen() {
+  const { t, i18n } = useTranslation();
   const { colors, radii, shadows, typography } = useTheme();
-  const { id } = useLocalSearchParams<{ id: string | string[] }>();
+  const { id, prefill } = useLocalSearchParams<{ id: string | string[]; prefill?: string | string[] }>();
   const { results, category, parentCategory } = useFlowState();
+  const { nearbyItems } = useAppState();
+  const { recordRecentView } = useUserProfile();
   const [voteData, setVoteData] = useState<VoteData | undefined>();
   const [liveData, setLiveData] = useState<LiveDataResult | null>(null);
+  const [detailTake, setDetailTake] = useState<any>(null);
+  const [fallbackRestaurant, setFallbackRestaurant] = useState<Restaurant | null>(null);
+  const [resolvingFallback, setResolvingFallback] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [savingPin, setSavingPin] = useState(false);
   const placeId = Array.isArray(id) ? id[0] : id;
-  const restaurant = results?.find((item) => item.id === placeId);
+  const flowRestaurant = results?.find((item) => item.id === placeId);
+  const restaurant = flowRestaurant ?? fallbackRestaurant;
 
   const styles = useMemo(
     () =>
@@ -279,6 +361,128 @@ export default function DetailsScreen() {
   const LIVE_DATA_CATS = new Set(["cinema", "nature", "sport"]);
 
   useEffect(() => {
+    if (flowRestaurant) {
+      setFallbackRestaurant(null);
+      setResolvingFallback(false);
+      return;
+    }
+    if (!placeId) {
+      setFallbackRestaurant(null);
+      setResolvingFallback(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const coerceMapItem = (raw: any): MapItem | null => {
+      if (!raw || typeof raw !== "object") return null;
+      if (raw.item_id && raw.item_type && raw.title) {
+        return raw as MapItem;
+      }
+      if (!raw.id || !raw.name) return null;
+      return {
+        item_id: String(raw.id),
+        item_type: "place",
+        title: String(raw.name),
+        category_id: String(raw.category_id || "food"),
+        lat: Number(raw.lat || 0),
+        lng: Number(raw.lng || 0),
+        distance_m: Number(raw.distance_m || raw.distanceM || 0),
+        metadata: (raw.metadata && typeof raw.metadata === "object") ? raw.metadata : {},
+      };
+    };
+
+    const resolveSourceItem = async (): Promise<MapItem | null> => {
+      const fromNearby = nearbyItems.find((entry) => entry.item_id === placeId);
+      if (fromNearby) return fromNearby;
+
+      const rawPrefill = Array.isArray(prefill) ? prefill[0] : prefill;
+      if (rawPrefill) {
+        try {
+          const parsed = JSON.parse(rawPrefill);
+          const mapped = coerceMapItem(parsed);
+          if (mapped) return mapped;
+        } catch {
+          // Ignore malformed prefill payloads and try backend lookup.
+        }
+      }
+
+      const fetched = await getPlaceData(placeId);
+      if (fetched) return fetched;
+      return null;
+    };
+
+    const hydrateFallbackRestaurant = async () => {
+      setResolvingFallback(true);
+      try {
+        const sourceItem = await resolveSourceItem();
+        if (!sourceItem || cancelled) {
+          if (!cancelled) setFallbackRestaurant(null);
+          return;
+        }
+
+        const metadata = (sourceItem.metadata || {}) as Record<string, unknown>;
+        const seed = mapItemToRestaurant(sourceItem);
+        setFallbackRestaurant(seed);
+
+        const normalizedCategory = sourceItem.category_id === "restaurant"
+          ? "food"
+          : sourceItem.category_id;
+
+        const take = await getPlaceTake({
+          placeId: sourceItem.item_id,
+          lat: Number(sourceItem.lat || 0),
+          lng: Number(sourceItem.lng || 0),
+          category: String(normalizedCategory || parentCategory || "food"),
+          subcategory: String(metadata.subcategory || category || parentCategory || "food"),
+          language: resolveI18nLanguage(i18n.resolvedLanguage || i18n.language),
+          name: sourceItem.title,
+          address: String(metadata.address || ""),
+          photoUrl: withAbsolutePhotoUrl(metadata.photo_url),
+          rating: typeof metadata.rating === "number" ? metadata.rating : Number(metadata.rating || 0),
+          priceLevel: normalizePriceLevel(metadata.price_level),
+          reviewsCount: Number(metadata.user_rating_count || 0),
+        });
+
+        if (cancelled || !take) return;
+        setDetailTake(take);
+        setFallbackRestaurant({
+          ...seed,
+          ...take,
+          id: seed.id,
+          lat: seed.lat,
+          lng: seed.lng,
+          distanceM: seed.distanceM,
+          photoUrl: take.photoUrl || seed.photoUrl,
+          reviews: Array.isArray(take.reviews) && take.reviews.length > 0 ? take.reviews : seed.reviews,
+          pros: Array.isArray(take.pros) && take.pros.length > 0 ? take.pros : seed.pros,
+          cons: Array.isArray(take.cons) && take.cons.length > 0 ? take.cons : seed.cons,
+          verdict: take.verdict || seed.verdict,
+        });
+      } catch {
+        if (!cancelled) setFallbackRestaurant(null);
+      } finally {
+        if (!cancelled) setResolvingFallback(false);
+      }
+    };
+
+    void hydrateFallbackRestaurant();
+    return () => {
+      cancelled = true;
+    };
+  }, [category, flowRestaurant, i18n.language, i18n.resolvedLanguage, nearbyItems, parentCategory, placeId, prefill]);
+
+  useEffect(() => {
+    if (!restaurant) return;
+    const subcat = restaurant.tagline?.trim();
+    void recordRecentView(
+      restaurant.id,
+      restaurant.name,
+      subcat ? [subcat] : undefined,
+    );
+  }, [recordRecentView, restaurant?.id, restaurant?.name, restaurant?.tagline]);
+
+  useEffect(() => {
     if (!placeId) return;
     getVotes(placeId)
       .then((data) => {
@@ -313,6 +517,29 @@ export default function DetailsScreen() {
         setLiveData(null);
       });
   }, [restaurant?.id, restaurant?.liveData, category, parentCategory]);
+
+  useEffect(() => {
+    setDetailTake(null);
+    if (!restaurant) return;
+    const needsPhone = !restaurant.phone || restaurant.phone.trim().length === 0;
+    if (!needsPhone) return;
+
+    fetchPlaceExtra(restaurant.id, {
+      lat: restaurant.lat,
+      lng: restaurant.lng,
+      name: restaurant.name,
+      address: restaurant.address,
+      rating: restaurant.rating,
+      price_level: restaurant.priceLevel,
+      user_rating_count: restaurant.reviewsCount,
+      category: parentCategory || 'food',
+      subcategory: category || parentCategory || 'food',
+    })
+      .then((extra) => {
+        if (extra?.take) setDetailTake(extra.take);
+      })
+      .catch(() => {});
+  }, [restaurant?.id, restaurant?.phone, restaurant?.lat, restaurant?.lng, restaurant?.name, restaurant?.address, restaurant?.rating, restaurant?.priceLevel, restaurant?.reviewsCount, parentCategory, category]);
 
   // Load saved-pin state from AsyncStorage
   useEffect(() => {
@@ -369,15 +596,27 @@ export default function DetailsScreen() {
   };
 
   if (!restaurant) {
+    if (resolvingFallback) {
+      return (
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.notFound}>
+            <ActivityIndicator size="large" color={colors.brand} />
+            <Text style={[styles.notFoundSub, { marginTop: 12 }]}>
+              {t("common.loading")}
+            </Text>
+          </View>
+        </SafeAreaView>
+      );
+    }
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.notFound}>
-          <Text style={styles.notFoundTitle}>Place not found</Text>
+          <Text style={styles.notFoundTitle}>{t('placeDetails.notFound')}</Text>
           <Text style={styles.notFoundSub}>
-            Your search state expired. Start a fresh search to see updated results.
+            {t('placeDetails.searchExpired')}
           </Text>
           <View style={styles.notFoundButton}>
-            <PrimaryButton label="Start over" onPress={() => router.replace("/(flow)/category")} />
+            <PrimaryButton label={t("common.close")} onPress={() => router.back()} />
           </View>
         </View>
       </SafeAreaView>
@@ -385,6 +624,7 @@ export default function DetailsScreen() {
   }
 
   const distance = restaurant.distanceM > 0 ? formatDistance(restaurant.distanceM) : null;
+  const effectivePhone = (detailTake?.phone as string | undefined) || restaurant.phone || "";
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -412,7 +652,7 @@ export default function DetailsScreen() {
             <View style={styles.headingCopy}>
               <Text style={styles.name}>{restaurant.name}</Text>
               <Text style={styles.subline}>
-                {restaurant.tagline || "Recommended place"}
+                {restaurant.tagline || t("placeDetails.recommended")}
                 {distance ? ` · ${distance}` : ""}
               </Text>
             </View>
@@ -421,34 +661,67 @@ export default function DetailsScreen() {
 
           <View style={styles.ratingRow}>
             <Text style={styles.ratingPrimary}>★ {formatRating(restaurant.rating)}</Text>
-            <Text style={styles.ratingMeta}>{formatReviews(restaurant.reviewsCount)} reseñas</Text>
+            <Text style={styles.ratingMeta}>{formatReviews(restaurant.reviewsCount)} {t("common.reviews")}</Text>
           </View>
 
           <View style={styles.metaCard}>
-            <Text style={styles.metaTitle}>Address</Text>
+            <Text style={styles.metaTitle}>{t("common.address")}</Text>
             <Text style={styles.metaText}>{restaurant.address}</Text>
-            <Text style={styles.metaTitle}>Phone</Text>
-            <Text style={styles.metaText}>{restaurant.phone || "No phone available"}</Text>
+            <Text style={styles.metaTitle}>{t("common.phone")}</Text>
+            <Text style={styles.metaText}>{effectivePhone || t("common.noPhone")}</Text>
           </View>
 
-          <View style={styles.takeCard}>
-            <Text style={styles.sectionEyebrow}>WHIM&apos;s Take</Text>
-            <Text style={styles.verdict}>{restaurant.verdict || restaurant.why}</Text>
-            <Text style={styles.blockTitle}>The good stuff</Text>
-            {(restaurant.pros || []).map((pro) => (
-              <View key={pro} style={styles.listRow}>
-                <WhimIcon name="like" category="feedback" size={14} color={colors.success} />
-                {renderBoldText(pro, styles.listText, "#FFFFFF")}
+          {(() => {
+            // Single source of truth for "what to display in the Whim's Take card".
+            // 1. Backend take (LLM-generated) is preferred when present and non-empty.
+            // 2. Otherwise, synthesize one from the rating + reviews so we never
+            //    fall through to "Análisis no disponible".
+            const backendTake = {
+              verdict: restaurant.verdict || restaurant.why,
+              pros: restaurant.pros || [],
+              cons: restaurant.cons || [],
+            };
+            const hasBackend =
+              (backendTake.verdict && backendTake.verdict.trim().length > 0) ||
+              backendTake.pros.length > 0 ||
+              backendTake.cons.length > 0;
+            const fallback = hasBackend
+              ? null
+              : synthesizeFallbackTake({
+                  rating: restaurant.rating,
+                  reviews: (restaurant.reviews || []) as Array<{ text?: string; rating?: number }>,
+                });
+            const effective = hasBackend ? backendTake : fallback;
+            if (!effective) return null;
+            return (
+              <View style={styles.takeCard}>
+                <Text style={styles.sectionEyebrow}>{t("placeDetails.whimTake")}</Text>
+                {effective.verdict ? <Text style={styles.verdict}>{effective.verdict}</Text> : null}
+                {effective.pros && effective.pros.length > 0 ? (
+                  <>
+                    <Text style={styles.blockTitle}>{t("placeDetails.theBest")}</Text>
+                    {effective.pros.map((pro) => (
+                      <View key={pro} style={styles.listRow}>
+                        <WhimIcon name="like" category="feedback" size={14} color={colors.success} />
+                        {renderBoldText(pro, styles.listText, "#FFFFFF")}
+                      </View>
+                    ))}
+                  </>
+                ) : null}
+                {effective.cons && effective.cons.length > 0 ? (
+                  <>
+                    <Text style={styles.blockTitle}>{t("placeDetails.watchOut")}</Text>
+                    {effective.cons.map((con) => (
+                      <View key={con} style={styles.listRow}>
+                        <WhimIcon name="warning" category="feedback" size={14} color={colors.warning} />
+                        {renderBoldText(con, styles.listText, "#FFFFFF")}
+                      </View>
+                    ))}
+                  </>
+                ) : null}
               </View>
-            ))}
-            <Text style={styles.blockTitle}>Worth knowing</Text>
-            {(restaurant.cons || []).map((con) => (
-              <View key={con} style={styles.listRow}>
-                <WhimIcon name="warning" category="feedback" size={14} color={colors.warning} />
-                {renderBoldText(con, styles.listText, "#FFFFFF")}
-              </View>
-            ))}
-          </View>
+            );
+          })()}
 
           <ReviewList reviews={restaurant.reviews} />
 
@@ -463,16 +736,16 @@ export default function DetailsScreen() {
               style={[styles.actionButton, styles.actionPrimary]}
               onPress={() => openDirections(restaurant.lat, restaurant.lng, restaurant.name)}
             >
-              <Text style={styles.actionPrimaryText}>Cómo llegar</Text>
+              <Text style={styles.actionPrimaryText}>{t("common.directions")}</Text>
             </Pressable>
             <Pressable style={styles.actionButton} onPress={() => void shareRestaurant(restaurant)}>
-              <Text style={styles.actionSecondaryText}>Compartir</Text>
+              <Text style={styles.actionSecondaryText}>{t("common.share")}</Text>
             </Pressable>
             <Pressable
               style={styles.actionButton}
-              onPress={() => restaurant.phone && Linking.openURL(`tel:${restaurant.phone}`)}
+              onPress={() => effectivePhone && Linking.openURL(`tel:${effectivePhone}`)}
             >
-              <Text style={styles.actionSecondaryText}>Llamar</Text>
+              <Text style={styles.actionSecondaryText}>{t("common.call")}</Text>
             </Pressable>
             <Pressable
               style={[styles.actionButton, isSaved && styles.actionSaved]}
@@ -480,7 +753,7 @@ export default function DetailsScreen() {
               disabled={savingPin}
             >
               <Text style={isSaved ? styles.actionSavedText : styles.actionSecondaryText}>
-                {isSaved ? '★ Guardado' : '☆ Guardar'}
+                {isSaved ? `★ ${t("common.saved")}` : `☆ ${t("common.save")}`}
               </Text>
             </Pressable>
           </View>

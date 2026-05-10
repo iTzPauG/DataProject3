@@ -1,9 +1,10 @@
-"""Map / Places endpoints — nearby items and place details."""
+﻿"""Map / Places endpoints â€” nearby items and place details."""
 import asyncio
+import json
 import logging
 import uuid
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -19,8 +20,80 @@ from services.recommendation.tools import search_generic_category_places
 from services.overpass_service import search_overpass
 from services.recommendation.pipeline import enrich_place_result
 from services.live_data_service import get_live_data
+from services.yelp_service import get_yelp_reviews
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/places", tags=["places"])
+
+
+class TagRecommendationsRequest(BaseModel):
+    tags: list[str] = Field(default_factory=list)
+    negative_tags: list[str] = Field(default_factory=list)
+    exclude_ids: list[str] = Field(default_factory=list)
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    limit: int = Field(default=20, ge=1, le=50)
+
+
+def _json_or_value(value: Any) -> Any:
+    if value is None or value == "":
+        return None
+    if isinstance(value, (dict, list)):
+        return value
+    try:
+        return json.loads(value)
+    except (TypeError, ValueError):
+        return value
+
+
+def _normalize_tag(value: Any) -> str:
+    return str(value).strip().lower().replace("_", " ").replace("-", " ")
+
+
+def _tag_set(value: Any) -> set[str]:
+    parsed = _json_or_value(value)
+    if isinstance(parsed, dict):
+        return {
+            _normalize_tag(key)
+            for key, enabled in parsed.items()
+            if enabled and _normalize_tag(key)
+        }
+    if isinstance(parsed, list):
+        return {_normalize_tag(item) for item in parsed if _normalize_tag(item)}
+    if isinstance(parsed, str):
+        return {_normalize_tag(part) for part in parsed.split(",") if _normalize_tag(part)}
+    return set()
+
+
+def _metadata_dict(value: Any) -> dict[str, Any]:
+    parsed = _json_or_value(value)
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _price_level_label(value: Any) -> Any:
+    try:
+        numeric = int(value)
+    except (TypeError, ValueError):
+        return value
+    return {
+        0: "PRICE_LEVEL_FREE",
+        1: "PRICE_LEVEL_INEXPENSIVE",
+        2: "PRICE_LEVEL_MODERATE",
+        3: "PRICE_LEVEL_EXPENSIVE",
+        4: "PRICE_LEVEL_VERY_EXPENSIVE",
+    }.get(numeric, value)
+
+
+def _as_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalized_terms(values: list[str] | set[str] | tuple[str, ...]) -> set[str]:
+    return {_normalize_tag(value) for value in values if _normalize_tag(value)}
 
 
 @router.get("/nearby")
@@ -230,7 +303,253 @@ async def place_take(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ─── Per-place live comments ────────────────────────────────────────────────
+
+@router.post("/tag-recommendations")
+async def tag_recommendations(req: TagRecommendationsRequest):
+    """Recommend restaurants whose stored tags match a user's assigned tribe."""
+    positive_tags = _normalized_terms(req.tags)
+    negative_tags = _normalized_terms(req.negative_tags)
+    exclude_ids = _normalized_terms(req.exclude_ids)
+
+    if not positive_tags:
+        return {"recommendations": [], "matched_tags": []}
+
+    async with get_db() as db:
+        cursor = await db.execute(
+            """
+            SELECT CAST(id AS TEXT) AS id,
+                   external_id,
+                   source,
+                   category_id,
+                   subcategory,
+                   amenity,
+                   name,
+                   address,
+                   photo_url,
+                   rating,
+                   price_level,
+                   lat,
+                   lng,
+                   tags,
+                   metadata
+            FROM places
+            WHERE category_id = 'food'
+            LIMIT 2000
+            """
+        )
+        rows = await cursor.fetchall()
+
+    scored: list[dict[str, Any]] = []
+    for raw_row in rows:
+        row = dict(raw_row)
+        row_id = str(row.get("id") or "")
+        external_id = str(row.get("external_id") or "")
+        if row_id in exclude_ids or external_id in exclude_ids:
+            continue
+
+        candidate_tags = _tag_set(row.get("tags"))
+        matched_tags = sorted(positive_tags & candidate_tags)
+        if not matched_tags:
+            continue
+
+        disliked_matches = negative_tags & candidate_tags
+        metadata = _metadata_dict(row.get("metadata"))
+        rating = _as_float(row.get("rating") or metadata.get("rating"))
+        reviews_count = int(_as_float(metadata.get("user_ratings_count") or metadata.get("user_rating_count")))
+        distance_m = None
+        if req.lat is not None and req.lng is not None and row.get("lat") is not None and row.get("lng") is not None:
+            distance_m = int(_haversine_m(req.lat, req.lng, _as_float(row.get("lat")), _as_float(row.get("lng"))))
+
+        overlap = len(matched_tags)
+        cluster_coverage = overlap / max(len(positive_tags), 1)
+        distance_penalty = (distance_m or 0) / 50000
+        score = (
+            overlap * 100
+            + cluster_coverage * 35
+            + rating * 2
+            + min(reviews_count, 2000) / 500
+            - len(disliked_matches) * 45
+            - distance_penalty
+        )
+
+        metadata.update(
+            {
+                "photo_url": row.get("photo_url") or metadata.get("photo_url"),
+                "rating": rating,
+                "price_level": _price_level_label(row.get("price_level") or metadata.get("price_level")),
+                "address": row.get("address") or metadata.get("address"),
+                "distance_m": distance_m,
+                "subcategory": row.get("subcategory"),
+                "amenity": row.get("amenity"),
+                "tags": sorted(candidate_tags),
+                "matched_tags": matched_tags,
+                "negative_matched_tags": sorted(disliked_matches),
+                "tag_match_count": overlap,
+                "similarity_score": round(score, 3),
+                "user_rating_count": reviews_count,
+            }
+        )
+
+        scored.append(
+            {
+                "id": row_id,
+                "name": row.get("name") or "",
+                "lat": row.get("lat"),
+                "lng": row.get("lng"),
+                "metadata": metadata,
+            }
+        )
+
+    scored.sort(
+        key=lambda item: (
+            item["metadata"].get("similarity_score", 0),
+            item["metadata"].get("tag_match_count", 0),
+            item["metadata"].get("rating", 0),
+        ),
+        reverse=True,
+    )
+
+    return {
+        "recommendations": scored[: req.limit],
+        "matched_tags": sorted(positive_tags),
+    }
+
+
+@router.get("/{place_id}/similar")
+async def similar_places_by_tags(
+    place_id: str,
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    limit: int = Query(20, ge=1, le=50),
+):
+    """Return places with the highest tag overlap with a base restaurant."""
+    async with get_db() as db:
+        cursor = await db.execute(
+            """
+            SELECT CAST(id AS TEXT) AS id,
+                   external_id,
+                   name,
+                   category_id,
+                   subcategory,
+                   amenity,
+                   tags
+            FROM places
+            WHERE CAST(id AS TEXT) = ? OR external_id = ?
+            LIMIT 1
+            """,
+            (place_id, place_id),
+        )
+        base_row = await cursor.fetchone()
+        if not base_row:
+            raise HTTPException(status_code=404, detail=f"Place '{place_id}' not found")
+
+        base = dict(base_row)
+        base_tags = _tag_set(base.get("tags"))
+        if not base_tags:
+            return {
+                "base_place": {
+                    "id": base["id"],
+                    "name": base.get("name"),
+                    "tags": [],
+                },
+                "recommendations": [],
+            }
+
+        cursor = await db.execute(
+            """
+            SELECT CAST(id AS TEXT) AS id,
+                   external_id,
+                   source,
+                   category_id,
+                   subcategory,
+                   amenity,
+                   name,
+                   address,
+                   photo_url,
+                   rating,
+                   price_level,
+                   lat,
+                   lng,
+                   tags,
+                   metadata
+            FROM places
+            WHERE category_id = ?
+              AND CAST(id AS TEXT) != ?
+            LIMIT 1500
+            """,
+            (base.get("category_id"), base["id"]),
+        )
+        rows = await cursor.fetchall()
+
+    scored: list[dict[str, Any]] = []
+    for raw_row in rows:
+        row = dict(raw_row)
+        candidate_tags = _tag_set(row.get("tags"))
+        matched_tags = sorted(base_tags & candidate_tags)
+        if not matched_tags:
+            continue
+
+        metadata = _metadata_dict(row.get("metadata"))
+        rating = _as_float(row.get("rating") or metadata.get("rating"))
+        reviews_count = int(_as_float(metadata.get("user_ratings_count") or metadata.get("user_rating_count")))
+        distance_m = None
+        if lat is not None and lng is not None and row.get("lat") is not None and row.get("lng") is not None:
+            distance_m = int(_haversine_m(lat, lng, _as_float(row.get("lat")), _as_float(row.get("lng"))))
+
+        overlap = len(matched_tags)
+        union = len(base_tags | candidate_tags) or 1
+        jaccard = overlap / union
+        distance_penalty = (distance_m or 0) / 50000
+        score = overlap * 100 + jaccard * 20 + rating * 2 + min(reviews_count, 2000) / 500 - distance_penalty
+
+        metadata.update(
+            {
+                "photo_url": row.get("photo_url") or metadata.get("photo_url"),
+                "rating": rating,
+                "price_level": _price_level_label(row.get("price_level") or metadata.get("price_level")),
+                "address": row.get("address") or metadata.get("address"),
+                "distance_m": distance_m,
+                "subcategory": row.get("subcategory"),
+                "amenity": row.get("amenity"),
+                "tags": sorted(candidate_tags),
+                "matched_tags": matched_tags,
+                "tag_match_count": overlap,
+                "similarity_score": round(score, 3),
+                "user_rating_count": reviews_count,
+            }
+        )
+
+        scored.append(
+            {
+                "id": row["id"],
+                "name": row.get("name") or "",
+                "lat": row.get("lat"),
+                "lng": row.get("lng"),
+                "metadata": metadata,
+            }
+        )
+
+    scored.sort(
+        key=lambda item: (
+            item["metadata"].get("tag_match_count", 0),
+            item["metadata"].get("similarity_score", 0),
+            item["metadata"].get("rating", 0),
+        ),
+        reverse=True,
+    )
+
+    return {
+        "base_place": {
+            "id": base["id"],
+            "name": base.get("name"),
+            "category_id": base.get("category_id"),
+            "subcategory": base.get("subcategory"),
+            "tags": sorted(base_tags),
+        },
+        "recommendations": scored[:limit],
+    }
+
+# â”€â”€â”€ Per-place live comments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class PlaceCommentCreate(BaseModel):
     place_id: str
@@ -261,7 +580,7 @@ async def list_place_comments(
     radius_m: float = 80.0,
     hours: int = 24,
 ):
-    """Recent reports near a place — used as 'live comments' on the restaurant page."""
+    """Recent reports near a place â€” used as 'live comments' on the restaurant page."""
     min_lat, max_lat, min_lng, max_lng = _bbox_for(lat, lng, radius_m)
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     async with get_db() as db:
@@ -355,7 +674,7 @@ async def summarise_place_comments(
         title = c.get("title") or ""
         desc = c.get("description") or ""
         rt = c.get("report_type") or "comment"
-        snippets.append(f"- [{rt}] {title}{(' — ' + desc) if desc else ''}")
+        snippets.append(f"- [{rt}] {title}{(' â€” ' + desc) if desc else ''}")
 
     name_part = f" en {place_name}" if place_name else ""
     prompt = (
@@ -381,3 +700,8 @@ async def summarise_place_comments(
     }
     await cache_set(cache_key, result, ttl=120)
     return result
+@router.get("/{place_id}/reviews")
+async def place_reviews(place_id: str, name: str, lat: float, lng: float):
+    """Return Yelp reviews for a place matched by name + coordinates."""
+    yelp = await get_yelp_reviews(name=name, lat=lat, lng=lng)
+    return {"yelp_reviews": yelp}

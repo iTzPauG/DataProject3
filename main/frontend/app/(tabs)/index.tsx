@@ -18,14 +18,17 @@ import Icon from '../../components/Icon';
 import Map from '../../components/map/Map';
 import NearbySheet from '../../components/NearbySheet';
 import { useAppState } from '../../hooks/useAppState';
+import { useAuth } from '../../hooks/useAuth';
 import { useDeviceType } from '../../hooks/useDeviceType';
 import { useLiveDeals, type LiveDeal } from '../../hooks/useLiveDeals';
 import { useLocation } from '../../hooks/useLocation';
 import { BASE_URL, getBookmarks } from '../../services/api';
 import { fetchNearbyItems } from '../../services/mapService';
 import { MapItem } from '../../types';
+import { resolveI18nLanguage } from '../../utils/language';
 import { storage } from '../../utils/storage';
 import { useTheme } from '../../utils/theme';
+import LocationGate from '../../components/LocationGate';
 
 const SAVED_PINS_KEY = 'whim_saved_pins';
 
@@ -38,19 +41,19 @@ type AutocompleteResult = {
   raw?: any;
 };
 
-const FOOD_SUBCATEGORIES = [
-  { id: 'pizza', label: 'Pizza', emoji: '🍕' },
-  { id: 'sushi', label: 'Sushi', emoji: '🍣' },
-  { id: 'tapas', label: 'Tapas', emoji: '🥘' },
-  { id: 'burgers', label: 'Burgers', emoji: '🍔' },
-  { id: 'asian', label: 'Asiática', emoji: '🍜' },
-  { id: 'italian', label: 'Italiana', emoji: '🍝' },
-  { id: 'mexican', label: 'Mexicana', emoji: '🌮' },
-  { id: 'healthy', label: 'Sano', emoji: '🥗' },
-  { id: 'vegan', label: 'Vegano', emoji: '🌱' },
-  { id: 'kebab', label: 'Kebab', emoji: '🥙' },
-  { id: 'brunch', label: 'Brunch', emoji: '🥞' },
-  { id: 'coffee', label: 'Café', emoji: '☕' },
+const FOOD_SUBCATEGORIES: Array<{ id: string; labelKey: string; emoji: string }> = [
+  { id: 'pizza',    labelKey: 'subcategory.pizza',     emoji: '🍕' },
+  { id: 'sushi',    labelKey: 'subcategory.sushi',     emoji: '🍣' },
+  { id: 'tapas',    labelKey: 'subcategory.tapas',     emoji: '🥘' },
+  { id: 'burgers',  labelKey: 'subcategory.hamburger', emoji: '🍔' },
+  { id: 'asian',    labelKey: 'subcategory.asian',     emoji: '🍜' },
+  { id: 'italian',  labelKey: 'subcategory.italian',   emoji: '🍝' },
+  { id: 'mexican',  labelKey: 'subcategory.mexican',   emoji: '🌮' },
+  { id: 'healthy',  labelKey: 'subcategory.healthy',   emoji: '🥗' },
+  { id: 'vegan',    labelKey: 'subcategory.vegan',     emoji: '🌱' },
+  { id: 'kebab',    labelKey: 'subcategory.kebab',     emoji: '🥙' },
+  { id: 'brunch',   labelKey: 'subcategory.brunch',    emoji: '🥞' },
+  { id: 'coffee',   labelKey: 'subcategory.coffee',    emoji: '☕' },
 ];
 
 export default function MapTab() {
@@ -60,10 +63,12 @@ export default function MapTab() {
   const insets = useSafeAreaInsets();
   const { isDesktop, width: windowWidth } = useDeviceType();
   const location = useLocation();
+  useAuth();
+  // Measured bottom edge of the header+filter panel (set via onLayout) so NearbySheet starts below it
+  const [listTopOffset, setListTopOffset] = useState(() => insets.top + 165);
   const {
     nearbyItems,
     setNearbyItems,
-    selectedCategory,
     setSelectedCategory,
     mapRegion,
     setMapRegion,
@@ -76,7 +81,10 @@ export default function MapTab() {
   const [loading, setLoading] = useState(false);
   const [selectedFoodSubcat, setSelectedFoodSubcat] = useState<string | null>(null);
   const [showDealsOnly, setShowDealsOnly] = useState(true);
-  const [todayDealsOnly, setTodayDealsOnly] = useState(false);
+  // `showFavoritesOnly` filters the displayItems list to bookmarked places only
+  // (driven by the ⭐ Favoritos chip). `bookmarkedItems` is the remote bookmark
+  // list hydrated from /bookmarks. The "Hoy" chip + `todayDealsOnly` was removed
+  // intentionally on ia — don't reintroduce it.
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [bookmarkedItems, setBookmarkedItems] = useState<MapItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -85,7 +93,6 @@ export default function MapTab() {
   const [savedPins, setSavedPins] = useState<MapItem[]>([]);
   const hasAutoCentered = useRef(false);
   const acTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const fetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const desktopWidth = Math.min(windowWidth - 40, 620);
   const leftOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
   const rightOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
@@ -234,6 +241,7 @@ export default function MapTab() {
           paddingVertical: 8,
           gap: 6,
         },
+
       }),
     [colors, typography, shadows, rightOffset, isDesktop, insets.bottom],
   );
@@ -347,6 +355,34 @@ export default function MapTab() {
     [],
   );
 
+  // Double-click on a map marker → open the place's full details modal.
+  // Passing the full item as `prefill` avoids a second backend round-trip
+  // when the modal hydrates (the metadata, photo, lat/lng all come along).
+  const handleDoubleClickItem = useCallback(
+    (id: string, type: string) => {
+      // Deal bubbles open the deal sheet instead of navigating
+      if (id.startsWith('deal:')) {
+        const dealId = id.replace('deal:', '');
+        const deal = liveDeals.find((d: LiveDeal) => d.id === dealId) ?? null;
+        setSelectedDeal(deal);
+        return;
+      }
+      if (type === 'event') {
+        router.push({ pathname: '/(modals)/event-details', params: { id } });
+        return;
+      }
+      const item = nearbyItems.find((i) => i.item_id === id);
+      router.push({
+        pathname: '/(modals)/place-details',
+        params: {
+          id,
+          ...(item ? { prefill: JSON.stringify(item) } : {}),
+        },
+      });
+    },
+    [nearbyItems, liveDeals],
+  );
+
   useEffect(() => {
     if (!selectedId) return;
     const item = nearbyItems.find((i) => i.item_id === selectedId);
@@ -446,13 +482,19 @@ export default function MapTab() {
   const performSearch = useCallback(async () => {
     const searchLat = mapRegion?.lat ?? location.lat ?? 39.4699;
     const searchLng = mapRegion?.lng ?? location.lng ?? -0.3763;
+    // Respect the user's "search by radius" vs "search by city" preference (settings).
+    // 'city' mode broadens the radius to 25 km so we cover the whole city around
+    // the user, regardless of where the map is centered.
+    const radius = mapPreferences.searchMode === 'city'
+      ? Math.max(mapPreferences.defaultRadiusM, 25_000)
+      : mapPreferences.defaultRadiusM;
     setLoading(true);
     try {
-      const lang = mapPreferences.language === 'system' ? 'es' : mapPreferences.language;
+      const lang = resolveI18nLanguage(mapPreferences.language);
       const items = await fetchNearbyItems(
         searchLat,
         searchLng,
-        mapPreferences.defaultRadiusM,
+        radius,
         'food',
         lang,
         ['place'],
@@ -464,7 +506,7 @@ export default function MapTab() {
     } finally {
       setLoading(false);
     }
-  }, [selectedFoodSubcat, mapRegion?.lat, mapRegion?.lng, location.lat, location.lng, mapPreferences.language, mapPreferences.defaultRadiusM]);
+  }, [selectedFoodSubcat, mapRegion?.lat, mapRegion?.lng, location.lat, location.lng, mapPreferences.language, mapPreferences.defaultRadiusM, mapPreferences.searchMode]);
 
   // Initial load once hydrated
   useEffect(() => {
@@ -473,22 +515,20 @@ export default function MapTab() {
     }
   }, [isHydrated]);
 
-  const liveDealItems = useMemo<MapItem[]>(() => {
-    const now = new Date();
-    const filteredDeals = liveDeals.filter((deal: LiveDeal) => {
-      if (!todayDealsOnly) return true;
-      const source = deal.available_at || deal.created_at;
-      if (!source) return false;
-      const d = new Date(source);
-      if (Number.isNaN(d.getTime())) return false;
-      return (
-        d.getFullYear() === now.getFullYear() &&
-        d.getMonth() === now.getMonth() &&
-        d.getDate() === now.getDate()
-      );
-    });
+  // Re-search whenever the user picks a different subcategory chip.
+  // Without this, the chip selection only filters locally — the user reported
+  // tapping "Pizza"/"Sushi" and getting Valencia results because the request
+  // never re-fired with their current location + the new subcategory.
+  const lastSubcatRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (lastSubcatRef.current === selectedFoodSubcat) return;
+    lastSubcatRef.current = selectedFoodSubcat;
+    void performSearch();
+  }, [selectedFoodSubcat, isHydrated, performSearch]);
 
-    return filteredDeals.map((deal: LiveDeal) => ({
+  const liveDealItems = useMemo<MapItem[]>(() => {
+    return liveDeals.map((deal: LiveDeal) => ({
       item_id: `deal:${deal.id}`,
       item_type: 'place',
       title: `${deal.restaurant_name}${deal.cuisine ? ` (${deal.cuisine})` : ''} · ${deal.price.toFixed(2)} EUR`,
@@ -509,7 +549,7 @@ export default function MapTab() {
         description: deal.description,
       },
     }));
-  }, [liveDeals, todayDealsOnly]);
+  }, [liveDeals]);
 
   const displayItems = useMemo(() => {
     // Favorites filter overrides everything
@@ -543,12 +583,14 @@ export default function MapTab() {
 
   return (
     <AnimatedTabScene>
+      <LocationGate>
       <View style={{ flex: 1, position: 'relative' }}>
         <View style={styles.container}>
           <Map
             items={displayItems}
             selectedId={selectedId}
             onSelectItem={handleSheetItemPress}
+            onDoubleClickItem={handleDoubleClickItem}
             onRegionChange={handleRegionChange}
             region={mapRegion ?? undefined}
             mapType={mapPreferences.mapStyle}
@@ -563,6 +605,10 @@ export default function MapTab() {
               top: insets.top + 14,
               left: leftOffset,
               right: rightOffset,
+            }}
+            onLayout={(e) => {
+              const { height } = e.nativeEvent.layout;
+              setListTopOffset(insets.top + 14 + height + 8);
             }}
           >
             <View style={styles.panel}>
@@ -677,24 +723,7 @@ export default function MapTab() {
                     activeOpacity={0.7}
                   >
                     <Text style={{ fontSize: 12, fontWeight: '700', color: showDealsOnly ? '#fff' : '#F97316' }}>
-                      🔥 Anuncios{liveDealItems.length > 0 ? ` (${liveDealItems.length})` : ''}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Solo hoy (aplica a anuncios en mapa/lista) */}
-                  <TouchableOpacity
-                    style={[
-                      styles.foodSubcatChip,
-                      {
-                        borderColor: '#22C55E',
-                        backgroundColor: todayDealsOnly ? '#22C55E' : 'rgba(34,197,94,0.14)',
-                      },
-                    ]}
-                    onPress={() => setTodayDealsOnly((prev: boolean) => !prev)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: todayDealsOnly ? '#fff' : '#22C55E' }}>
-                      Hoy
+                      🔥 {t('mapFilters.deals')}{liveDealItems.length > 0 ? ` (${liveDealItems.length})` : ''}
                     </Text>
                   </TouchableOpacity>
 
@@ -727,7 +756,7 @@ export default function MapTab() {
                     }}
                     activeOpacity={0.7}
                   >
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: showFavoritesOnly ? '#000' : '#FFD700' }}>⭐ Favoritos</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: showFavoritesOnly ? '#000' : '#FFD700' }}>⭐ {t('mapFilters.favorites')}</Text>
                   </TouchableOpacity>
 
                   {/* Tipologías */}
@@ -747,7 +776,7 @@ export default function MapTab() {
                       >
                         <Text>{sub.emoji}</Text>
                         <Text style={[styles.foodSubcatChipText, active && styles.foodSubcatChipTextActive]}>
-                          {sub.label}
+                          {t(sub.labelKey)}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -788,12 +817,15 @@ export default function MapTab() {
           )}
         </View>
 
+
+
         <NearbySheet
           items={displayItems}
           selectedId={selectedId}
           onSelectItem={handleSheetItemPress}
           loading={loading}
           hasSearched={true}
+          topOffset={listTopOffset}
         />
 
         {selectedDeal && (
@@ -804,6 +836,7 @@ export default function MapTab() {
         )}
       </View>
     </View>
+      </LocationGate>
     </AnimatedTabScene>
   );
 }

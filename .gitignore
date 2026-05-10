@@ -38,3 +38,6 @@ DESIGN.md
 
 # Claude Code local state
 .claude/
+.gcloud/
+
+.gcloud/

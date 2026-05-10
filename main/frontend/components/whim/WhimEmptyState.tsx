@@ -1,9 +1,11 @@
 import React, { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing, withSequence } from 'react-native-reanimated';
 import { whimTheme } from '../../constants/whimTheme';
 
 export const WhimEmptyState = ({ conflictingFilter = 'Romántico', onRemoveFilter, onReset }: { conflictingFilter?: string, onRemoveFilter?: () => void, onReset?: () => void }) => {
+  const { t } = useTranslation();
   const rotation = useSharedValue(0);
 
   useEffect(() => {
@@ -30,20 +32,20 @@ export const WhimEmptyState = ({ conflictingFilter = 'Romántico', onRemoveFilte
         <Text style={styles.questionMark}>❓</Text>
       </Animated.View>
 
-      <Text style={styles.title}>Esta combo no tiene mucho rollo 😅</Text>
-      <Text style={styles.subtitle}>Prueba a cambiar algo — estos filtros no se llevan bien.</Text>
+      <Text style={styles.title}>{t('whim.empty.title')}</Text>
+      <Text style={styles.subtitle}>{t('whim.empty.subtitle')}</Text>
 
       <View style={styles.conflictBadge}>
-        <Text style={styles.conflictText}>Filtro problemático: <Text style={styles.highlight}>{conflictingFilter}</Text></Text>
+        <Text style={styles.conflictText}>{t('whim.empty.conflictingFilter')} <Text style={styles.highlight}>{conflictingFilter}</Text></Text>
       </View>
 
       <View style={styles.actions}>
         <Pressable onPress={onRemoveFilter} style={styles.primaryButton}>
-          <Text style={styles.primaryButtonText}>Quitar filtro más raro</Text>
+          <Text style={styles.primaryButtonText}>{t('whim.empty.removeFilter')}</Text>
         </Pressable>
 
         <Pressable onPress={onReset} style={styles.secondaryButton}>
-          <Text style={styles.secondaryButtonText}>Empezar de nuevo</Text>
+          <Text style={styles.secondaryButtonText}>{t('whim.empty.reset')}</Text>
         </Pressable>
       </View>
     </View>

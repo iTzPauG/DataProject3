@@ -9,6 +9,7 @@ import { useTheme } from '../../utils/theme';
 const TAB_GLYPHS: Record<string, IconName> = {
   index: 'map',
   explore: 'compass',
+  foryou: 'for-you',
   publish: 'plus',
   'mis-ofertas': 'tag',
   'mis-reservas': 'bookmark',
@@ -75,7 +76,7 @@ export default function TabsLayout() {
     [colors, typography, TAB_H],
   );
 
-  const renderTab = (routeName: 'index' | 'explore' | 'publish' | 'mis-ofertas' | 'mis-reservas' | 'profile', focused: boolean) => {
+  const renderTab = (routeName: 'index' | 'explore' | 'foryou' | 'publish' | 'mis-ofertas' | 'mis-reservas' | 'profile', focused: boolean) => {
     const label = t(`tabs.${routeName}`);
     const glyph = TAB_GLYPHS[routeName];
     const color = focused ? colors.ink : colors.inkFaint;
@@ -99,7 +100,7 @@ export default function TabsLayout() {
   };
 
   return (
-      <Tabs
+    <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.ink,
@@ -121,6 +122,13 @@ export default function TabsLayout() {
         options={{
           href: isBusiness ? null : undefined,
           tabBarIcon: ({ focused }) => renderTab('explore', focused),
+        }}
+      />
+      <Tabs.Screen
+        name="foryou"
+        options={{
+          href: undefined,
+          tabBarIcon: ({ focused }) => renderTab('foryou', focused),
         }}
       />
       <Tabs.Screen

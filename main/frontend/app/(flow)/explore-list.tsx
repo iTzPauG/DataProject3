@@ -16,11 +16,12 @@ import { fetchNearbyItems } from '../../services/mapService';
 import { useTheme } from '../../utils/theme';
 import { MapItem } from '../../types/map';
 import { formatDistance } from '../../utils/format';
+import { resolveI18nLanguage } from '../../utils/language';
 
 type ItemTypeParam = 'place' | 'event';
 
 export default function ExploreListScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { colors, typography, space } = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -145,18 +146,19 @@ export default function ExploreListScreen() {
   useEffect(() => {
     if (location.loading || location.lat === null || location.lng === null) return;
     setLoading(true);
+    const language = resolveI18nLanguage(i18n.resolvedLanguage || i18n.language);
     fetchNearbyItems(
       location.lat,
       location.lng,
       8000,
       categoryId,
-      'es',
+      language,
       [itemType],
     )
       .then(setItems)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [location.loading, location.lat, location.lng, categoryId, itemType]);
+  }, [location.loading, location.lat, location.lng, categoryId, itemType, i18n.language, i18n.resolvedLanguage]);
 
   const emptyText = useMemo(() => {
     if (itemType === 'event') return t('flow.noResults');
@@ -177,8 +179,8 @@ export default function ExploreListScreen() {
         activeOpacity={0.8}
         onPress={() =>
           router.push({
-            pathname: '/(modals)/place-details',
-            params: { id: item.item_id, type: item.item_type },
+            pathname: item.item_type === 'event' ? '/(modals)/event-details' : '/(modals)/place-details',
+            params: { id: item.item_id, type: item.item_type, prefill: JSON.stringify(item) },
           })
         }
       >

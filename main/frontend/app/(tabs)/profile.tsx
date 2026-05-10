@@ -23,6 +23,7 @@ import { monogramFor } from '../../constants/design';
 import { useAuth } from '../../hooks/useAuth';
 import { BASE_URL } from '../../services/api';
 import { useTheme } from '../../utils/theme';
+import { resolveAccountName, resolveGreetingName } from '../../utils/account';
 
 const { width, height } = Dimensions.get('window');
 
@@ -460,20 +461,23 @@ export default function ProfileTab() {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.detail || 'No se pudo subir la foto del restaurante');
+        throw new Error(data?.detail || t('profile.photoUploadError'));
       }
 
       await refreshProfile();
-      Alert.alert('Foto actualizada', 'La imagen del restaurante se ha guardado correctamente.');
+      Alert.alert(t('profile.photoUpdatedTitle'), t('profile.photoUpdatedBody'));
     } catch (error: any) {
-      Alert.alert('Error', error?.message || 'No se pudo actualizar la foto del restaurante');
+      Alert.alert(t('common.error'), error?.message || t('profile.photoUploadError'));
     } finally {
       setUploadingRestaurantPhoto(false);
     }
   }
 
-  const displayName = profile?.display_name || user?.email?.split('@')[0] || t('profile.guest');
-  const firstName = displayName.split(/[\s@]/)[0];
+  // Single source of truth for "what name should we show?".
+  // For business accounts this returns the restaurant brand name (e.g. "La Pepica")
+  // instead of the truncated personal display_name (which previously rendered as "La.").
+  const displayName = resolveAccountName(profile, user) || t('profile.guest');
+  const firstName = resolveGreetingName(profile, user) || displayName;
 
   const guestTitleParts = t('profile.guestTitle').split(',');
   const guestTitleMain = guestTitleParts[0];
@@ -550,8 +554,8 @@ export default function ProfileTab() {
 
                 {profile?.role === 'business' ? (
                   <View style={styles.businessCard}>
-                    <Text style={styles.businessTitle}>Foto del restaurante</Text>
-                    <Text style={styles.businessName}>{profile.restaurant_name || 'Restaurante'}</Text>
+                    <Text style={styles.businessTitle}>{t('profile.restaurantPhotoTitle')}</Text>
+                    <Text style={styles.businessName}>{profile.restaurant_name || t('profile.restaurantFallback')}</Text>
                     {profile.restaurant_photo_url ? (
                       <Image source={{ uri: profile.restaurant_photo_url }} style={styles.restaurantImage} />
                     ) : null}
@@ -563,7 +567,7 @@ export default function ProfileTab() {
                     >
                       {uploadingRestaurantPhoto ? <ActivityIndicator size="small" color={colors.ink} /> : null}
                       <Text style={styles.photoUploadText}>
-                        {uploadingRestaurantPhoto ? 'Subiendo foto...' : 'Subir o cambiar foto'}
+                        {uploadingRestaurantPhoto ? t('profile.photoUploading') : t('profile.photoUploadCta')}
                       </Text>
                     </TouchableOpacity>
                   </View>

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
@@ -75,6 +76,7 @@ type PublishValidation = {
 
 export default function PublishTab() {
   const { colors, typography } = useTheme();
+  const { t } = useTranslation();
   const { profile, getToken } = useAuth();
 
   const [price, setPrice] = useState('19.90');
@@ -84,7 +86,7 @@ export default function PublishTab() {
   const [reservationDeadlineTime, setReservationDeadlineTime] = useState(getDefaultDeadlineTime());
   const [startTime, setStartTime] = useState('20:00');
   const [endTime, setEndTime] = useState('23:00');
-  const [description, setDescription] = useState('Mesa libre ahora mismo.');
+  const [description, setDescription] = useState(() => t('publish.defaultDescription'));
   const [submitting, setSubmitting] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<PublishValidation>({});
@@ -327,30 +329,30 @@ export default function PublishTab() {
     const dateInput = offerDate.trim();
 
     if (!Number.isFinite(p) || p <= 0) {
-      nextErrors.price = 'El precio debe ser un número mayor que 0.';
+      nextErrors.price = t('publish.errors.price');
     }
 
     if (originalPrice.trim().length && (!Number.isFinite(op) || (op != null && op <= 0))) {
-      nextErrors.originalPrice = 'El precio original debe ser un número válido si lo rellenas.';
+      nextErrors.originalPrice = t('publish.errors.originalPrice');
     }
 
     if (!Number.isFinite(seatCount) || seatCount <= 0) {
-      nextErrors.seats = 'Indica al menos una mesa disponible.';
+      nextErrors.seats = t('publish.errors.seats');
     }
 
     if (!dateInput.match(/^(\d{4})-(\d{2})-(\d{2})$/)) {
-      nextErrors.offerDate = 'La fecha debe usar formato AAAA-MM-DD.';
+      nextErrors.offerDate = t('publish.errors.offerDate');
     }
 
     if (!reservationDeadlineTime.trim().match(/^([01]\d|2[0-3]):([0-5]\d)$/)) {
-      nextErrors.reservationDeadlineTime = 'La hora máxima de reserva debe ir en formato HH:MM.';
+      nextErrors.reservationDeadlineTime = t('publish.errors.reservationDeadlineTime');
     }
 
     if (!startTime.trim().match(/^([01]\d|2[0-3]):([0-5]\d)$/)) {
-      nextErrors.startTime = 'La hora de inicio debe ir en formato HH:MM.';
+      nextErrors.startTime = t('publish.errors.startTime');
     }
     if (!endTime.trim().match(/^([01]\d|2[0-3]):([0-5]\d)$/)) {
-      nextErrors.endTime = 'La hora de fin debe ir en formato HH:MM.';
+      nextErrors.endTime = t('publish.errors.endTime');
     }
 
     const reservationDeadlineAt = parseLocalDateTime(dateInput, reservationDeadlineTime.trim());
@@ -359,14 +361,14 @@ export default function PublishTab() {
     const now = new Date();
 
     if (!reservationDeadlineAt && !nextErrors.reservationDeadlineTime) {
-      nextErrors.reservationDeadlineTime = 'No se pudo interpretar la hora máxima de reserva.';
+      nextErrors.reservationDeadlineTime = t('publish.errors.reservationDeadlineParse');
     }
 
     if (!availableAt && !nextErrors.startTime) {
-      nextErrors.startTime = 'No se pudo interpretar la fecha/hora de inicio.';
+      nextErrors.startTime = t('publish.errors.startParse');
     }
     if (!expiresAt && !nextErrors.endTime) {
-      nextErrors.endTime = 'No se pudo interpretar la fecha/hora de fin.';
+      nextErrors.endTime = t('publish.errors.endParse');
     }
 
     if (
@@ -374,15 +376,15 @@ export default function PublishTab() {
       availableAt &&
       reservationDeadlineAt.getTime() > availableAt.getTime()
     ) {
-      nextErrors.reservationRelation = 'La hora máxima para aceptar reservas no puede ser posterior al inicio.';
+      nextErrors.reservationRelation = t('publish.errors.reservationRelation');
     }
 
     if (availableAt && expiresAt && expiresAt.getTime() <= availableAt.getTime()) {
-      nextErrors.timeRelation = 'La hora de fin debe ser posterior a la hora de inicio.';
+      nextErrors.timeRelation = t('publish.errors.timeRelation');
     }
 
     if (availableAt && availableAt.getTime() <= now.getTime()) {
-      nextErrors.startRelation = 'La hora de inicio debe ser posterior a la hora actual.';
+      nextErrors.startRelation = t('publish.errors.startRelation');
     }
 
     setFieldErrors(nextErrors);
@@ -415,11 +417,11 @@ export default function PublishTab() {
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail || 'No se pudo publicar la oferta');
+        throw new Error(data.detail || t('publish.errors.publish'));
       }
 
       // Reset form
-      setDescription('Mesa libre ahora mismo.');
+      setDescription(t('publish.defaultDescription'));
       setPrice('19.90');
       setOriginalPrice('29.90');
       setSeats('2');
@@ -431,7 +433,7 @@ export default function PublishTab() {
       setSubmitError(null);
       setPublishModalOpen(true);
     } catch (err: any) {
-      const message = err?.message || 'Error publicando';
+      const message = err?.message || t('publish.errors.publishGeneric');
       setSubmitError(message);
     } finally {
       setSubmitting(false);
@@ -445,28 +447,28 @@ export default function PublishTab() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-            <Text style={styles.title}>Publicar mesa libre</Text>
+            <Text style={styles.title}>{t('publish.title')}</Text>
             <Text style={styles.subtitle}>
-              Publica mesas de última hora y se mostrarán automáticamente en el mapa de los usuarios.
+              {t('publish.subtitle')}
             </Text>
 
             {!isBusiness ? (
               <View style={styles.card}>
                 <Text style={styles.subtitle}>
-                  Esta pestaña es solo para cuentas de restaurante verificadas.
+                  {t('publish.restrictedBody')}
                 </Text>
                 <TouchableOpacity
                   style={styles.button}
                   onPress={() => router.push('/(modals)/register-business')}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.buttonText}>Verificar restaurante</Text>
+                  <Text style={styles.buttonText}>{t('publish.verifyRestaurant')}</Text>
                 </TouchableOpacity>
               </View>
             ) : (
               <View style={styles.card}>
                 <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{profile?.restaurant_name || 'Restaurante verificado'}</Text>
+                  <Text style={styles.badgeText}>{profile?.restaurant_name || t('publish.verifiedRestaurant')}</Text>
                 </View>
 
                 {profile?.restaurant_photo_url ? (
@@ -476,7 +478,7 @@ export default function PublishTab() {
                   />
                 ) : null}
 
-                <Text style={styles.label}>Precio actual (EUR)</Text>
+                <Text style={styles.label}>{t('publish.currentPrice')}</Text>
                 <TextInput
                   style={styles.input}
                   value={price}
@@ -489,7 +491,7 @@ export default function PublishTab() {
                 />
                 {fieldErrors.price ? <Text style={styles.fieldError}>{fieldErrors.price}</Text> : null}
 
-                <Text style={styles.label}>Precio original (opcional)</Text>
+                <Text style={styles.label}>{t('publish.originalPrice')}</Text>
                 <TextInput
                   style={styles.input}
                   value={originalPrice}
@@ -502,7 +504,7 @@ export default function PublishTab() {
                 />
                 {fieldErrors.originalPrice ? <Text style={styles.fieldError}>{fieldErrors.originalPrice}</Text> : null}
 
-                <Text style={styles.label}>Mesas disponibles</Text>
+                <Text style={styles.label}>{t('publish.availableTables')}</Text>
                 <TextInput
                   style={styles.input}
                   value={seats}
@@ -515,7 +517,7 @@ export default function PublishTab() {
                 />
                 {fieldErrors.seats ? <Text style={styles.fieldError}>{fieldErrors.seats}</Text> : null}
 
-                <Text style={styles.label}>Fecha de la oferta (AAAA-MM-DD)</Text>
+                <Text style={styles.label}>{t('publish.offerDate')}</Text>
                 <TextInput
                   style={styles.input}
                   value={offerDate}
@@ -525,12 +527,12 @@ export default function PublishTab() {
                     if (submitError) setSubmitError(null);
                   }}
                   keyboardType="numbers-and-punctuation"
-                  placeholder="Ej: 2026-05-10"
+                  placeholder={t('publish.offerDatePlaceholder')}
                   placeholderTextColor={colors.inkFaint}
                 />
                 {fieldErrors.offerDate ? <Text style={styles.fieldError}>{fieldErrors.offerDate}</Text> : null}
 
-                <Text style={styles.label}>Hora maxima para aceptar reserva (HH:MM)</Text>
+                <Text style={styles.label}>{t('publish.deadlineTime')}</Text>
                 <TextInput
                   style={styles.input}
                   value={reservationDeadlineTime}
@@ -546,13 +548,13 @@ export default function PublishTab() {
                     if (submitError) setSubmitError(null);
                   }}
                   keyboardType="numbers-and-punctuation"
-                  placeholder="Ej: 19:45"
+                  placeholder={t('publish.deadlinePlaceholder')}
                   placeholderTextColor={colors.inkFaint}
                 />
                 {fieldErrors.reservationDeadlineTime ? <Text style={styles.fieldError}>{fieldErrors.reservationDeadlineTime}</Text> : null}
                 {fieldErrors.reservationRelation ? <Text style={styles.fieldError}>{fieldErrors.reservationRelation}</Text> : null}
 
-                <Text style={styles.label}>Hora de inicio (HH:MM)</Text>
+                <Text style={styles.label}>{t('publish.startTime')}</Text>
                 <TextInput
                   style={styles.input}
                   value={startTime}
@@ -569,12 +571,12 @@ export default function PublishTab() {
                     if (submitError) setSubmitError(null);
                   }}
                   keyboardType="numbers-and-punctuation"
-                  placeholder="Ej: 20:00"
+                  placeholder={t('publish.startPlaceholder')}
                   placeholderTextColor={colors.inkFaint}
                 />
                 {fieldErrors.startTime ? <Text style={styles.fieldError}>{fieldErrors.startTime}</Text> : null}
 
-                <Text style={styles.label}>Hora de fin (HH:MM)</Text>
+                <Text style={styles.label}>{t('publish.endTime')}</Text>
                 <TextInput
                   style={styles.input}
                   value={endTime}
@@ -590,23 +592,23 @@ export default function PublishTab() {
                     if (submitError) setSubmitError(null);
                   }}
                   keyboardType="numbers-and-punctuation"
-                  placeholder="Ej: 23:30"
+                  placeholder={t('publish.endPlaceholder')}
                   placeholderTextColor={colors.inkFaint}
                 />
                 <Text style={styles.helperText}>
-                  La oferta se considera finalizada al llegar a la hora de fin si no se reporta ninguna incidencia.
+                  {t('publish.endHelper')}
                 </Text>
                 {fieldErrors.endTime ? <Text style={styles.fieldError}>{fieldErrors.endTime}</Text> : null}
                 {fieldErrors.timeRelation ? <Text style={styles.fieldError}>{fieldErrors.timeRelation}</Text> : null}
                 {fieldErrors.startRelation ? <Text style={styles.fieldError}>{fieldErrors.startRelation}</Text> : null}
 
-                <Text style={styles.label}>Descripción</Text>
+                <Text style={styles.label}>{t('publish.description')}</Text>
                 <TextInput
                   style={[styles.input, styles.textarea]}
                   value={description}
                   onChangeText={setDescription}
                   multiline
-                  placeholder="Ej: Menú degustación con descuento hasta las 22:00"
+                  placeholder={t('publish.descriptionPlaceholder')}
                   placeholderTextColor={colors.inkFaint}
                 />
 
@@ -614,7 +616,7 @@ export default function PublishTab() {
                   <View style={styles.warningPanel}>
                     <View style={styles.warningHeader}>
                       <Text style={{ fontSize: 18 }}>⚠️</Text>
-                      <Text style={styles.warningTitle}>Revisa esta oferta</Text>
+                      <Text style={styles.warningTitle}>{t('publish.warningTitle')}</Text>
                     </View>
                     <View style={styles.issueList}>
                       {activeIssues.map((issue) => (
@@ -634,7 +636,7 @@ export default function PublishTab() {
                 ) : null}
 
                 <TouchableOpacity style={styles.button} onPress={handlePublish} disabled={submitting} activeOpacity={0.8}>
-                  {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Publicar ahora</Text>}
+                  {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t('publish.publishNow')}</Text>}
                 </TouchableOpacity>
               </View>
             )}
@@ -649,9 +651,9 @@ export default function PublishTab() {
         >
           <View style={styles.modalBackdrop}>
             <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>Reserva confirmada</Text>
+              <Text style={styles.modalTitle}>{t('publish.successTitle')}</Text>
               <Text style={styles.modalText}>
-                Tu oferta se ha publicado correctamente y ya esta visible para reservar.
+                {t('publish.successBody')}
               </Text>
               <TouchableOpacity
                 style={styles.button}
@@ -661,14 +663,14 @@ export default function PublishTab() {
                 }}
                 activeOpacity={0.8}
               >
-                <Text style={styles.buttonText}>Ver en el mapa</Text>
+                <Text style={styles.buttonText}>{t('publish.viewOnMap')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.ghostButton}
                 onPress={() => setPublishModalOpen(false)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.ghostButtonText}>Seguir publicando</Text>
+                <Text style={styles.ghostButtonText}>{t('publish.keepPublishing')}</Text>
               </TouchableOpacity>
             </View>
           </View>

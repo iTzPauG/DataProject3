@@ -6,6 +6,7 @@ import uuid
 from typing import Iterable
 
 from database import get_db
+from services.recommendation.tools import _normalize_google_price_level
 
 
 def _canonical_place_row(item: dict, *, fallback_category: str | None = None) -> dict | None:
@@ -19,6 +20,7 @@ def _canonical_place_row(item: dict, *, fallback_category: str | None = None) ->
     source = item.get("source") or "provider"
     category_id = item.get("category_id") or fallback_category or "services"
     opening_hours = metadata.get("opening_hours")
+    normalized_price_level = _normalize_google_price_level(metadata.get("price_level"))
 
     return {
         "external_id": str(external_id),
@@ -34,7 +36,7 @@ def _canonical_place_row(item: dict, *, fallback_category: str | None = None) ->
         "address": item.get("address"),
         "photo_url": metadata.get("photo_url"),
         "rating": metadata.get("rating"),
-        "price_level": metadata.get("price_level"),
+        "price_level": normalized_price_level,
         "lat": lat,
         "lng": lng,
         "opening_hours": opening_hours if isinstance(opening_hours, str) else None,

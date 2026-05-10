@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+﻿import { useTranslation } from "react-i18next";
 import { Ionicons } from '../../components/SafeIonicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -19,37 +19,40 @@ import ReviewList from '../../components/ReviewList';
 import VoteButtons from '../../components/VoteButtons';
 import { useAppState } from '../../hooks/useAppState';
 import { useAuth } from '../../hooks/useAuth';
-import { fetchPlaceExtra, getPlaceData, toggleBookmark } from '../../services/api';
-import { formatDistance } from '../../utils/format';
+import { useUserProfile } from '../../hooks/useUserProfile';
+import { fetchPlaceExtra, getPlaceData, toggleBookmark, checkBookmark } from '../../services/api';
+import { formatDistance, formatLocaleDateTime, formatLocaleTime } from '../../utils/format';
+import { hasMeaningfulTake } from '../../utils/placeTake';
 import { useTheme } from '../../utils/theme';
+import WhimIcon from '../../components/WhimIcon';
 
-const CATEGORY_STYLES: Record<string, { color: string; icon: string; label: string }> = {
-  food:       { color: '#FF6B35', icon: '🍴', label: 'Comida' },
-  restaurant: { color: '#FF6B35', icon: '🍽️', label: 'Restaurante' },
-  nightlife:  { color: '#3B82F6', icon: '🌙', label: 'Ocio nocturno' },
-  shopping:   { color: '#10B981', icon: '🛒', label: 'Compras' },
-  health:     { color: '#EF4444', icon: '💊', label: 'Salud' },
-  nature:     { color: '#22C55E', icon: '🌿', label: 'Naturaleza' },
-  culture:    { color: '#F59E0B', icon: '🎭', label: 'Cultura' },
-  services:   { color: '#94A3B8', icon: '🛠️', label: 'Servicios' },
-  sport:      { color: '#0EA5E9', icon: '⚽', label: 'Deporte' },
-  education:  { color: '#8B5CF6', icon: '📚', label: 'Educación' },
-  event:      { color: '#EC4899', icon: '🎉', label: 'Evento' },
-  market:     { color: '#F97316', icon: '🏪', label: 'Mercado' },
-  music:      { color: '#A855F7', icon: '🎵', label: 'Música' },
-  report:     { color: '#EF4444', icon: '📢', label: 'Aviso' },
+const CATEGORY_STYLES: Record<string, { color: string; icon: string; labelKey: string }> = {
+  food:       { color: '#FF6B35', icon: '🍴', labelKey: 'category.food' },
+  restaurant: { color: '#FF6B35', icon: '🍽️', labelKey: 'category.restaurant' },
+  nightlife:  { color: '#3B82F6', icon: '🌙', labelKey: 'category.nightlife' },
+  shopping:   { color: '#10B981', icon: '🛒', labelKey: 'category.shopping' },
+  health:     { color: '#EF4444', icon: '💊', labelKey: 'category.health' },
+  nature:     { color: '#22C55E', icon: '🌿', labelKey: 'category.nature' },
+  culture:    { color: '#F59E0B', icon: '🎭', labelKey: 'category.culture' },
+  services:   { color: '#94A3B8', icon: '🛠️', labelKey: 'category.services' },
+  sport:      { color: '#0EA5E9', icon: '⚽', labelKey: 'category.sport' },
+  education:  { color: '#8B5CF6', icon: '📚', labelKey: 'category.education' },
+  event:      { color: '#EC4899', icon: '🎉', labelKey: 'category.event' },
+  market:     { color: '#F97316', icon: '🏪', labelKey: 'category.market' },
+  music:      { color: '#A855F7', icon: '🎵', labelKey: 'category.music' },
+  report:     { color: '#EF4444', icon: '📢', labelKey: 'category.report' },
 };
 
-const DEFAULT_STYLE = { color: '#9E9E9E', icon: '📍', label: 'Lugar' };
+const DEFAULT_STYLE = { color: '#9E9E9E', icon: '📍', labelKey: 'placeDetails.placeFallback' };
 
 export default function PlaceDetailsModal() {
-  const { t } = useTranslation();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const { colors, typography, shadows, radii } = useTheme();
+  const { t, i18n } = useTranslation();
+  const { id, prefill } = useLocalSearchParams<{ id: string; prefill?: string }>();
+  const { colors, typography, shadows } = useTheme();
   const router = useRouter();
   const { user } = useAuth();
   const { nearbyItems } = useAppState();
-  const bookmarkedIds: string[] = []; // Default fallback since it's missing from AppState
+  const { recordRecentView } = useUserProfile();
 
   const [loadingExtra, setLoadingExtra] = useState(true);
   const [placeTake, setPlaceTake] = useState<any>(null);
@@ -132,23 +135,61 @@ export default function PlaceDetailsModal() {
       setLoadingExtra(true);
       try {
         let currentItem = nearbyItems.find(i => i.item_id === id);
+        if (!currentItem && prefill) {
+          try {
+            const p = JSON.parse(prefill as string);
+            // Normalize the prefill blob into the MapItem shape this screen
+            // expects. Different callers send different keys (`name` vs
+            // `title`, top-level `address` vs nested in metadata, etc.) —
+            // saved-items in particular sends the bookmark response which
+            // uses `name`/top-level address, so without this normalization
+            // `item.title` was undefined and the screen rendered "Lugar no
+            // encontrado".
+            const normalized: any = {
+              item_id: p.item_id ?? p.id ?? id,
+              item_type: p.item_type ?? 'place',
+              title: p.title ?? p.name ?? '',
+              category_id: p.category_id ?? 'food',
+              lat: p.lat,
+              lng: p.lng,
+              distance_m: p.distance_m ?? 0,
+              metadata: {
+                ...(p.metadata ?? {}),
+                address: p.metadata?.address ?? p.address,
+              },
+            };
+            setParsedPlaceData(normalized);
+            currentItem = normalized;
+          } catch {}
+        }
         if (!currentItem) {
           const baseData = await getPlaceData(id);
-          if (baseData) {
-            setParsedPlaceData(baseData);
-            currentItem = baseData;
-          }
+          if (baseData) { setParsedPlaceData(baseData); currentItem = baseData; }
         }
-        
+
+        // Record this view in the local recent-views buffer used by Para ti.
+        if (currentItem?.title && currentItem.item_type === 'place') {
+          const subcat = (currentItem.metadata as any)?.subcategory;
+          void recordRecentView(
+            id,
+            currentItem.title,
+            typeof subcat === 'string' ? [subcat] : undefined,
+          );
+        }
+
         // Now fetch enrichment with full metadata context
         const extraPayload = currentItem ? {
           lat: currentItem.lat,
           lng: currentItem.lng,
           name: currentItem.title,
+          category: currentItem.category_id,
           ...currentItem.metadata
         } : {};
         const extra = await fetchPlaceExtra(id, extraPayload);
         if (extra) {
+          if (!extra.take) {
+            console.warn('[place-details] take returned null for', id, extraPayload);
+          }
           setPlaceTake(extra.take);
           setLiveData(extra.live);
           setVoteData(extra.vote);
@@ -160,13 +201,11 @@ export default function PlaceDetailsModal() {
       }
     }
     loadData();
-  }, [id, nearbyItems]);
+  }, [id, nearbyItems, prefill, recordRecentView]);
 
   useEffect(() => {
     if (user) {
-      import('../../services/api').then(({ checkBookmark }) => {
-        checkBookmark(id).then(setIsBookmarked).catch(() => {});
-      });
+      checkBookmark(id).then(setIsBookmarked).catch(() => {});
     }
   }, [id, user]);
 
@@ -281,7 +320,7 @@ export default function PlaceDetailsModal() {
             )}
 
             <View style={[styles.badge, { backgroundColor: catStyle.color }]}>
-              <Text style={styles.badgeText}>{catStyle.icon} {t(`category.${item.category_id}`) || catStyle.label}</Text>
+              <Text style={styles.badgeText}>{catStyle.icon} {t(catStyle.labelKey)}</Text>
             </View>
 
             <Text style={dynamicStyles.title}>{item.title}</Text>
@@ -313,53 +352,75 @@ export default function PlaceDetailsModal() {
               </View>
             ) : null}
 
-            {(item.item_type === 'place' || item.item_type === 'event') && (
+            {item.item_type === 'place' && (() => {
+              const takeReady = hasMeaningfulTake(placeTake);
+              const pros = takeReady && Array.isArray(placeTake?.pros) ? placeTake.pros : [];
+              const cons = takeReady && Array.isArray(placeTake?.cons) ? placeTake.cons : [];
+              return (
+                <View style={styles.takeCard}>
+                  <Text style={styles.sectionEyebrow}>{t('placeDetails.whimTake')}</Text>
+
+                  {loadingExtra && !takeReady ? (
+                    <View style={styles.takeLoading}>
+                      <ActivityIndicator size="small" color={colors.brand} />
+                      <Text style={styles.takeLoadingText}>{t('placeDetails.analyzing')}</Text>
+                    </View>
+                  ) : !takeReady ? (
+                    <View style={styles.takePlaceholder}>
+                      <Text style={styles.takePlaceholderText}>
+                        {t('placeDetails.takeUnavailable', {
+                          defaultValue: 'Whim todavia no tiene un take para este sitio.',
+                        })}
+                      </Text>
+                    </View>
+                  ) : (
+                    <>
+                      {placeTake.verdict ? (
+                        <Text style={styles.takeVerdict}>{placeTake.verdict}</Text>
+                      ) : null}
+
+                      <View style={styles.signalBox}>
+                        {pros.length > 0 ? pros.map((pro: string, i: number) => (
+                          <View key={`pro-${i}`} style={styles.signalRow}>
+                            <WhimIcon name="like" category="feedback" size={14} color={colors.success} />
+                            {renderBoldText(pro, styles.signalGood)}
+                          </View>
+                        )) : (
+                          <View style={styles.signalRow}>
+                            <WhimIcon name="like" category="feedback" size={14} color={colors.success} />
+                            <Text style={styles.signalGood}>{t('placeDetails.strengths')}</Text>
+                          </View>
+                        )}
+                        {cons.map((con: string, i: number) => (
+                          <View key={`con-${i}`} style={styles.signalRow}>
+                            <WhimIcon name="warning" category="feedback" size={14} color={colors.warning} />
+                            {renderBoldText(con, styles.signalBad)}
+                          </View>
+                        ))}
+                      </View>
+                    </>
+                  )}
+
+                  <VoteButtons
+                    itemId={id}
+                    itemType="place"
+                    initial={voteData}
+                    title={t('placeDetails.verdict')}
+                    canVote={!!user}
+                  />
+                </View>
+              );
+            })()}
+
+            {item.item_type === 'event' && (
               <View style={dynamicStyles.voteContainer}>
                 <VoteButtons
                   itemId={id}
-                  itemType={item.item_type as 'place' | 'event'}
+                  itemType="event"
                   initial={voteData}
                   title={t('vote.worthIt')}
                   canVote={!!user}
                 />
-              </View>
-            )}
-
-            {item.item_type === 'place' && (loadingExtra || placeTake) && (
-              <View style={styles.takeCard}>
-                <Text style={styles.sectionEyebrow}>{t('placeDetails.whimTake')}</Text>
-                {loadingExtra && !placeTake ? (
-                  <View style={styles.takeLoading}>
-                    <ActivityIndicator size="small" color={colors.brand} />
-                    <Text style={styles.takeLoadingText}>{t('placeDetails.analyzing')}</Text>
-                  </View>
-                ) : (
-                  <>
-                    <Text style={styles.takeVerdict}>{placeTake?.verdict || placeTake?.why}</Text>
-                    {(placeTake?.pros || []).length > 0 && (
-                      <>
-                        <Text style={styles.takeBlockTitle}>{t('placeDetails.theBest')}</Text>
-                        {placeTake?.pros.map((pro: string) => (
-                          <View key={pro} style={styles.takeRow}>
-                            <Ionicons name="thumbs-up-outline" size={16} color={colors.success} />
-                            {renderBoldText(pro, styles.takeText)}
-                          </View>
-                        ))}
-                      </>
-                    )}
-                    {(placeTake?.cons || []).length > 0 && (
-                      <>
-                        <Text style={[styles.takeBlockTitle, styles.takeBlockTitleWarn]}>{t('placeDetails.watchOut')}</Text>
-                        {placeTake?.cons.map((con: string) => (
-                          <View key={con} style={styles.takeRow}>
-                            <Ionicons name="warning-outline" size={16} color={colors.warning} />
-                            {renderBoldText(con, styles.takeText)}
-                          </View>
-                        ))}
-                      </>
-                    )}
-                  </>
-                )}
               </View>
             )}
 
@@ -381,17 +442,14 @@ export default function PlaceDetailsModal() {
               <View style={styles.infoRow}>
                 <Ionicons name="calendar-outline" size={18} color={colors.inkMuted} />
                 <Text style={dynamicStyles.infoText}>
-                  {new Date(startsAt).toLocaleDateString('es-ES', {
+                  {formatLocaleDateTime(startsAt, i18n.language, {
                     weekday: 'short',
                     day: 'numeric',
                     month: 'short',
                     hour: '2-digit',
                     minute: '2-digit',
                   })}
-                  {endsAt && ` — ${new Date(endsAt).toLocaleTimeString('es-ES', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}`}
+                  {endsAt && ` — ${formatLocaleTime(endsAt, i18n.language)}`}
                 </Text>
               </View>
             )}
@@ -430,10 +488,7 @@ export default function PlaceDetailsModal() {
                   {expiresAt && (
                     <View style={dynamicStyles.statBadge}>
                       <Text style={dynamicStyles.statText}>
-                        ⏱ {new Date(expiresAt).toLocaleTimeString('es-ES', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                        ⏱ {formatLocaleTime(expiresAt, i18n.language)}
                       </Text>
                     </View>
                   )}
@@ -464,11 +519,13 @@ const styles = StyleSheet.create({
   takeCard: { marginTop: 20, padding: 16, borderRadius: 16, backgroundColor: '#171A2A', gap: 10 },
   sectionEyebrow: { fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: '#7C6CF2' },
   takeVerdict: { fontSize: 16, lineHeight: 24, fontWeight: '700', color: '#F2F0EA' },
-  takeBlockTitle: { marginTop: 4, fontSize: 13, fontWeight: '700', color: '#A7F3D0' },
-  takeBlockTitleWarn: { color: '#FDE68A' },
-  takeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  takeText: { flex: 1, fontSize: 14, lineHeight: 20, color: '#D6D9E6' },
+  signalBox: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: 12, gap: 8 },
+  signalRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  signalGood: { color: '#F2F0EA', fontSize: 13, flex: 1 },
+  signalBad: { color: '#A8AEC7', fontSize: 13, flex: 1 },
   takeLoading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   takeLoadingText: { fontSize: 14, color: '#A8AEC7' },
+  takePlaceholder: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: 12 },
+  takePlaceholderText: { fontSize: 14, lineHeight: 22, color: '#A8AEC7' },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 100 },
 });

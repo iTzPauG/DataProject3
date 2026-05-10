@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import Any, AsyncGenerator, Iterable, Sequence
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -503,6 +505,24 @@ async def _postgres_connect():
     return await asyncpg.connect(**kwargs)
 
 
+_ISO_DT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}")
+
+
+def _coerce_pg_param(val: Any) -> Any:
+    """Convert ISO datetime strings to datetime objects for asyncpg TIMESTAMP columns.
+
+    asyncpg is strict: TIMESTAMP/TIMESTAMPTZ columns reject plain strings.
+    The app stores datetimes as ISO strings (SQLite-compatible) but production
+    Cloud SQL has proper TIMESTAMP columns, so we coerce on the fly here.
+    """
+    if isinstance(val, str) and _ISO_DT_RE.match(val):
+        try:
+            return datetime.fromisoformat(val)
+        except (ValueError, TypeError):
+            pass
+    return val
+
+
 def _translate_sql(sql: str) -> str:
     """Convert SQLite ? placeholders to Postgres $N format."""
     parts: list[str] = []
@@ -549,7 +569,7 @@ class PostgresCompatConnection:
 
     async def execute(self, sql: str, params: Sequence[Any] | None = None):
         """Execute query and return CompatCursor."""
-        params = tuple(params or ())
+        params = tuple(_coerce_pg_param(p) for p in (params or ()))
         translated = _translate_sql(sql)
         if _is_read_query(sql):
             rows = await self._conn.fetch(translated, *params)
@@ -560,7 +580,8 @@ class PostgresCompatConnection:
     async def executemany(self, sql: str, param_sets: Iterable[Sequence[Any]]):
         """Execute query multiple times with different params."""
         translated = _translate_sql(sql)
-        await self._conn.executemany(translated, list(param_sets))
+        coerced = [tuple(_coerce_pg_param(p) for p in row) for row in param_sets]
+        await self._conn.executemany(translated, coerced)
 
     async def commit(self):
         """No-op for asyncpg (auto-commits)."""

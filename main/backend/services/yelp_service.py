@@ -1,7 +1,8 @@
-"""Yelp Fusion wrapper for secondary review enrichment."""
+﻿"""Yelp Fusion wrapper for secondary review enrichment."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 from difflib import SequenceMatcher
@@ -59,6 +60,8 @@ _INCOMPATIBLE_CATEGORY_TERMS = (
     "electronics",
 )
 
+_REVIEW_LOCALE_POOL = ("es_ES", "en_US", "fr_FR", "de_DE", "pt_PT", "it_IT")
+
 
 def _get_http_client() -> httpx.AsyncClient:
     global _http_client
@@ -68,11 +71,19 @@ def _get_http_client() -> httpx.AsyncClient:
 
 
 def _is_api_key_configured() -> bool:
+    """A real API key is required â€” placeholder values like 'mock', 'changeme',
+    or 'TODO' are explicitly treated as missing so we don't burn requests on
+    guaranteed-401 responses.
+    """
     global _missing_api_key_logged
-    if YELP_API_KEY:
+    placeholder_values = {"", "mock", "changeme", "todo", "placeholder", "none"}
+    if YELP_API_KEY and YELP_API_KEY.strip().lower() not in placeholder_values:
         return True
     if not _missing_api_key_logged:
-        log.warning("YELP_API_KEY is not configured. Yelp review enrichment is disabled.")
+        log.warning(
+            "YELP_API_KEY is not configured (value=%r). Yelp review enrichment is disabled.",
+            (YELP_API_KEY or "")[:8] + ("..." if len(YELP_API_KEY or "") > 8 else ""),
+        )
         _missing_api_key_logged = True
     return False
 
@@ -92,6 +103,15 @@ def _review_locale(language: str) -> str:
     if lang.startswith("ca"):
         return "es_ES"
     return "es_ES"
+
+
+def _review_locales_for_language(language: str) -> list[str]:
+    preferred = _review_locale(language)
+    ordered = [preferred]
+    for locale in _REVIEW_LOCALE_POOL:
+        if locale not in ordered:
+            ordered.append(locale)
+    return ordered
 
 
 def _similarity(a: str, b: str) -> float:
@@ -277,7 +297,7 @@ async def get_yelp_reviews(
     if not business_id:
         return {"reviews": [], "total_count": 0}
 
-    cache_key = f"yelp_reviews_v3:{business_id}:{language}"
+    cache_key = f"yelp_reviews_v4:{business_id}:{language}"
     cached = await cache_get(cache_key)
     if cached:
         return {"reviews": cached, "total_count": review_count}
@@ -309,17 +329,29 @@ async def get_yelp_reviews(
                     "rating": int(review.get("rating") or 0),
                     "text": text,
                     "relative_time": str(review.get("time_created") or ""),
-                    "source_language": language,
+                    "source_language": locale.split("_", 1)[0].lower(),
                     "source": "yelp",
                     "url": review.get("url", ""),
                 }
             )
         return reviews
 
-    locale = _review_locale(language)
-    reviews = await _fetch_reviews_for(locale)
-    if not reviews and locale != "en_US":
-        reviews = await _fetch_reviews_for("en_US")
+    seen: set[tuple[str, int, str, str]] = set()
+    reviews: list[dict] = []
+    locale_results = await asyncio.gather(*[_fetch_reviews_for(locale) for locale in _review_locales_for_language(language)])
+    for batch in locale_results:
+        for review in batch:
+            text = " ".join(str(review.get("text") or "").strip().lower().split())
+            fingerprint = (
+                str(review.get("author") or "").strip().lower(),
+                int(review.get("rating") or 0),
+                str(review.get("relative_time") or "").strip().lower(),
+                text,
+            )
+            if not text or fingerprint in seen:
+                continue
+            seen.add(fingerprint)
+            reviews.append(review)
 
     if review_count <= 0 and reviews:
         review_count = len(reviews)

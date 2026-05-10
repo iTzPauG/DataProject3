@@ -23,7 +23,7 @@ from google.auth import default as google_auth_default
 from google import genai
 from google.genai import types
 
-from .tools import fetch_all_reviews, haversine, search_places
+from .tools import fetch_all_reviews, haversine, merge_review_lists, search_places
 from .category_flow import get_flow_definition
 from services.live_data_service import get_live_data
 from services.cache_service import cache_get, cache_set
@@ -775,7 +775,13 @@ def _build_ai_context(r: dict) -> dict:
 
 # ────────── LLM batch helper ──────────
 
-_LANG_MAP = {"es": "Spanish", "en": "English", "fr": "French"}
+_LANG_MAP = {
+    "es": "Spanish",
+    "en": "English",
+    "fr": "French",
+    "pt": "Portuguese",
+    "de": "German",
+}
 
 
 def _requested_budget_label(price_level: int | None) -> str:
@@ -793,31 +799,52 @@ def _build_llm_prompts(
 ) -> tuple[str, str]:
     """Build instruction + prompt for a batch of places."""
     label = _category_label(parent_category)
-    target_lang = _LANG_MAP.get(language, "Spanish")
+    normalized_language = (language or "es").strip().lower().replace("_", "-").split("-", 1)[0]
+    target_lang = _LANG_MAP.get(normalized_language, "Spanish")
     requested_type = (subcategory or parent_category or "food").replace("_", " ").strip()
     requested_budget = _requested_budget_label(price_level)
     ai_payload = [_build_ai_context(r) for r in places]
 
-    instruction = f"""You are WHIM, a brutally honest guide for {label} in Valencia, Spain.
-TASK: For each place, read the real individual reviews first and produce a compact, honest take.
+    instruction = f"""You are WHIM — a brutally honest, no-bullshit local critic for {label}.
+You write the way a friend warns you off a bad spot or pushes you to a great one: short, direct,
+evidence-based, with zero marketing fluff. Reviewers gush AND complain — your job is to tell the
+truth even when it's unflattering.
 
 SOURCE PRIORITY:
-1. Use 'reviews' as the PRIMARY source of truth.
-2. Use 'review_summary_support' only to confirm broad consensus or when the individual review text is too thin.
+1. The 'reviews' field is the ONLY ground truth. Quotes, complaints, repeated themes — that's the data.
+2. 'review_summary_support' is a weak fallback when individual review text is sparse.
+3. NEVER invent positives that don't appear in reviews. NEVER soften clear negatives.
 
-RULES:
-- Synthesize repeated patterns; do not copy long quotes into verdict, pros, or cons.
-- Be direct, sober, and useful. No marketing tone, no filler, no generic praise.
-- Las reviews pueden venir de Google, Yelp y TripAdvisor. Analizalas juntas.
-- Si detectas contradicciones entre fuentes, se prudente y no exageres.
-- The user asked for this filter set: type='{requested_type}', mood='{mood}', budget='{requested_budget}'.
-- The field 'why' MUST explicitly explain why this place fits those exact filters.
-- Include negatives when they appear in the reviews. Do not smooth them out.
-- If there is no clear negative pattern, use a practical caution only if the reviews support it. Otherwise say there is not enough negative signal.
-- For places with data_quality='low', be explicit about limited evidence and do not invent qualities.
-- Return up to 2 pros and up to 2 cons, each as short natural-language summaries.
+HONESTY RULES (non-negotiable):
+- If reviews repeatedly mention slow service, mediocre food, overpricing, dirty tables, rude staff,
+  small portions, frozen food, etc. — that goes in 'cons' VERBATIM (paraphrased short, not euphemized).
+- If the rating is high but reviews are full of "it was fine" / "nothing special" / "regular" — say so:
+  the verdict should reflect that "good rating, mediocre signal."
+- If you see contradictions between sources (e.g. Google says 4.7 but TripAdvisor users complain
+  consistently), call it out in 'verdict' — name the disagreement.
+- Generic praise like "buen ambiente", "muy rico", "recomendable" without any specific reason is NOT
+  a pro. Only include pros backed by repeated, specific patterns ("la pizza napolitana sale bien",
+  "el sushi está fresco", "la atención es atenta y rápida").
+- 'cons' is REQUIRED when reviews show ANY recurring complaint. Empty cons is only acceptable when
+  reviews are genuinely unanimous in praise. If empty, use a practical caveat ("solo abre por la
+  noche", "no acepta reservas") IF — and only if — the reviews support it.
+- For data_quality='low': verdict MUST start by acknowledging limited evidence. Do not pretend.
+- The 'verdict' is your single brutal-honest takeaway. One sentence. Direct. No hedging. Examples:
+    - "Vale la pena el desplazamiento si te gusta el sushi tradicional sin florituras."
+    - "Tiene buena nota pero las reseñas describen un sitio del montón — para una cena casual sirve, para algo memorable no."
+    - "Lleno de quejas por servicio lento y comida fría: pasa de largo salvo que no haya alternativas."
+
+USER FILTERS (for the 'why' field only):
+- The user asked for: type='{requested_type}', mood='{mood}', budget='{requested_budget}'.
+- 'why' MUST explain — concretamente — por qué este sitio encaja (o NO encaja) con esos filtros.
+- If the place doesn't fit, say so honestly in 'why' even if you still surface the take.
+
+OUTPUT:
+- Up to 2 pros, up to 2 cons. Each ≤ 14 words. Specific, evidence-grounded.
+- 'verdict' ≤ 25 words. The brutal-honest one-liner.
+- 'why' ≤ 25 words. Connects the place to the user's filters.
 - All text in {target_lang}.
-- Output MUST be valid JSON only."""
+- Output MUST be valid JSON only — no markdown fences, no commentary."""
 
     prompt = f"""Language: {target_lang}. Vibe requested: {mood}.
 Requested food type: {requested_type}.
@@ -826,14 +853,14 @@ For each place return exactly this JSON structure:
 [
   {{
     "id": "place_id",
-    "tagline": "5-8 word summary",
-    "why": "Short rationale grounded in review evidence",
-    "pros": ["Short summary of a repeated positive pattern", "Optional second positive pattern"],
-    "cons": ["Short summary of a repeated negative pattern or practical caution", "Optional second warning"],
-    "verdict": "One short, direct, evidence-based conclusion",
+    "tagline": "5-8 word summary, sober, no hype",
+    "why": "Direct: how this place matches (or doesn't) the user filters",
+    "pros": ["Specific repeated positive — no generic praise", "Optional 2nd specific positive"],
+    "cons": ["Specific repeated complaint or practical caveat", "Optional 2nd warning"],
+    "verdict": "Brutally honest one-line takeaway, ≤25 words",
     "tags": ["tag1", "tag2", "tag3"],
     "best_quote": "optional short quote from a review",
-    "quality_score": 0.8
+    "quality_score": 0.0_to_1.0
   }}
 ]
 
@@ -918,6 +945,7 @@ def _build_result(r: dict, ai_data: dict, live_data: dict) -> dict:
         "id": r["place_id"],
         "name": str(r.get("name") or ""),
         "address": r.get("address", "") or "",
+        "phone": r.get("phone", "") or "",
         "website": r.get("website"),
         "city": r.get("city") or _infer_city(r.get("address")),
         "rating": float(r.get("rating") or 0.0),
@@ -947,9 +975,9 @@ def _merge_fetched_data(base: dict, fetched: dict) -> dict:
     merged = dict(base)
 
     for key in ("google_reviews", "yelp_reviews", "tripadvisor_reviews"):
-        value = fetched.get(key)
-        if isinstance(value, list) and value:
-            merged[key] = value
+        merged_list = merge_review_lists(base.get(key, []), fetched.get(key, []))
+        if merged_list:
+            merged[key] = merged_list
 
     for key in ("review_summary", "photo_url", "phone", "website", "yelp_review_count", "tripadvisor_review_count"):
         value = fetched.get(key)
@@ -1141,6 +1169,21 @@ async def enrich_place_result(
         "review_summary": review_summary or details.get("review_summary", ""),
     }
 
+    # Keep single-place /take aligned with the explore pipeline: fetch and merge
+    # secondary review sources (Yelp + TripAdvisor) plus richer contact fields.
+    try:
+        fetched = await fetch_all_reviews(
+            place_id=place_id,
+            name=str(candidate.get("name") or ""),
+            lat=lat,
+            lng=lng,
+            language=language,
+            address=str(candidate.get("address") or ""),
+        )
+        candidate = _merge_fetched_data(candidate, fetched)
+    except Exception as exc:
+        log.info("[TAKE] fetch_all_reviews failed for %s: %s", place_id, exc)
+
     ai_map = await _llm_batch([candidate], "balanced", language, parent_category, subcategory, price_level)
     ai_data = ai_map.get(place_id, {})
     if ai_data:
@@ -1288,5 +1331,3 @@ async def recommend_stream(
         log.info("[STREAM v2] DONE in %.2fs, yielded %d results", total_time, result_index)
     finally:
         yield {"event": "done", "total": result_index}
-
-

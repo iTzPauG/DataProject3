@@ -1,6 +1,7 @@
 import { Ionicons } from '../../components/SafeIonicons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   FlatList,
@@ -18,6 +19,7 @@ import { useTheme } from '../../utils/theme';
 
 export default function MyReportsModal() {
   const { colors, radii, shadows, typography } = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const [reports, setReports] = useState<CommunityReport[]>([]);
   const [loading, setLoading] = useState(true);
@@ -205,7 +207,7 @@ export default function MyReportsModal() {
       const data = await getMyReports();
       setReports(data);
     } catch (err) {
-      setError('No se pudieron cargar tus reportes');
+      setError(t('myReports.loadError'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -216,7 +218,7 @@ export default function MyReportsModal() {
 
   function renderItem({ item }: { item: CommunityReport }) {
     const isExpired = new Date(item.expires_at).getTime() < Date.now();
-    const expiry = isExpired ? 'Expirado' : formatExpiry(item.expires_at);
+    const expiry = isExpired ? t('time.expired') : formatExpiry(item.expires_at, t);
 
     const iconBg = isExpired ? colors.chip : `${colors.warning}20`;
     const iconColor = isExpired ? colors.inkMuted : colors.warning;
@@ -238,7 +240,7 @@ export default function MyReportsModal() {
             {!isExpired && (
               <View style={styles.liveBadge}>
                 <View style={styles.liveDot} />
-                <Text style={styles.liveText}>EN VIVO</Text>
+                <Text style={styles.liveText}>{t('common.live')}</Text>
               </View>
             )}
           </View>
@@ -266,7 +268,7 @@ export default function MyReportsModal() {
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
           <Text style={styles.closeIcon}>✕</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Mis Reportes</Text>
+        <Text style={styles.title}>{t('myReports.title')}</Text>
       </View>
 
       {loading ? (
@@ -278,7 +280,7 @@ export default function MyReportsModal() {
           <Ionicons name="cloud-offline-outline" size={56} color={colors.stroke} />
           <Text style={styles.emptyText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={() => fetchReports()}>
-            <Text style={styles.retryText}>Reintentar</Text>
+            <Text style={styles.retryText}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : reports.length === 0 ? (
@@ -286,9 +288,9 @@ export default function MyReportsModal() {
           <View style={styles.emptyIconContainer}>
             <Ionicons name="megaphone-outline" size={48} color={colors.brandDeep} />
           </View>
-          <Text style={styles.emptyTitle}>Aún no has enviado reportes</Text>
+          <Text style={styles.emptyTitle}>{t('myReports.emptyTitle')}</Text>
           <Text style={styles.emptyText}>
-            Informa a la comunidad sobre eventos, incidencias o lugares de interés cerca de ti
+            {t('myReports.emptyBody')}
           </Text>
         </View>
       ) : (
@@ -311,4 +313,3 @@ export default function MyReportsModal() {
     </SafeAreaView>
   );
 }
-

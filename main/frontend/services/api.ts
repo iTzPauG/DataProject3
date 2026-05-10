@@ -1,11 +1,15 @@
 import { Restaurant } from '../types/restaurant';
 import { firebaseAuth } from './firebase';
 import { storage } from '../utils/storage';
-import { Category, CommunityReport, MapItem, ReportType, SavedItem } from '../types';
+import { Category, CommunityReport, MapItem, ReportType, SavedItem, RestaurantDBResult } from '../types';
 import { FALLBACK_CATEGORIES } from './mapService';
 import i18n from '../utils/i18n';
+import { resolveI18nLanguage } from '../utils/language';
+import { hasMeaningfulTake } from '../utils/placeTake';
 
-// Derive the backend URL with autodetection for Railway production
+// Derive the backend URL with autodetection for production
+const PRODUCTION_BACKEND_URL = 'https://restaurant-api-dev-ia-uxrrrtx5tq-ew.a.run.app';
+
 const getBaseUrl = () => {
   const rawEnvUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
   const envUrl = rawEnvUrl?.trim().replace(/^['"]+|['"]+$/g, '');
@@ -15,11 +19,9 @@ const getBaseUrl = () => {
     return envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
   }
 
-  // Autodetection for Railway: If we are on X.up.railway.app, the backend is likely on backend-production-XXXX.up.railway.app
-  // Or more simply, if BASE_URL is missing in production web, we can try to use a relative path or a known pattern.
+  // Autodetection for production web when the env var is missing.
   if (typeof window !== 'undefined' && window.location.hostname.includes('railway.app')) {
-    // For WHIM, we know the production backend URL pattern
-    return 'https://backend-production-bac63.up.railway.app';
+    return PRODUCTION_BACKEND_URL;
   }
 
   if (typeof window !== 'undefined') {
@@ -940,6 +942,7 @@ export async function getPlaceLiveData(params: {
   city?: string;
 }): Promise<LiveDataResult> {
   try {
+    const language = getRequestLanguage();
     const liveDataUrl = buildUrl(`/places/${params.placeId}/live-data`, {
       lat: params.lat.toString(),
       lng: params.lng.toString(),
@@ -953,7 +956,7 @@ export async function getPlaceLiveData(params: {
     const res = await fetch(liveDataUrl, { 
       headers: { 
         Accept: 'application/json',
-        'Accept-Language': i18n.language || 'es'
+        'Accept-Language': language
       } 
     });
     if (!res.ok) return { type: 'none' };
@@ -978,12 +981,13 @@ export async function getPlaceTake(params: {
   reviewsCount?: number;
 }): Promise<Restaurant | null> {
   try {
+    const language = getRequestLanguage(params.language);
     const takeUrl = buildUrl(`/places/${params.placeId}/take`, {
       lat: params.lat.toString(),
       lng: params.lng.toString(),
       category: params.category,
       subcategory: params.subcategory,
-      language: params.language,
+      language,
       name: params.name,
       address: params.address,
       photo_url: params.photoUrl,
@@ -994,7 +998,7 @@ export async function getPlaceTake(params: {
     const res = await fetch(takeUrl, { 
       headers: { 
         Accept: 'application/json',
-        'Accept-Language': i18n.language || 'es'
+        'Accept-Language': language
       } 
     });
     if (!res.ok) return null;
@@ -1007,11 +1011,12 @@ export async function getPlaceTake(params: {
 export async function askBrain(message: string, context?: Record<string, unknown>): Promise<{ response: string }> {
   try {
     const token = firebaseAuth?.currentUser?.uid ?? null;
+    const language = getRequestLanguage();
     const res = await fetch(`${BASE_URL}/brain`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept-Language': i18n.language || 'es',
+        'Accept-Language': language,
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({ message, context }),
@@ -1031,6 +1036,7 @@ export async function fetchNearbyItems(
     itemTypes: string[] = ["place", "event", "report"]
 ): Promise<import('../types/map').MapItem[]> {
     try {
+        const language = getRequestLanguage();
         const qsParts = [
             `lat=${encodeURIComponent(lat)}`,
             `lng=${encodeURIComponent(lng)}`,
@@ -1043,7 +1049,7 @@ export async function fetchNearbyItems(
         const res = await fetch(mapItemsUrl, {
             headers: { 
               'Accept': 'application/json',
-              'Accept-Language': i18n.language || 'es'
+              'Accept-Language': language
             }
         });
         if (!res.ok) return [];
@@ -1051,25 +1057,92 @@ export async function fetchNearbyItems(
         return data.items || [];
     } catch {
         return [];
-    }
+  }
+}
+
+function getRequestLanguage(raw?: string | null): string {
+  return resolveI18nLanguage(raw ?? i18n.resolvedLanguage ?? i18n.language ?? 'es');
+}
+
+function normalizeTakeCategory(raw: unknown): string {
+  const value = String(raw || '').trim().toLowerCase();
+  if (!value) return 'food';
+  return value === 'restaurant' ? 'food' : value;
+}
+
+function normalizeTakePriceLevel(raw: unknown): number | undefined {
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    if (raw <= 1) return 1;
+    if (raw >= 3) return 3;
+    return 2;
+  }
+  const value = String(raw || '').toUpperCase().trim();
+  if (!value) return undefined;
+  if (value === 'PRICE_LEVEL_INEXPENSIVE') return 1;
+  if (value === 'PRICE_LEVEL_MODERATE') return 2;
+  if (value === 'PRICE_LEVEL_EXPENSIVE' || value === 'PRICE_LEVEL_VERY_EXPENSIVE') return 3;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return undefined;
+  if (parsed <= 1) return 1;
+  if (parsed >= 3) return 3;
+  return 2;
+}
+
+function coerceFiniteNumber(raw: unknown): number | undefined {
+  const value = typeof raw === 'number' ? raw : Number(raw);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function toAbsolutePhotoUrl(raw: unknown): string | undefined {
+  const value = String(raw || '').trim();
+  if (!value) return undefined;
+  return value.startsWith('/') ? `${BASE_URL}${value}` : value;
 }
 
 export async function fetchPlaceExtra(placeId: string, metadata?: any): Promise<{ take: any; live: any; vote: VoteData | null }> {
   try {
-    const url = new URL(`${BASE_URL}/places/${placeId}/take`);
-    if (metadata) {
-      Object.entries(metadata).forEach(([k, v]) => {
-        if (v !== undefined && v !== null) url.searchParams.append(k, String(v));
-      });
-    }
+    const language = getRequestLanguage();
+    const lat = coerceFiniteNumber(metadata?.lat) ?? VALENCIA_LAT;
+    const lng = coerceFiniteNumber(metadata?.lng) ?? VALENCIA_LNG;
+    const category = normalizeTakeCategory(metadata?.category ?? metadata?.category_id);
+    const subcategory = String(metadata?.subcategory || category || 'food');
+    const name = typeof metadata?.name === 'string' ? metadata.name : undefined;
+    const address = typeof metadata?.address === 'string' ? metadata.address : undefined;
+    const city = typeof metadata?.city === 'string' ? metadata.city : undefined;
+    const website = typeof metadata?.website === 'string' ? metadata.website : undefined;
 
-    const [takeRes, liveRes, voteRes] = await Promise.all([
-      fetch(url.toString()).catch(() => null),
-      fetch(`${BASE_URL}/places/${placeId}/live-data`).catch(() => null),
-      fetch(`${BASE_URL}/votes/${placeId}`).catch(() => null),
+    const [take, live, voteRes] = await Promise.all([
+      getPlaceTake({
+        placeId,
+        lat,
+        lng,
+        category,
+        subcategory,
+        language,
+        name,
+        address,
+        photoUrl: toAbsolutePhotoUrl(metadata?.photo_url ?? metadata?.photoUrl),
+        rating: coerceFiniteNumber(metadata?.rating),
+        priceLevel: normalizeTakePriceLevel(metadata?.price_level),
+        reviewsCount: coerceFiniteNumber(metadata?.user_rating_count ?? metadata?.review_count),
+      }).then((result) => (hasMeaningfulTake(result) ? result : null)),
+      getPlaceLiveData({
+        placeId,
+        lat,
+        lng,
+        category,
+        subcategory,
+        website,
+        name,
+        city,
+      }).then((result) => (result.type !== 'none' ? result : null)),
+      fetch(`${BASE_URL}/votes/${placeId}`, {
+        headers: {
+          Accept: 'application/json',
+          'Accept-Language': language,
+        },
+      }).catch(() => null),
     ]);
-    const take = takeRes?.ok ? await takeRes.json() : null;
-    const live = liveRes?.ok ? await liveRes.json() : null;
     const vote = voteRes?.ok ? await voteRes.json() : null;
     return { take, live, vote };
   } catch (err) {
@@ -1090,5 +1163,172 @@ export async function getPlaceData(placeId: string): Promise<MapItem | null> {
     return normalizeSearchResult(found);
   } catch {
     return null;
+  }
+}
+
+export const RESTAURANT_DB_URL = BASE_URL;
+
+export interface UserPlaceInteraction {
+  item_id: string;
+  item_type?: string;
+  title?: string | null;
+  category_id?: string | null;
+  subcategory?: string | null;
+  amenity?: string | null;
+  tags?: Record<string, unknown> | string[] | null;
+  metadata?: Record<string, unknown> | null;
+  rating?: number | null;
+  price_level?: number | string | null;
+  lat?: number | null;
+  lng?: number | null;
+  created_at?: string | null;
+}
+
+export interface UserVoteInteraction extends UserPlaceInteraction {
+  vote: 1 | -1;
+}
+
+export interface UserInteractionsResponse {
+  firebase_uid: string;
+  profile: Record<string, unknown>;
+  interactions: {
+    votes: UserVoteInteraction[];
+    saved_items: UserPlaceInteraction[];
+    search_history: Array<Record<string, unknown>>;
+  };
+  summary: Record<string, unknown>;
+}
+
+export interface SimilarPlacesResponse {
+  base_place: {
+    id: string;
+    name?: string | null;
+    category_id?: string | null;
+    subcategory?: string | null;
+    tags?: string[];
+  };
+  recommendations: RestaurantDBResult[];
+}
+
+export interface TagRecommendationsResponse {
+  recommendations: RestaurantDBResult[];
+  matched_tags: string[];
+}
+
+export async function getCurrentUserInteractions(): Promise<UserInteractionsResponse | null> {
+  try {
+    const uid = firebaseAuth?.currentUser?.uid ?? null;
+    if (!uid) return null;
+
+    const res = await fetch(`${BASE_URL}/internal/users/${encodeURIComponent(uid)}/interactions`, {
+      headers: {
+        Accept: 'application/json',
+        'Accept-Language': i18n.language || 'es',
+        'X-Internal-Secret': 'for-you',
+      },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function getTagRecommendations(params: {
+  tags: string[];
+  negativeTags?: string[];
+  excludeIds?: string[];
+  lat?: number;
+  lng?: number;
+  limit?: number;
+}): Promise<TagRecommendationsResponse | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/places/tag-recommendations`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'Accept-Language': i18n.language || 'es',
+      },
+      body: JSON.stringify({
+        tags: params.tags,
+        negative_tags: params.negativeTags ?? [],
+        exclude_ids: params.excludeIds ?? [],
+        lat: params.lat,
+        lng: params.lng,
+        limit: params.limit ?? 20,
+      }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function getSimilarPlacesByTags(params: {
+  placeId: string;
+  lat?: number;
+  lng?: number;
+  limit?: number;
+}): Promise<SimilarPlacesResponse | null> {
+  try {
+    const url = new URL(`${BASE_URL}/places/${encodeURIComponent(params.placeId)}/similar`);
+    if (params.lat != null) url.searchParams.set('lat', String(params.lat));
+    if (params.lng != null) url.searchParams.set('lng', String(params.lng));
+    url.searchParams.set('limit', String(params.limit ?? 20));
+
+    const res = await fetch(url.toString(), {
+      headers: {
+        Accept: 'application/json',
+        'Accept-Language': i18n.language || 'es',
+      },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function searchRestaurantDB({
+  query,
+  lat,
+  lng,
+  radiusM,
+  useBrain,
+  category,
+}: {
+  query: string;
+  lat: number;
+  lng: number;
+  radiusM?: number;
+  useBrain?: boolean;
+  category?: string;
+}): Promise<RestaurantDBResult[]> {
+  try {
+    const url = new URL(`${RESTAURANT_DB_URL}/search/universal`);
+    url.searchParams.set('q', query);
+    url.searchParams.set('lat', lat.toString());
+    url.searchParams.set('lng', lng.toString());
+    if (radiusM != null) url.searchParams.set('radius_m', radiusM.toString());
+    if (useBrain != null) url.searchParams.set('use_brain', useBrain.toString());
+    if (category != null) url.searchParams.set('category', category);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    const res = await fetch(url.toString(), {
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) return [];
+
+    const data = await res.json();
+    return data.results || [];
+  } catch {
+    return [];
   }
 }

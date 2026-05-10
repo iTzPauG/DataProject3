@@ -3,6 +3,7 @@ import {
   Animated,
   Dimensions,
   FlatList,
+  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -10,6 +11,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { BlurView } from 'expo-blur';
+import { useTranslation } from 'react-i18next';
 import { useDeviceType } from '../hooks/useDeviceType';
 import { MapItem } from '../types/map';
 import { formatDistance } from '../utils/format';
@@ -19,7 +21,22 @@ import Icon from './Icon';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const COLLAPSED_HEIGHT = 52;
-const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.82;
+
+const BACKEND_URL =
+  (typeof process !== 'undefined' ? process.env?.EXPO_PUBLIC_BACKEND_URL : undefined) ||
+  'https://restaurant-api-gcfbpra65a-ew.a.run.app';
+
+function resolvePhotoUrl(raw: unknown): string | null {
+  if (!raw || typeof raw !== 'string' || raw.length === 0) return null;
+  if (raw.startsWith('/')) return `${BACKEND_URL}${raw}`;
+  return raw;
+}
+
+function priceLabel(level: unknown): string {
+  const n = Number(level);
+  if (!n || n < 1) return '';
+  return '€'.repeat(Math.min(n, 4));
+}
 
 interface Props {
   items: MapItem[];
@@ -27,6 +44,7 @@ interface Props {
   onSelectItem: (id: string) => void;
   loading?: boolean;
   hasSearched?: boolean;
+  topOffset?: number;
 }
 
 function NearbyItem({
@@ -41,60 +59,95 @@ function NearbyItem({
   onOpenDetails: () => void;
 }) {
   const { colors, typography, space } = useTheme();
+  const { t } = useTranslation();
+  const isDeal = item.item_id.startsWith('deal:');
+  const photoUrl = isDeal ? null : resolvePhotoUrl(item.metadata?.photo_url);
   const rating = item.metadata?.rating as number | undefined;
   const distance = item.distance_m > 0 ? formatDistance(item.distance_m) : '';
+  const address = item.metadata?.address as string | undefined;
+  const cuisine = ((item.metadata?.cuisine_type ?? item.metadata?.cuisine) as string | undefined);
+  const priceLbl = priceLabel(item.metadata?.price_level);
+  const dealPrice = isDeal ? (item.metadata?.price as number | undefined) : undefined;
+  const dealOriginal = isDeal ? (item.metadata?.original_price as number | undefined) : undefined;
 
   const styles = useMemo(() => StyleSheet.create({
-    itemRow: {
+    row: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: space.md,
+      paddingVertical: 10,
       paddingHorizontal: space.md,
-      marginBottom: 1,
       backgroundColor: selected ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
       borderBottomWidth: 1,
       borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+      gap: 10,
     },
-    itemIconBox: {
-      width: 48,
-      height: 48,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: space.md,
+    photo: {
+      width: 64,
+      height: 64,
+      borderRadius: 10,
     },
-    itemContent: {
+    photoFallback: {
+      width: 64,
+      height: 64,
+      borderRadius: 10,
+      overflow: 'hidden',
+    },
+    info: {
       flex: 1,
+      gap: 3,
     },
-    itemTitle: {
-      fontSize: 15,
-      fontWeight: '600',
+    title: {
+      fontSize: 14,
+      fontWeight: '700',
       fontFamily: typography.heading,
       color: colors.ink,
-      marginBottom: 2,
+      lineHeight: 18,
     },
-    itemMeta: {
+    metaRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
+      gap: 4,
+      flexWrap: 'wrap',
     },
-    itemRating: {
+    rating: {
       fontSize: 12,
       fontWeight: '700',
-      color: colors.accent,
+      color: '#F59E0B',
       fontFamily: typography.mono,
     },
-    itemDistance: {
-      fontSize: 12,
-      fontFamily: typography.body,
+    dist: {
+      fontSize: 11,
       color: colors.inkMuted,
-      fontWeight: '500',
+      fontFamily: typography.body,
     },
-    actionsCol: {
-      gap: 8,
-      marginLeft: 8,
+    sep: {
+      fontSize: 11,
+      color: colors.inkMuted,
+      opacity: 0.4,
+    },
+    badge: {
+      fontSize: 11,
+      color: colors.inkMuted,
+      fontFamily: typography.body,
+    },
+    priceBadge: {
+      fontSize: 11,
+      color: '#22C55E',
+      fontFamily: typography.body,
+      fontWeight: '700',
+    },
+    address: {
+      fontSize: 11,
+      color: colors.inkMuted,
+      fontFamily: typography.body,
+      opacity: 0.7,
+    },
+    actions: {
+      gap: 6,
+      alignItems: 'stretch',
     },
     mapBtn: {
-      height: 30,
+      height: 28,
       paddingHorizontal: 10,
       borderRadius: 999,
       backgroundColor: '#22C55E',
@@ -103,64 +156,99 @@ function NearbyItem({
     },
     mapBtnText: {
       color: '#fff',
-      fontSize: 11,
+      fontSize: 10,
       fontWeight: '700',
       fontFamily: typography.body,
     },
     detailBtn: {
-      height: 30,
+      height: 28,
       paddingHorizontal: 10,
       borderRadius: 999,
       borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.25)',
+      borderColor: 'rgba(255,255,255,0.2)',
       alignItems: 'center',
       justifyContent: 'center',
     },
     detailBtnText: {
       color: colors.ink,
-      fontSize: 11,
+      fontSize: 10,
       fontWeight: '600',
       fontFamily: typography.body,
     },
   }), [colors, typography, selected, space]);
 
   return (
-    <View style={styles.itemRow}>
-      <View style={styles.itemIconBox}>
-        <CategoryMonogram
-          categoryId={item.category_id}
-          label={item.title}
-          size={44}
-          variant={selected ? 'filled' : 'ring'}
-        />
-      </View>
-
-      <View style={styles.itemContent}>
-        <Text style={styles.itemTitle} numberOfLines={1}>
-          {item.title}
-        </Text>
-        <View style={styles.itemMeta}>
-          {rating != null ? <Text style={styles.itemRating}>★ {rating.toFixed(1)}</Text> : null}
-          {distance ? <Text style={styles.itemDistance}>{rating != null ? ' · ' : ''}{distance}</Text> : null}
+    <View style={styles.row}>
+      {/* Thumbnail */}
+      {photoUrl ? (
+        <Image source={{ uri: photoUrl }} style={styles.photo} resizeMode="cover" />
+      ) : (
+        <View style={styles.photoFallback}>
+          <CategoryMonogram
+            categoryId={item.category_id}
+            label={item.title}
+            size={64}
+            variant={selected ? 'filled' : 'ring'}
+          />
         </View>
+      )}
+
+      {/* Info */}
+      <View style={styles.info}>
+        <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
+
+        {/* Rating + distance */}
+        {(rating != null || distance) ? (
+          <View style={styles.metaRow}>
+            {rating != null && <Text style={styles.rating}>★ {rating.toFixed(1)}</Text>}
+            {rating != null && distance ? <Text style={styles.sep}>·</Text> : null}
+            {distance ? <Text style={styles.dist}>{distance}</Text> : null}
+          </View>
+        ) : null}
+
+        {/* Cuisine + price */}
+        {(cuisine || priceLbl || dealPrice != null) ? (
+          <View style={styles.metaRow}>
+            {cuisine ? <Text style={styles.badge}>{cuisine}</Text> : null}
+            {cuisine && (priceLbl || dealPrice != null) ? <Text style={styles.sep}>·</Text> : null}
+            {dealPrice != null ? (
+              <Text style={styles.priceBadge}>
+                {dealPrice.toFixed(2)}€{dealOriginal != null ? ` (antes ${dealOriginal.toFixed(2)}€)` : ''}
+              </Text>
+            ) : priceLbl ? (
+              <Text style={styles.priceBadge}>{priceLbl}</Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {/* Address */}
+        {address ? (
+          <Text style={styles.address} numberOfLines={1}>{address}</Text>
+        ) : null}
       </View>
 
-      <View style={styles.actionsCol}>
+      {/* Actions */}
+      <View style={styles.actions}>
         <TouchableOpacity onPress={onShowInMap} style={styles.mapBtn} activeOpacity={0.85}>
-          <Text style={styles.mapBtnText}>Mostrar en mapa</Text>
+          <Text style={styles.mapBtnText}>{t('nearbySheet.showOnMap')}</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={onOpenDetails} style={styles.detailBtn} activeOpacity={0.85}>
-          <Text style={styles.detailBtnText}>Ver ficha</Text>
+          <Text style={styles.detailBtnText}>{t('nearbySheet.viewDetails')}</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
 
-export default function NearbySheet({ items, selectedId, onSelectItem, loading, hasSearched }: Props) {
+export default function NearbySheet({ items, selectedId, onSelectItem, loading, hasSearched, topOffset }: Props) {
   const { colors, typography, space } = useTheme();
+  const { t } = useTranslation();
   const { isDesktop } = useDeviceType();
   const [expanded, setExpanded] = useState(false);
+
+  // Expanded height stops exactly at the bottom of the filter panel (topOffset),
+  // growing upward from bottom: 0. We subtract a 8px gap for breathing room.
+  const expandedHeight = SCREEN_HEIGHT - (topOffset ?? SCREEN_HEIGHT * 0.2) - 8;
   const animHeight = useRef(new Animated.Value(COLLAPSED_HEIGHT)).current;
 
   const styles = useMemo(() => StyleSheet.create({
@@ -178,6 +266,14 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
       backgroundColor: 'rgba(24, 26, 35, 0.88)',
       borderTopWidth: 1,
       borderTopColor: 'rgba(255, 255, 255, 0.06)',
+    },
+    handle: {
+      width: 36,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: 'rgba(255,255,255,0.22)',
+      alignSelf: 'center',
+      marginTop: 8,
     },
     collapsedLauncher: {
       height: COLLAPSED_HEIGHT,
@@ -236,7 +332,7 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
       fontFamily: typography.body,
     },
     list: {
-      paddingBottom: 36,
+      paddingBottom: 100,
     },
     emptyState: {
       paddingHorizontal: 20,
@@ -250,12 +346,12 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
   const expand = useCallback(() => {
     setExpanded(true);
     Animated.spring(animHeight, {
-      toValue: EXPANDED_HEIGHT,
+      toValue: expandedHeight,
       useNativeDriver: false,
       friction: 10,
       tension: 80,
     }).start();
-  }, [animHeight]);
+  }, [animHeight, expandedHeight]);
 
   const collapse = useCallback(() => {
     Animated.spring(animHeight, {
@@ -290,9 +386,12 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
 
   const desktopWidth = 600;
   const desktopLeft = 40;
-
-  if ((!items || items.length === 0) && !loading) return null;
-  if (!expanded && !selectedId) return null;
+  const count = items?.length ?? 0;
+  const pillLabel = loading
+    ? t('nearbySheet.loadingPlaces')
+    : count > 0
+      ? `${t('nearbySheet.showListMode')} (${count})`
+      : t('nearbySheet.showListMode');
 
   return (
     <Animated.View
@@ -309,27 +408,28 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
       ]}
     >
       <BlurView intensity={80} tint="dark" style={styles.blurView}>
+        <View style={styles.handle} />
         {!expanded ? (
           <TouchableOpacity style={styles.collapsedLauncher} onPress={expand} activeOpacity={0.9}>
             <View style={styles.launcherPill}>
               <Icon name="tag" size={14} color={colors.ink} strokeWidth={2} />
-              <Text style={styles.launcherText}>Mostrar en modo lista</Text>
+              <Text style={styles.launcherText}>{pillLabel}</Text>
             </View>
           </TouchableOpacity>
         ) : (
           <>
             <View style={styles.topRow}>
-              <Text style={styles.topTitle}>Modo lista</Text>
+              <Text style={styles.topTitle}>{t('nearbySheet.listMode')}{count > 0 ? ` (${count})` : ''}</Text>
               <TouchableOpacity style={styles.mapBackBtn} onPress={collapse} activeOpacity={0.85}>
                 <Icon name="map" size={14} color={colors.ink} strokeWidth={2} />
-                <Text style={styles.mapBackText}>Volver al mapa</Text>
+                <Text style={styles.mapBackText}>{t('nearbySheet.backToMap')}</Text>
               </TouchableOpacity>
             </View>
 
             {loading ? (
-              <Text style={styles.emptyState}>Cargando lugares...</Text>
-            ) : (hasSearched && items.length === 0) ? (
-              <Text style={styles.emptyState}>No hay resultados para mostrar.</Text>
+              <Text style={styles.emptyState}>{t('nearbySheet.loadingPlaces')}</Text>
+            ) : items.length === 0 ? (
+              <Text style={styles.emptyState}>{t('nearbySheet.noResults')}</Text>
             ) : (
               <FlatList
                 data={items}

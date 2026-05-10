@@ -9,6 +9,7 @@ import L from 'leaflet';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { router } from 'expo-router';
 import { VoteData } from '../../services/api';
 import { Restaurant } from '../../types/restaurant';
 import { MapItem } from '../../types/map';
@@ -34,64 +35,97 @@ const DEFAULT_COLOR = '#7F8392'; // slate
 
 // â”€â”€â”€ Category marker icon â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+// Distinct color for promotions/deals.
+// Chosen to stand out from the orange-leaning food category palette while
+// signalling "deal" in the way the user expects (rose-red).
+const PROMO_COLOR = '#E11D48';
+
 function createCategoryIcon(
   item: MapItem,
   selected: boolean,
   minimalist: boolean,
   gadoOverlay: boolean,
 ): L.DivIcon {
-  const color =
+  // Detect promotional/deal items: they're tagged in metadata when constructed
+  // from live deals in index.tsx, OR they arrive with an `item_id` prefixed
+  // with "deal:" (the convention used in index.tsx liveDealItems).
+  const isPromo =
+    Boolean(item.metadata?.deal) ||
+    String(item.item_id || '').startsWith('deal:');
+
+  const baseColor =
     item.color ??
     CATEGORY_COLORS[item.category_id] ??
     DEFAULT_COLOR;
+  const color = isPromo ? PROMO_COLOR : baseColor;
 
   const style = { color }; // For backward compatibility
   const highlightLive = gadoOverlay && (item.item_type === 'report' || item.item_type === 'event');
-  const size = selected ? 48 : highlightLive ? 44 : 38;
+  const size = selected ? 48 : highlightLive || isPromo ? 44 : 38;
   const shadow = selected
-    ? `0 2px 12px ${style.color}88`
+    ? `0 2px 12px ${color}88`
+    : isPromo
+    ? `0 2px 10px ${PROMO_COLOR}66`
     : '0 2px 6px rgba(0,0,0,0.25)';
   const photoUrl = item.metadata?.photo_url as string | undefined;
   const isReport = item.item_type === 'report';
   const isEvent = item.item_type === 'event';
 
-  const pulseAnim = (isReport || (gadoOverlay && isEvent))
+  // Promos get an animated pulse just like reports — they're time-sensitive too.
+  const pulseAnim = (isReport || (gadoOverlay && isEvent) || isPromo)
     ? `<div style="
         position:absolute;top:-4px;left:-4px;right:-4px;bottom:-4px;
-        border-radius:50%;border:2px solid ${style.color};
+        border-radius:50%;border:2px solid ${color};
         animation:gadoPulse 2s ease-out infinite;
       "></div>`
     : '';
   const liveHalo = highlightLive
     ? `<div style="
         position:absolute;top:-8px;left:-8px;right:-8px;bottom:-8px;
-        border-radius:50%;border:1.5px solid ${style.color}66;
+        border-radius:50%;border:1.5px solid ${color}66;
       "></div>`
     : '';
 
+  // Visual content priority: restaurant photo > deal flame > letter monogram.
   const initial = (item.title?.[0] ?? item.category_id?.[0] ?? '?').toUpperCase();
-  const content = photoUrl
+  const photoContent = photoUrl
     ? `<div style="
         width:${size - 8}px;height:${size - 8}px;border-radius:50%;
         background-image:url('${photoUrl}');background-size:cover;background-position:center;
         border:2px solid rgba(255,255,255,0.9);
       "></div>`
-    : `<span style="font-size:${size * 0.38}px;font-weight:800;color:white;line-height:1;">${initial}</span>`;
+    : null;
+  const promoEmoji = `<span style="font-size:${size * 0.5}px;line-height:1;">🔥</span>`;
+  const monogram = `<span style="font-size:${size * 0.38}px;font-weight:800;color:white;line-height:1;">${initial}</span>`;
+  const content = photoContent ?? (isPromo ? promoEmoji : monogram);
 
   const ratingVal = item.metadata?.rating as number | undefined;
-  const ratingBadge = ratingVal != null
+  // For promos, prefer showing the discount/price tag instead of the rating.
+  const priceVal = item.metadata?.price as number | undefined;
+  const promoBadge = isPromo && priceVal != null
     ? `<div style="
         position:absolute;bottom:-4px;right:-6px;
-        background:${style.color};border-radius:8px;
+        background:${PROMO_COLOR};border-radius:10px;
+        padding:1px 6px;border:1.5px solid white;
+        font-size:9px;font-weight:800;color:white;
+        line-height:14px;
+      ">${Number(priceVal).toFixed(0)}€</div>`
+    : '';
+  const ratingBadge = !isPromo && ratingVal != null
+    ? `<div style="
+        position:absolute;bottom:-4px;right:-6px;
+        background:${color};border-radius:8px;
         padding:1px 5px;border:1.5px solid white;
         font-size:9px;font-weight:800;color:white;
         line-height:14px;
       ">${ratingVal.toFixed(1)}</div>`
     : '';
 
-  const bg = minimalist ? '#FFFFFF' : style.color;
-  const iconColor = minimalist ? style.color : '#FFFFFF';
-  const border = minimalist ? `2px solid ${style.color}` : 'none';
+  // Promos always get a solid colored ring, even in minimalist mode — the
+  // user explicitly asked for promos to be visually distinct.
+  const bg = isPromo ? PROMO_COLOR : minimalist ? '#FFFFFF' : color;
+  const iconColor = isPromo || !minimalist ? '#FFFFFF' : color;
+  const border = isPromo ? '2px solid white' : minimalist ? `2px solid ${color}` : 'none';
 
   return L.divIcon({
     className: '',
@@ -111,6 +145,7 @@ function createCategoryIcon(
       ${pulseAnim}
       ${content}
       ${ratingBadge}
+      ${promoBadge}
     </div>`,
   });
 }
@@ -316,6 +351,7 @@ export default function Map({
   items,
   selectedId,
   onSelectItem,
+  onDoubleClickItem,
   onRegionChange,
   region,
   mapType = 'standard',
@@ -481,7 +517,13 @@ export default function Map({
               key={item.item_id}
               position={[item.lat, item.lng]}
               icon={itemIcons[i]}
-              eventHandlers={{ click: () => onSelectItem?.(item.item_id) }}
+              eventHandlers={{
+                click: () => onSelectItem?.(item.item_id),
+                dblclick: (e) => {
+                  e.originalEvent?.stopPropagation();
+                  onDoubleClickItem?.(item.item_id, item.item_type);
+                },
+              }}
             >
               <Popup>
                 <strong>
@@ -509,6 +551,28 @@ export default function Map({
                     {(item.metadata.rating as number).toFixed(1)}
                   </>
                 ) : null}
+                <div style={{ marginTop: 8 }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (item.item_id.startsWith('deal:')) {
+                        onSelectItem?.(item.item_id);
+                        return;
+                      }
+                      const pathname = item.item_type === 'event'
+                        ? '/(modals)/event-details'
+                        : '/(modals)/place-details';
+                      router.push({ pathname: pathname as any, params: { id: item.item_id, type: item.item_type } });
+                    }}
+                    style={{
+                      background: '#22C55E', color: 'white', border: 'none',
+                      borderRadius: 999, padding: '5px 14px', fontSize: 11,
+                      fontWeight: 700, cursor: 'pointer', width: '100%',
+                    }}
+                  >
+                    Ver ficha →
+                  </button>
+                </div>
               </Popup>
             </Marker>
           );

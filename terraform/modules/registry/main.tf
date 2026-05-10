@@ -9,6 +9,11 @@ locals {
     if length(regexall("(^|/)__pycache__(/|$)", file)) == 0
     && length(regexall("\\.pyc$", file)) == 0
     && length(regexall("(^|/)\\.pytest_cache(/|$)", file)) == 0
+    && length(regexall("(^|/)venv(/|$)", file)) == 0
+    && length(regexall("(^|/)\\.venv(/|$)", file)) == 0
+    && length(regexall("(^|/)\\.mypy_cache(/|$)", file)) == 0
+    && length(regexall("(^|/)\\.ruff_cache(/|$)", file)) == 0
+    && length(regexall("(^|/)\\.git(/|$)", file)) == 0
     && file != ".env"
     && file != "temp_local.db"
     && file != "startup.log"

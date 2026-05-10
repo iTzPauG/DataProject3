@@ -2,6 +2,7 @@ import { Ionicons } from '../../components/SafeIonicons';
 import { BASE_URL } from '../../services/api';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
@@ -63,6 +64,7 @@ const REPORT_TYPE_ICONS: Record<string, string> = {
 
 export default function ReportDetailsModal() {
   const { colors, radii, shadows, typography } = useTheme();
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session, user } = useAuth();
 
@@ -334,7 +336,7 @@ export default function ReportDetailsModal() {
 
   function loadReport() {
     if (!id) {
-      setError('ID de reporte no encontrado');
+      setError(t('reportDetails.missingId'));
       setLoading(false);
       return;
     }
@@ -357,7 +359,7 @@ export default function ReportDetailsModal() {
   async function handleVote(vote: 1 | -1) {
     if (!id || hasVoted || voting) return;
     if (!user) {
-      Alert.alert('Acceso restringido', 'Inicia sesión para confirmar o descartar reportes.');
+      Alert.alert(t('profile.restrictedAccess'), t('reportDetails.voteRestrictedBody'));
       return;
     }
 
@@ -379,13 +381,13 @@ export default function ReportDetailsModal() {
         });
       }
       Alert.alert(
-        vote === 1 ? '¡Confirmado!' : 'Descartado',
+        vote === 1 ? t('reportDetails.voteConfirmedTitle') : t('reportDetails.voteDismissedTitle'),
         vote === 1
-          ? 'Gracias por confirmar este reporte.'
-          : 'Gracias. Tu opinión ayuda a la comunidad.',
+          ? t('reportDetails.voteConfirmedBody')
+          : t('reportDetails.voteDismissedBody'),
       );
     } catch {
-      Alert.alert('Error', 'No se pudo registrar tu voto. Inténtalo de nuevo.');
+      Alert.alert(t('common.error'), t('reportDetails.voteError'));
     } finally {
       setVoting(false);
     }
@@ -407,7 +409,7 @@ export default function ReportDetailsModal() {
         style={styles.closeButton}
         onPress={() => router.back()}
         activeOpacity={0.7}
-        accessibilityLabel="Cerrar"
+        accessibilityLabel={t('common.close')}
         accessibilityRole="button"
       >
         <Ionicons name="close" size={24} color="#1C1C1E" />
@@ -421,19 +423,19 @@ export default function ReportDetailsModal() {
         <View style={styles.center}>
           <Ionicons name="alert-circle-outline" size={56} color="#E5E5EA" />
           <Text style={styles.errorText}>
-            {error ?? 'Reporte no encontrado'}
+            {error ?? t('reportDetails.notFound')}
           </Text>
           <TouchableOpacity
             style={styles.retryButton}
             onPress={loadReport}
           >
-            <Text style={styles.retryText}>Reintentar</Text>
+            <Text style={styles.retryText}>{t('common.retry')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.retryButton, { backgroundColor: 'transparent' }]}
             onPress={() => router.back()}
           >
-            <Text style={[styles.retryText, { color: colors.inkMuted }]}>Volver</Text>
+            <Text style={[styles.retryText, { color: colors.inkMuted }]}>{t('common.back')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -442,12 +444,12 @@ export default function ReportDetailsModal() {
           {isExpired ? (
             <View style={[styles.statusBanner, styles.statusExpired]}>
               <Ionicons name="time-outline" size={16} color="#636366" />
-              <Text style={styles.statusExpiredText}>Reporte expirado</Text>
+              <Text style={styles.statusExpiredText}>{t('reportDetails.expired')}</Text>
             </View>
           ) : (
             <View style={[styles.statusBanner, styles.statusLive]}>
               <View style={styles.liveDot} />
-              <Text style={styles.statusLiveText}>EN VIVO</Text>
+              <Text style={styles.statusLiveText}>{t('common.live')}</Text>
             </View>
           )}
 
@@ -474,7 +476,7 @@ export default function ReportDetailsModal() {
             <View style={styles.metaRow}>
               <Ionicons name="time-outline" size={16} color={colors.inkMuted} />
               <Text style={styles.metaText}>
-                Creado {formatTimeAgo(report.created_at)}
+                {t('reportDetails.created', { timeAgo: formatTimeAgo(report.created_at, t) })}
               </Text>
             </View>
             {!isExpired && (
@@ -495,7 +497,7 @@ export default function ReportDetailsModal() {
 
           {/* Confidence */}
           <View style={styles.confidenceCard}>
-            <Text style={styles.confidenceLabel}>Confianza de la comunidad</Text>
+            <Text style={styles.confidenceLabel}>{t('reportDetails.confidence')}</Text>
             <View style={styles.confidenceBar}>
               <View
                 style={[
@@ -509,19 +511,19 @@ export default function ReportDetailsModal() {
               <View style={styles.statItem}>
                 <Ionicons name="checkmark-circle" size={18} color="#10B981" />
                 <Text style={styles.statValue}>{report.confirmations}</Text>
-                <Text style={styles.statLabel}>Confirmaciones</Text>
+                <Text style={styles.statLabel}>{t('reportDetails.confirmations')}</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
                 <Ionicons name="close-circle" size={18} color="#EF4444" />
                 <Text style={styles.statValue}>{report.denials}</Text>
-                <Text style={styles.statLabel}>Denegaciones</Text>
+                <Text style={styles.statLabel}>{t('reportDetails.denials')}</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
                 <Ionicons name="shield-checkmark-outline" size={18} color={colors.brand} />
                 <Text style={styles.statValue}>{confidencePct}%</Text>
-                <Text style={styles.statLabel}>Confianza</Text>
+                <Text style={styles.statLabel}>{t('reportDetails.confidenceLevel')}</Text>
               </View>
             </View>
           </View>
@@ -530,7 +532,7 @@ export default function ReportDetailsModal() {
           {!isExpired && !hasVoted && (
             <View style={styles.voteSection}>
               <Text style={styles.voteQuestion}>
-                ¿Sigue siendo válido este reporte?
+                {t('reportDetails.voteQuestion')}
               </Text>
               <View style={styles.voteRow}>
                 <TouchableOpacity
@@ -544,7 +546,7 @@ export default function ReportDetailsModal() {
                   ) : (
                     <>
                       <Ionicons name="checkmark" size={20} color="#FFF" />
-                      <Text style={styles.voteButtonText}>Confirmar</Text>
+                      <Text style={styles.voteButtonText}>{t('common.confirm')}</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -559,7 +561,7 @@ export default function ReportDetailsModal() {
                   ) : (
                     <>
                       <Ionicons name="close" size={20} color="#FFF" />
-                      <Text style={styles.voteButtonText}>Descartar</Text>
+                      <Text style={styles.voteButtonText}>{t('reportDetails.dismiss')}</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -570,7 +572,7 @@ export default function ReportDetailsModal() {
           {hasVoted && (
             <View style={styles.votedBanner}>
               <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-              <Text style={styles.votedText}>¡Gracias por tu contribución!</Text>
+              <Text style={styles.votedText}>{t('reportDetails.votedThanks')}</Text>
             </View>
           )}
         </ScrollView>
@@ -578,4 +580,3 @@ export default function ReportDetailsModal() {
     </SafeAreaView>
   );
 }
-
