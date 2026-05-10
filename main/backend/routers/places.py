@@ -26,6 +26,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/places", tags=["places"])
 
 
+class TagRecommendationsRequest(BaseModel):
+    tags: list[str] = Field(default_factory=list)
+    negative_tags: list[str] = Field(default_factory=list)
+    exclude_ids: list[str] = Field(default_factory=list)
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    limit: int = Field(default=20, ge=1, le=50)
+
+
 def _json_or_value(value: Any) -> Any:
     if value is None or value == "":
         return None
@@ -37,18 +46,22 @@ def _json_or_value(value: Any) -> Any:
         return value
 
 
+def _normalize_tag(value: Any) -> str:
+    return str(value).strip().lower().replace("_", " ").replace("-", " ")
+
+
 def _tag_set(value: Any) -> set[str]:
     parsed = _json_or_value(value)
     if isinstance(parsed, dict):
         return {
-            str(key).strip().lower()
+            _normalize_tag(key)
             for key, enabled in parsed.items()
-            if enabled and str(key).strip()
+            if enabled and _normalize_tag(key)
         }
     if isinstance(parsed, list):
-        return {str(item).strip().lower() for item in parsed if str(item).strip()}
+        return {_normalize_tag(item) for item in parsed if _normalize_tag(item)}
     if isinstance(parsed, str):
-        return {part.strip().lower() for part in parsed.split(",") if part.strip()}
+        return {_normalize_tag(part) for part in parsed.split(",") if _normalize_tag(part)}
     return set()
 
 
@@ -76,6 +89,10 @@ def _as_float(value: Any, default: float = 0.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _normalized_terms(values: list[str] | set[str] | tuple[str, ...]) -> set[str]:
+    return {_normalize_tag(value) for value in values if _normalize_tag(value)}
 
 
 @router.get("/nearby")
@@ -284,6 +301,117 @@ async def place_take(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tag-recommendations")
+async def tag_recommendations(req: TagRecommendationsRequest):
+    """Recommend restaurants whose stored tags match a user's assigned tribe."""
+    positive_tags = _normalized_terms(req.tags)
+    negative_tags = _normalized_terms(req.negative_tags)
+    exclude_ids = _normalized_terms(req.exclude_ids)
+
+    if not positive_tags:
+        return {"recommendations": [], "matched_tags": []}
+
+    async with get_db() as db:
+        cursor = await db.execute(
+            """
+            SELECT CAST(id AS TEXT) AS id,
+                   external_id,
+                   source,
+                   category_id,
+                   subcategory,
+                   amenity,
+                   name,
+                   address,
+                   photo_url,
+                   rating,
+                   price_level,
+                   lat,
+                   lng,
+                   tags,
+                   metadata
+            FROM places
+            WHERE category_id = 'food'
+            LIMIT 2000
+            """
+        )
+        rows = await cursor.fetchall()
+
+    scored: list[dict[str, Any]] = []
+    for raw_row in rows:
+        row = dict(raw_row)
+        row_id = str(row.get("id") or "")
+        external_id = str(row.get("external_id") or "")
+        if row_id in exclude_ids or external_id in exclude_ids:
+            continue
+
+        candidate_tags = _tag_set(row.get("tags"))
+        matched_tags = sorted(positive_tags & candidate_tags)
+        if not matched_tags:
+            continue
+
+        disliked_matches = negative_tags & candidate_tags
+        metadata = _metadata_dict(row.get("metadata"))
+        rating = _as_float(row.get("rating") or metadata.get("rating"))
+        reviews_count = int(_as_float(metadata.get("user_ratings_count") or metadata.get("user_rating_count")))
+        distance_m = None
+        if req.lat is not None and req.lng is not None and row.get("lat") is not None and row.get("lng") is not None:
+            distance_m = int(_haversine_m(req.lat, req.lng, _as_float(row.get("lat")), _as_float(row.get("lng"))))
+
+        overlap = len(matched_tags)
+        cluster_coverage = overlap / max(len(positive_tags), 1)
+        distance_penalty = (distance_m or 0) / 50000
+        score = (
+            overlap * 100
+            + cluster_coverage * 35
+            + rating * 2
+            + min(reviews_count, 2000) / 500
+            - len(disliked_matches) * 45
+            - distance_penalty
+        )
+
+        metadata.update(
+            {
+                "photo_url": row.get("photo_url") or metadata.get("photo_url"),
+                "rating": rating,
+                "price_level": _price_level_label(row.get("price_level") or metadata.get("price_level")),
+                "address": row.get("address") or metadata.get("address"),
+                "distance_m": distance_m,
+                "subcategory": row.get("subcategory"),
+                "amenity": row.get("amenity"),
+                "tags": sorted(candidate_tags),
+                "matched_tags": matched_tags,
+                "negative_matched_tags": sorted(disliked_matches),
+                "tag_match_count": overlap,
+                "similarity_score": round(score, 3),
+                "user_rating_count": reviews_count,
+            }
+        )
+
+        scored.append(
+            {
+                "id": row_id,
+                "name": row.get("name") or "",
+                "lat": row.get("lat"),
+                "lng": row.get("lng"),
+                "metadata": metadata,
+            }
+        )
+
+    scored.sort(
+        key=lambda item: (
+            item["metadata"].get("similarity_score", 0),
+            item["metadata"].get("tag_match_count", 0),
+            item["metadata"].get("rating", 0),
+        ),
+        reverse=True,
+    )
+
+    return {
+        "recommendations": scored[: req.limit],
+        "matched_tags": sorted(positive_tags),
+    }
 
 
 @router.get("/{place_id}/similar")

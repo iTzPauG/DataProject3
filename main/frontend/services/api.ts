@@ -7,7 +7,9 @@ import i18n from '../utils/i18n';
 import { resolveI18nLanguage } from '../utils/language';
 import { hasMeaningfulTake } from '../utils/placeTake';
 
-// Derive the backend URL with autodetection for Railway production
+// Derive the backend URL with autodetection for production
+const PRODUCTION_BACKEND_URL = 'https://restaurant-api-dev-ia-uxrrrtx5tq-ew.a.run.app';
+
 const getBaseUrl = () => {
   const rawEnvUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
   const envUrl = rawEnvUrl?.trim().replace(/^['"]+|['"]+$/g, '');
@@ -17,11 +19,9 @@ const getBaseUrl = () => {
     return envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
   }
 
-  // Autodetection for Railway: If we are on X.up.railway.app, the backend is likely on backend-production-XXXX.up.railway.app
-  // Or more simply, if BASE_URL is missing in production web, we can try to use a relative path or a known pattern.
+  // Autodetection for production web when the env var is missing.
   if (typeof window !== 'undefined' && window.location.hostname.includes('railway.app')) {
-    // For WHIM, we know the production backend URL pattern
-    return 'https://backend-production-bac63.up.railway.app';
+    return PRODUCTION_BACKEND_URL;
   }
 
   if (typeof window !== 'undefined') {
@@ -1210,6 +1210,11 @@ export interface SimilarPlacesResponse {
   recommendations: RestaurantDBResult[];
 }
 
+export interface TagRecommendationsResponse {
+  recommendations: RestaurantDBResult[];
+  matched_tags: string[];
+}
+
 export async function getCurrentUserInteractions(): Promise<UserInteractionsResponse | null> {
   try {
     const uid = firebaseAuth?.currentUser?.uid ?? null;
@@ -1221,6 +1226,38 @@ export async function getCurrentUserInteractions(): Promise<UserInteractionsResp
         'Accept-Language': i18n.language || 'es',
         'X-Internal-Secret': 'for-you',
       },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function getTagRecommendations(params: {
+  tags: string[];
+  negativeTags?: string[];
+  excludeIds?: string[];
+  lat?: number;
+  lng?: number;
+  limit?: number;
+}): Promise<TagRecommendationsResponse | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/places/tag-recommendations`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'Accept-Language': i18n.language || 'es',
+      },
+      body: JSON.stringify({
+        tags: params.tags,
+        negative_tags: params.negativeTags ?? [],
+        exclude_ids: params.excludeIds ?? [],
+        lat: params.lat,
+        lng: params.lng,
+        limit: params.limit ?? 20,
+      }),
     });
     if (!res.ok) return null;
     return await res.json();

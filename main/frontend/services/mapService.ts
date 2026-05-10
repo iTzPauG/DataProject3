@@ -1,7 +1,9 @@
 import { Category, MapItem } from '../types';
 import { resolveI18nLanguage } from '../utils/language';
 
-// Derive the backend URL with autodetection for Railway production
+// Derive the backend URL with autodetection for production
+const PRODUCTION_BACKEND_URL = 'https://restaurant-api-dev-ia-uxrrrtx5tq-ew.a.run.app';
+
 const getBaseUrl = () => {
   const rawEnvUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
   const envUrl = rawEnvUrl?.trim().replace(/^['"]+|['"]+$/g, '');
@@ -9,7 +11,7 @@ const getBaseUrl = () => {
     return envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
   }
   if (typeof window !== 'undefined' && window.location.hostname.includes('railway.app')) {
-    return 'https://backend-production-bac63.up.railway.app';
+    return PRODUCTION_BACKEND_URL;
   }
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;

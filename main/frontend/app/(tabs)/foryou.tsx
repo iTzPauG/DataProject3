@@ -19,9 +19,11 @@ import {
   getCurrentLocation,
   getCurrentUserInteractions,
   getSimilarPlacesByTags,
+  getTagRecommendations,
   searchRestaurantDB,
   RESTAURANT_DB_URL,
 } from '../../services/api';
+import type { UserPlaceInteraction, UserVoteInteraction } from '../../services/api';
 import { RestaurantDBResult } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
 import { useUserProfile } from '../../hooks/useUserProfile';
@@ -69,6 +71,175 @@ const ALL_SECTIONS: SectionConfig[] = [
   { title: 'Lo más nuevo',      emoji: '✨', query: 'restaurante reciente nuevo Valencia',  affinityTags: [],                                                      dislikeTags: [], newish: true },
   { title: 'Comida Rápida',     emoji: '🍟', query: 'comida rapida burger fast food Valencia', affinityTags: ['fast food','comida rápida'],                       dislikeTags: ['fast food','comida rápida','mcdonalds','montaditos'] },
 ] as (SectionConfig & { newish?: boolean })[];
+
+interface TribeCluster {
+  id: string;
+  title: string;
+  tags: string[];
+  keywords: string[];
+}
+
+const TRIBE_CLUSTERS: TribeCluster[] = [
+  {
+    id: 'urban_foodies',
+    title: 'Urban Foodies',
+    tags: ['sushi', 'brunch', 'cafe', 'coffee', 'specialty coffee', 'instagrammable', 'terrace', 'fusion', 'asian', 'cocktails', 'trending', 'viral', 'date', 'modern'],
+    keywords: ['aesthetic', 'trendy', 'chic', 'date night', 'cool places', 'moderno', 'bonito'],
+  },
+  {
+    id: 'comfort_classics',
+    title: 'Comfort Classics',
+    tags: ['burger', 'hamburguesa', 'pizza', 'american', 'tex mex', 'italian', 'beer', 'comfort food', 'fast food', 'cheap', 'friendly', 'family'],
+    keywords: ['casual', 'amigos', 'rapido', 'conocido', 'comfort'],
+  },
+  {
+    id: 'healthy_green',
+    title: 'Healthy & Green',
+    tags: ['vegan', 'vegano', 'vegetarian', 'healthy', 'organic', 'fresh', 'salad', 'bowls', 'juice', 'brunch', 'bio'],
+    keywords: ['healthy', 'organic', 'fresh', 'fit lifestyle', 'saludable'],
+  },
+  {
+    id: 'night_lovers',
+    title: 'Night Lovers',
+    tags: ['late_night', 'nightlife', 'bar', 'cocktails', 'rooftop', 'terrace', 'tapas', 'sushi', 'lounge', 'groups', 'social', 'dj'],
+    keywords: ['nightlife', 'social', 'cocktails', 'vibes', 'noche', 'copas'],
+  },
+  {
+    id: 'traditional_souls',
+    title: 'Traditional Souls',
+    tags: ['traditional', 'mediterranean', 'tapas', 'paella', 'seafood', 'arroceria', 'asador', 'family', 'friendly', 'classic', 'spanish'],
+    keywords: ['tradicional', 'autentico', 'comida de verdad', 'familiar'],
+  },
+  {
+    id: 'world_explorers',
+    title: 'Explorers of the World',
+    tags: ['korean', 'thai', 'indian', 'japanese', 'peruvian', 'ethiopian', 'international', 'street food', 'fusion', 'asian', 'sushi', 'ramen'],
+    keywords: ['adventurous', 'multicultural', 'descubrir sabores', 'diferente'],
+  },
+  {
+    id: 'cozy_coffee',
+    title: 'Cozy Coffee People',
+    tags: ['cafe', 'coffee', 'bakery', 'dessert', 'brunch', 'work', 'study', 'cozy', 'calm', 'pastry'],
+    keywords: ['cozy', 'chill', 'study', 'work', 'calm vibes', 'tranquilo'],
+  },
+  {
+    id: 'luxury_diners',
+    title: 'Luxury Diners',
+    tags: ['fine dining', 'premium', 'luxury', 'upscale', 'rooftop', 'wine', 'gourmet', 'steak', 'sushi', 'tasting menu', 'celebration'],
+    keywords: ['luxury', 'premium', 'upscale', 'celebration', 'especial'],
+  },
+  {
+    id: 'social_sharers',
+    title: 'Social Sharers',
+    tags: ['sharing', 'group', 'tapas', 'bbq', 'korean bbq', 'hot pot', 'mexican', 'buffet', 'sports bar', 'friendly', 'family', 'social'],
+    keywords: ['group plans', 'compartir', 'social eating', 'grupos'],
+  },
+  {
+    id: 'fast_functional',
+    title: 'Fast & Functional',
+    tags: ['quick', 'cheap', 'fast food', 'takeaway', 'kebab', 'sandwich', 'poke', 'work', 'affordable', 'practical'],
+    keywords: ['quick', 'affordable', 'practical', 'everyday food', 'rapido', 'barato'],
+  },
+];
+
+function normalizeToken(value: unknown): string {
+  return String(value ?? '').trim().toLowerCase().replace(/[_-]+/g, ' ');
+}
+
+function addWeightedTerms(target: Map<string, number>, terms: Iterable<string>, weight: number) {
+  for (const term of terms) {
+    const normalized = normalizeToken(term);
+    if (!normalized) continue;
+    target.set(normalized, (target.get(normalized) ?? 0) + weight);
+  }
+}
+
+function tokenizeForTribes(text: string | null | undefined): string[] {
+  return normalizeToken(text)
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length >= 3);
+}
+
+function extractTagTerms(value: unknown): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((item) => normalizeToken(item)).filter(Boolean);
+  if (typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>)
+      .filter(([, enabled]) => Boolean(enabled))
+      .map(([key]) => normalizeToken(key))
+      .filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((part) => normalizeToken(part))
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function extractInteractionTerms(item: UserPlaceInteraction): string[] {
+  const metadata = item.metadata ?? {};
+  return [
+    ...extractTagTerms(item.tags),
+    ...extractTagTerms(metadata.tags),
+    ...tokenizeForTribes(item.subcategory),
+    ...tokenizeForTribes(item.amenity),
+    ...tokenizeForTribes(item.category_id),
+    ...tokenizeForTribes(item.title),
+  ];
+}
+
+function scoreTribe(cluster: TribeCluster, positive: Map<string, number>, negative: Map<string, number>): number {
+  const clusterTerms = new Set([...cluster.tags, ...cluster.keywords].map(normalizeToken));
+  let score = 0;
+  clusterTerms.forEach((term) => {
+    score += positive.get(term) ?? 0;
+    score -= (negative.get(term) ?? 0) * 1.25;
+  });
+  return score;
+}
+
+function assignTribeFromInteractions(data: Awaited<ReturnType<typeof getCurrentUserInteractions>>): {
+  cluster: TribeCluster;
+  negativeTags: string[];
+  excludeIds: string[];
+} | null {
+  if (!data) return null;
+
+  const positive = new Map<string, number>();
+  const negative = new Map<string, number>();
+  const excludeIds = new Set<string>();
+
+  data.interactions.votes.forEach((vote: UserVoteInteraction) => {
+    if (vote.item_id) excludeIds.add(vote.item_id);
+    const terms = extractInteractionTerms(vote);
+    if (vote.vote === 1) {
+      addWeightedTerms(positive, terms, 3);
+    } else if (vote.vote === -1) {
+      addWeightedTerms(negative, terms, 3.5);
+    }
+  });
+
+  data.interactions.saved_items.forEach((saved) => {
+    if (saved.item_id) excludeIds.add(saved.item_id);
+    addWeightedTerms(positive, extractInteractionTerms(saved), 2);
+  });
+
+  const scored = TRIBE_CLUSTERS
+    .map((cluster) => ({ cluster, score: scoreTribe(cluster, positive, negative) }))
+    .sort((a, b) => b.score - a.score);
+
+  const best = scored[0];
+  if (!best || best.score <= 0) return null;
+
+  return {
+    cluster: best.cluster,
+    negativeTags: Array.from(negative.keys()),
+    excludeIds: Array.from(excludeIds),
+  };
+}
 
 // Cuenta cuántos `affinityTags` de una sección coinciden con los positiveTags
 // del usuario, restando coincidencias de `dislikeTags`.
@@ -368,6 +539,8 @@ export default function ForYouTab() {
   const [weatherSection, setWeatherSection] = useState<SectionConfig | null>(null);
   const [likedBaseName, setLikedBaseName] = useState<string | null>(null);
   const [likedSimilarRestaurants, setLikedSimilarRestaurants] = useState<RestaurantDBResult[]>([]);
+  const [tribeCluster, setTribeCluster] = useState<TribeCluster | null>(null);
+  const [tribeRestaurants, setTribeRestaurants] = useState<RestaurantDBResult[]>([]);
 
   // Real user signals: bookmarks (cloud) + saved pins (local) + recent views.
   const profile = useUserProfile();
@@ -449,6 +622,53 @@ export default function ForYouTab() {
       cancelled = true;
     };
   }, [auth.user?.uid, location, loadLikedSimilarRestaurants]);
+
+  const loadTribeRecommendations = useCallback(async () => {
+    if (!auth.user?.uid || !location) return null;
+
+    const data = await getCurrentUserInteractions();
+    const assignment = assignTribeFromInteractions(data);
+    if (!assignment) return null;
+
+    const response = await getTagRecommendations({
+      tags: assignment.cluster.tags,
+      negativeTags: assignment.negativeTags,
+      excludeIds: assignment.excludeIds,
+      lat: location.lat,
+      lng: location.lng,
+      limit: 20,
+    });
+
+    const restaurants = response?.recommendations ?? [];
+    if (restaurants.length === 0) return null;
+
+    return {
+      cluster: assignment.cluster,
+      restaurants,
+    };
+  }, [auth.user?.uid, location]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setTribeCluster(null);
+      setTribeRestaurants([]);
+      const result = await loadTribeRecommendations();
+      if (!cancelled && result) {
+        setTribeCluster(result.cluster);
+        setTribeRestaurants(result.restaurants);
+      }
+    }
+
+    if (auth.user?.uid && location) {
+      void load();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.user?.uid, location, loadTribeRecommendations]);
 
   const handleRestaurantPress = useCallback((restaurant: RestaurantDBResult) => {
     const photoUrl = restaurant.metadata?.photo_url;
@@ -693,6 +913,25 @@ export default function ForYouTab() {
               emoji="*"
               query="liked-similar"
               loadRestaurants={() => Promise.resolve(likedSimilarRestaurants)}
+              lat={location.lat}
+              lng={location.lng}
+              maxItems={20}
+              seenIdsRef={seenIdsRef}
+              colors={colors}
+              typography={typography}
+              radii={radii}
+              onRestaurantPress={handleRestaurantPress}
+            />
+          ) : null}
+
+          {auth.user?.uid && tribeCluster && tribeRestaurants.length > 0 ? (
+            <SectionRow
+              key={`tribe-${auth.user.uid}-${tribeCluster.id}`}
+              title="A tu tribu le gustó"
+              emoji="*"
+              subtitle={tribeCluster.title}
+              query="tribe-recommendations"
+              loadRestaurants={() => Promise.resolve(tribeRestaurants)}
               lat={location.lat}
               lng={location.lng}
               maxItems={20}
