@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,6 +11,7 @@ interface Filter {
 }
 
 export const WhimResultsPreviewCard = ({ count = 0, filters = [], onMapPress }: { count?: number, filters?: Filter[], onMapPress?: () => void }) => {
+  const { t } = useTranslation();
   const slideY = useSharedValue(100);
   const opacity = useSharedValue(0);
 
@@ -35,8 +37,8 @@ export const WhimResultsPreviewCard = ({ count = 0, filters = [], onMapPress }: 
 
   return (
     <Animated.View style={[styles.card, animatedStyle]}>
-      <Text style={styles.title}>Resultados para ti</Text>
-      <Text style={styles.subtitle}>Cerca de ti en Valencia</Text>
+      <Text style={styles.title}>{t('whim.results.title')}</Text>
+      <Text style={styles.subtitle}>{t('whim.results.subtitle')}</Text>
       
       <View style={styles.filtersContainer}>
         {filters.map((f, i) => (
@@ -47,7 +49,7 @@ export const WhimResultsPreviewCard = ({ count = 0, filters = [], onMapPress }: 
       </View>
       
       <View style={styles.badge}>
-        <Text style={styles.badgeText}>{count} sitios encontrados</Text>
+        <Text style={styles.badgeText}>{t('whim.results.foundCount', { count })}</Text>
       </View>
 
       <Pressable onPress={onMapPress} style={styles.buttonContainer}>
@@ -57,7 +59,7 @@ export const WhimResultsPreviewCard = ({ count = 0, filters = [], onMapPress }: 
           end={{ x: 1, y: 1 }}
           style={styles.button}
         >
-          <Text style={styles.buttonText}>Ver en el mapa</Text>
+          <Text style={styles.buttonText}>{t('whim.results.viewMap')}</Text>
         </LinearGradient>
       </Pressable>
 

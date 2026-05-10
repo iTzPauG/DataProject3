@@ -21,32 +21,32 @@ import { useAppState } from '../../hooks/useAppState';
 import { useAuth } from '../../hooks/useAuth';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { fetchPlaceExtra, getPlaceData, toggleBookmark, checkBookmark } from '../../services/api';
-import { formatDistance } from '../../utils/format';
+import { formatDistance, formatLocaleDateTime, formatLocaleTime } from '../../utils/format';
 import { hasMeaningfulTake } from '../../utils/placeTake';
 import { useTheme } from '../../utils/theme';
 import WhimIcon from '../../components/WhimIcon';
 
-const CATEGORY_STYLES: Record<string, { color: string; icon: string; label: string }> = {
-  food:       { color: '#FF6B35', icon: '🍴', label: 'Comida' },
-  restaurant: { color: '#FF6B35', icon: '🍽️', label: 'Restaurante' },
-  nightlife:  { color: '#3B82F6', icon: '🌙', label: 'Ocio nocturno' },
-  shopping:   { color: '#10B981', icon: '🛒', label: 'Compras' },
-  health:     { color: '#EF4444', icon: '💊', label: 'Salud' },
-  nature:     { color: '#22C55E', icon: '🌿', label: 'Naturaleza' },
-  culture:    { color: '#F59E0B', icon: '🎭', label: 'Cultura' },
-  services:   { color: '#94A3B8', icon: '🛠️', label: 'Servicios' },
-  sport:      { color: '#0EA5E9', icon: '⚽', label: 'Deporte' },
-  education:  { color: '#8B5CF6', icon: '📚', label: 'Educación' },
-  event:      { color: '#EC4899', icon: '🎉', label: 'Evento' },
-  market:     { color: '#F97316', icon: '🏪', label: 'Mercado' },
-  music:      { color: '#A855F7', icon: '🎵', label: 'Música' },
-  report:     { color: '#EF4444', icon: '📢', label: 'Aviso' },
+const CATEGORY_STYLES: Record<string, { color: string; icon: string; labelKey: string }> = {
+  food:       { color: '#FF6B35', icon: '🍴', labelKey: 'category.food' },
+  restaurant: { color: '#FF6B35', icon: '🍽️', labelKey: 'category.restaurant' },
+  nightlife:  { color: '#3B82F6', icon: '🌙', labelKey: 'category.nightlife' },
+  shopping:   { color: '#10B981', icon: '🛒', labelKey: 'category.shopping' },
+  health:     { color: '#EF4444', icon: '💊', labelKey: 'category.health' },
+  nature:     { color: '#22C55E', icon: '🌿', labelKey: 'category.nature' },
+  culture:    { color: '#F59E0B', icon: '🎭', labelKey: 'category.culture' },
+  services:   { color: '#94A3B8', icon: '🛠️', labelKey: 'category.services' },
+  sport:      { color: '#0EA5E9', icon: '⚽', labelKey: 'category.sport' },
+  education:  { color: '#8B5CF6', icon: '📚', labelKey: 'category.education' },
+  event:      { color: '#EC4899', icon: '🎉', labelKey: 'category.event' },
+  market:     { color: '#F97316', icon: '🏪', labelKey: 'category.market' },
+  music:      { color: '#A855F7', icon: '🎵', labelKey: 'category.music' },
+  report:     { color: '#EF4444', icon: '📢', labelKey: 'category.report' },
 };
 
-const DEFAULT_STYLE = { color: '#9E9E9E', icon: '📍', label: 'Lugar' };
+const DEFAULT_STYLE = { color: '#9E9E9E', icon: '📍', labelKey: 'placeDetails.placeFallback' };
 
 export default function PlaceDetailsModal() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { id, prefill } = useLocalSearchParams<{ id: string; prefill?: string }>();
   const { colors, typography, shadows } = useTheme();
   const router = useRouter();
@@ -320,7 +320,7 @@ export default function PlaceDetailsModal() {
             )}
 
             <View style={[styles.badge, { backgroundColor: catStyle.color }]}>
-              <Text style={styles.badgeText}>{catStyle.icon} {t(`category.${item.category_id}`) || catStyle.label}</Text>
+              <Text style={styles.badgeText}>{catStyle.icon} {t(catStyle.labelKey)}</Text>
             </View>
 
             <Text style={dynamicStyles.title}>{item.title}</Text>
@@ -442,17 +442,14 @@ export default function PlaceDetailsModal() {
               <View style={styles.infoRow}>
                 <Ionicons name="calendar-outline" size={18} color={colors.inkMuted} />
                 <Text style={dynamicStyles.infoText}>
-                  {new Date(startsAt).toLocaleDateString('es-ES', {
+                  {formatLocaleDateTime(startsAt, i18n.language, {
                     weekday: 'short',
                     day: 'numeric',
                     month: 'short',
                     hour: '2-digit',
                     minute: '2-digit',
                   })}
-                  {endsAt && ` — ${new Date(endsAt).toLocaleTimeString('es-ES', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}`}
+                  {endsAt && ` — ${formatLocaleTime(endsAt, i18n.language)}`}
                 </Text>
               </View>
             )}
@@ -491,10 +488,7 @@ export default function PlaceDetailsModal() {
                   {expiresAt && (
                     <View style={dynamicStyles.statBadge}>
                       <Text style={dynamicStyles.statText}>
-                        ⏱ {new Date(expiresAt).toLocaleTimeString('es-ES', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                        ⏱ {formatLocaleTime(expiresAt, i18n.language)}
                       </Text>
                     </View>
                   )}

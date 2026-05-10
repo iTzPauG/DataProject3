@@ -20,7 +20,7 @@
     "soon": "Bientot",
     "cancel": "Annuler",
     "exit": "Quitter",
-    "live": "LIVE",
+    "live": "EN DIRECT",
     "nope": "Non",
     "likedIt": "J'ai aime",
     "beFirstToRate": "Soyez le premier a noter",
@@ -79,7 +79,7 @@
   },
   "profile": {
     "dossier": "Votre dossier",
-    "reputation": "Reputation",
+    "reputation": "Réputation",
     "reports": "Signalements",
     "access": "Acces",
     "version": "Edition 1.0 · Valencia",
@@ -96,9 +96,16 @@
     "menu": {
       "saved": "Sauvegardes",
       "savedDesc": "Lieux et evenements mis en favori",
-      "settings": "Preferences",
+      "settings": "Préférences",
       "settingsDesc": "Carte, notifications, langue"
-    }
+    },
+    "restaurantPhotoTitle": "Photo du restaurant",
+    "restaurantFallback": "Restaurant",
+    "photoUploading": "Envoi de la photo...",
+    "photoUploadCta": "Envoyer ou changer la photo",
+    "photoUpdatedTitle": "Photo mise à jour",
+    "photoUpdatedBody": "L'image du restaurant a été enregistrée avec succès.",
+    "photoUploadError": "Impossible de mettre à jour la photo du restaurant"
   },
   "report": {
     "title": "Signaler",
@@ -131,7 +138,7 @@
     "deck": "Un index selectionne de ce qui se passe autour de vous : ou manger, boire et resoudre la journee. Choisissez une section et ouvrez la carte.",
     "featuredTitle": "Marches, concerts et vie nocturne — cette semaine.",
     "featuredBody": "Evenements qui commencent pres de vous dans les 48 prochaines heures. Filtres par distance, pas par algorithme.",
-    "categories": "categories",
+    "categories": "catégories",
     "notAvailable": "Cette section n'est pas encore disponible.",
     "resultsForYou": "Resultats pour vous",
     "exploreVerbs": [
@@ -142,7 +149,8 @@
       "Ressentir",
       "Suivre",
       "Savoir"
-    ]
+    ],
+    "subtitle": "Découvre les meilleurs endroits où manger dans ta ville"
   },
   "saved": {
     "title": "Sauvegardes",
@@ -155,7 +163,18 @@
     "confirmations": "Confirmations",
     "denials": "Refutations",
     "confidenceLevel": "Confiance",
-    "dismiss": "Fermer"
+    "dismiss": "Fermer",
+    "missingId": "Identifiant du rapport introuvable",
+    "notFound": "Rapport introuvable",
+    "voteRestrictedBody": "Connectez-vous pour confirmer ou rejeter des rapports.",
+    "voteConfirmedTitle": "Confirmé !",
+    "voteConfirmedBody": "Merci d'avoir confirmé ce rapport.",
+    "voteDismissedTitle": "Rejeté",
+    "voteDismissedBody": "Merci. Votre avis aide la communauté.",
+    "voteError": "Impossible d'enregistrer votre vote. Veuillez réessayer.",
+    "created": "Créé {{timeAgo}}",
+    "voteQuestion": "Ce rapport est-il toujours valide ?",
+    "votedThanks": "Merci pour votre contribution !"
   },
   "placeDetails": {
     "notFound": "Lieu introuvable",
@@ -171,7 +190,9 @@
     "recommended": "Lieu recommande",
     "rating": "Note : {{rating}}",
     "whimTake": "L'avis de WHIM",
-    "bookmarkSignInHint": "Connectez-vous pour enregistrer vos lieux favoris."
+    "bookmarkSignInHint": "Connectez-vous pour enregistrer vos lieux favoris.",
+    "placeFallback": "Lieu",
+    "searchExpired": "Ta recherche a expiré. Lance une nouvelle recherche pour voir des résultats à jour."
   },
   "fuel": {
     "gasolina_95": "Essence 95",
@@ -219,7 +240,11 @@
     "price_2": "Moyen",
     "price_3": "Premium",
     "moodTitle": "Quel est le plan ?",
-    "moodSubtitle": "Choisissez l'ambiance parfaite"
+    "moodSubtitle": "Choisissez l'ambiance parfaite",
+    "loadMore": "Trouver plus d'endroits",
+    "allResultsShown": "Vous avez vu tous les résultats disponibles.",
+    "nearbyResults": "Résultats à proximité",
+    "viewMap": "Voir la carte"
   },
   "category": {
     "food": "Restauration",
@@ -231,12 +256,12 @@
     "culture": "Culture",
     "services": "Services",
     "sport": "Sport",
-    "education": "Education",
+    "education": "Éducation",
     "event": "Evenement",
     "market": "Marche",
     "music": "Musique",
     "report": "Alerte",
-    "cinema": "Cinema",
+    "cinema": "Cinéma",
     "explore": "Explorer",
     "wellness": "Bien-etre",
     "pets": "Animaux",
@@ -284,7 +309,7 @@
       "title": "Couche de carte",
       "subtitle": "Comment la ville apparait sous vos donnees.",
       "minimal": {
-        "label": "Minimal",
+        "label": "Minimaliste",
         "desc": "Propre et calme"
       },
       "standard": {
@@ -326,7 +351,7 @@
     "paella": "Paella",
     "tacos": "Tacos",
     "healthy": "Sain",
-    "vegan": "Vegan",
+    "vegan": "Végan",
     "italian": "Italien",
     "asian": "Asiatique",
     "mexican": "Mexicain",
@@ -334,7 +359,7 @@
     "bakery": "Boulangerie",
     "coffee": "Cafe",
     "kebab": "Kebab",
-    "bar": "Bar",
+    "bar": "Bar à cocktails",
     "club": "Boite de nuit",
     "cocktail": "Bar a cocktails",
     "lounge": "Lounge / Chill",
@@ -390,7 +415,7 @@
     "vos": "Version originale",
     "summer_cinema": "Cinema en plein air",
     "spa": "Spa / Circuit",
-    "massage": "Massage",
+    "massage": "Massages",
     "meditation": "Retraite / Meditation",
     "hot_springs": "Sources chaudes naturelles",
     "beauty": "Beaute / Esthetique",
@@ -416,11 +441,11 @@
     "casual": "Detendu",
     "date": "Soiree en amoureux",
     "family": "En famille",
-    "celebration": "Celebration",
+    "celebration": "Célébration",
     "sharing": "A partager",
     "gourmet": "Gourmet",
-    "comfort_food": "Comfort food",
-    "chill": "Chill",
+    "comfort_food": "Réconfort",
+    "chill": "Tranquille",
     "party": "Fete",
     "intimate": "Intime / Rendez-vous",
     "friends": "Entre amis",
@@ -447,7 +472,7 @@
     "free": "Entree gratuite",
     "guided_tour": "Visite guidee",
     "classes": "Cours collectifs",
-    "competition": "Competition",
+    "competition": "Compétition",
     "outdoor": "En plein air",
     "beginner": "Debutant",
     "infant_primary": "Maternelle / Primaire",
@@ -514,5 +539,249 @@
     "Vos coins de confiance.",
     "Le club exclusif de vos lieux enregistres.",
     "Vos decouvertes, triees et pretes."
-  ]
+  ],
+  "location": {
+    "locating": "Localisation en cours…",
+    "gateTitle": "Activez votre localisation",
+    "gateBody": "Nous avons besoin de savoir où vous êtes pour vous montrer des offres, restaurants et événements autour de vous en temps réel.",
+    "enable": "Activer la localisation",
+    "openSettings": "Ouvrir les paramètres du navigateur"
+  },
+  "time": {
+    "now": "maintenant",
+    "momentAgo": "il y a un instant",
+    "minutesAgo_one": "il y a {{count}} minute",
+    "minutesAgo_other": "il y a {{count}} minutes",
+    "hoursAgo_one": "il y a {{count}} heure",
+    "hoursAgo_other": "il y a {{count}} heures",
+    "daysAgo_one": "il y a {{count}} jour",
+    "daysAgo_other": "il y a {{count}} jours",
+    "monthsAgo_one": "il y a {{count}} mois",
+    "monthsAgo_other": "il y a {{count}} mois",
+    "expired": "Expiré",
+    "expiresInMinutes_one": "Expire dans {{count}}m",
+    "expiresInMinutes_other": "Expire dans {{count}}m",
+    "expiresInHours_one": "Expire dans {{count}}h",
+    "expiresInHours_other": "Expire dans {{count}}h",
+    "expiresInHoursMinutes": "Expire dans {{hours}}h {{minutes}}m"
+  },
+  "liveComments": {
+    "title": "En direct",
+    "add": "+ Ajouter",
+    "empty": "Aucun rapport récent. Soyez le premier !",
+    "restrictedBody": "Connectez-vous pour commenter.",
+    "modalTitle": "Que se passe-t-il ?",
+    "modalSubtitle": "Signaler en direct sur {{placeName}}",
+    "titlePlaceholder": "Titre court (ex. File de 20 min)",
+    "descriptionPlaceholder": "Détails supplémentaires (optionnel)",
+    "submit": "Publier maintenant",
+    "validationTitle": "Avertissement",
+    "validationBody": "Le commentaire doit être plus long.",
+    "publishError": "Impossible de publier le rapport.",
+    "connectionError": "Impossible de se connecter au serveur.",
+    "distanceMeters": "· à {{count}}m",
+    "types": {
+      "comment": "Commentaire",
+      "queue": "Longue file",
+      "noise": "Bruyant",
+      "live_music": "Musique",
+      "free_stuff": "Gratuit",
+      "food_truck": "Food truck",
+      "popup_market": "Marché éphémère",
+      "street_show": "Spectacle de rue",
+      "other": "Autre"
+    }
+  },
+  "foryou": {
+    "dayRestaurant": "Restaurant du jour",
+    "personalizedTitle": "Selon vos goûts",
+    "tribeTitle": "Votre tribu recommande",
+    "surpriseTitle": "Vous osez ?",
+    "personalizedWithSignals": "Basé sur ce que vous avez vu et sauvegardé : {{signals}}. Cluster · {{cluster}}.",
+    "personalizedWithCluster": "Basé sur votre cluster · {{cluster}}.",
+    "weather": {
+      "cozy": "Endroits cosy",
+      "sunny": "Terrasses ensoleillées"
+    },
+    "sections": {
+      "trending": "Tendances",
+      "pizza": "Pizzerias",
+      "burgers": "Burgers",
+      "sushi": "Sushi",
+      "coffeeBrunch": "Cafés & Brunch",
+      "veganHealthy": "Vegan / Sain",
+      "nightOpen": "Ouverts la nuit",
+      "date": "Pour un rendez-vous",
+      "family": "En famille",
+      "instagrammable": "Instagrammables",
+      "terraces": "Terrasses",
+      "new": "Tout nouveau",
+      "fastFood": "Restauration rapide"
+    }
+  },
+  "publish": {
+    "title": "Publier une table libre",
+    "subtitle": "Publiez des tables de dernière minute qui apparaîtront automatiquement sur la carte des utilisateurs.",
+    "restrictedBody": "Cet onglet est réservé aux comptes de restaurant vérifiés.",
+    "verifyRestaurant": "Vérifier le restaurant",
+    "verifiedRestaurant": "Restaurant vérifié",
+    "currentPrice": "Prix actuel (EUR)",
+    "originalPrice": "Prix original (optionnel)",
+    "availableTables": "Tables disponibles",
+    "offerDate": "Date de l'offre (AAAA-MM-JJ)",
+    "offerDatePlaceholder": "ex. 2026-05-10",
+    "deadlineTime": "Heure limite de réservation (HH:MM)",
+    "deadlinePlaceholder": "ex. 19:45",
+    "startTime": "Heure de début (HH:MM)",
+    "startPlaceholder": "ex. 20:00",
+    "endTime": "Heure de fin (HH:MM)",
+    "endPlaceholder": "ex. 23:30",
+    "endHelper": "L'offre est considérée comme terminée à l'heure de fin si aucun incident n'est signalé.",
+    "description": "Description",
+    "descriptionPlaceholder": "ex. Menu dégustation avec réduction jusqu'à 22h",
+    "warningTitle": "Vérifiez cette offre",
+    "publishNow": "Publier maintenant",
+    "successTitle": "Réservation confirmée",
+    "successBody": "Votre offre a été publiée avec succès et est maintenant visible pour réserver.",
+    "viewOnMap": "Voir sur la carte",
+    "keepPublishing": "Continuer à publier",
+    "defaultDescription": "Table libre maintenant.",
+    "errors": {
+      "price": "Le prix doit être un nombre supérieur à 0.",
+      "originalPrice": "Le prix original doit être un nombre valide si vous le renseignez.",
+      "seats": "Veuillez indiquer au moins une table disponible.",
+      "offerDate": "La date doit utiliser le format AAAA-MM-JJ.",
+      "reservationDeadlineTime": "L'heure limite de réservation doit être au format HH:MM.",
+      "startTime": "L'heure de début doit être au format HH:MM.",
+      "endTime": "L'heure de fin doit être au format HH:MM.",
+      "reservationDeadlineParse": "Impossible d'analyser l'heure limite de réservation.",
+      "startParse": "Impossible d'analyser la date/heure de début.",
+      "endParse": "Impossible d'analyser la date/heure de fin.",
+      "reservationRelation": "L'heure limite de réservation ne peut pas être postérieure à l'heure de début.",
+      "timeRelation": "L'heure de fin doit être postérieure à l'heure de début.",
+      "startRelation": "L'heure de début doit être postérieure à l'heure actuelle.",
+      "publish": "Impossible de publier l'offre",
+      "publishGeneric": "Erreur de publication"
+    }
+  },
+  "dealSheet": {
+    "unavailableTitle": "Non disponible",
+    "unavailableBody": "Les comptes restaurant ne peuvent pas réserver des offres.",
+    "requiredTitle": "Champs obligatoires",
+    "requiredBody": "Veuillez entrer votre nom et numéro de téléphone.",
+    "takenTitle": "Réservation prise",
+    "takenBody": "Cette réservation a déjà été prise par un autre utilisateur.",
+    "reserveError": "Erreur de réservation",
+    "seats_one": "👥 {{count}} personne",
+    "seats_other": "👥 {{count}} personnes",
+    "reserveUntil": "⛔ Réserver jusqu'au {{dateTime}}",
+    "timeWindow": "Créneau : {{schedule}}",
+    "unavailableForBusiness": "Non disponible pour les comptes restaurant",
+    "interestedCta": "Cette offre m'intéresse →",
+    "reserveTable": "Réserver une table",
+    "yourName": "Votre nom",
+    "fullNamePlaceholder": "Nom complet",
+    "contactPhone": "Téléphone de contact",
+    "phonePlaceholder": "+33 600 000 000",
+    "confirmReservation": "Confirmer la réservation",
+    "backToDeal": "← Retour à l'offre",
+    "confirmedTitle": "Réservation confirmée !",
+    "confirmedBody": "Votre table chez {{restaurantName}} est réservée.\nLe restaurant vous contactera si il doit confirmer les détails.",
+    "returnToMap": "Retour à la carte",
+    "signInTitle": "Connectez-vous pour réserver",
+    "signInBody": "Vous avez besoin d'un compte actif pour confirmer une réservation.",
+    "goToSignIn": "Aller à la connexion"
+  },
+  "nearbySheet": {
+    "showOnMap": "Afficher sur la carte",
+    "viewDetails": "Voir la fiche",
+    "showListMode": "Afficher en mode liste",
+    "listMode": "Mode liste",
+    "backToMap": "Retour à la carte",
+    "loadingPlaces": "Chargement des lieux...",
+    "noResults": "Aucun résultat à afficher."
+  },
+  "myReports": {
+    "title": "Mes signalements",
+    "loadError": "Impossible de charger vos signalements",
+    "emptyTitle": "Vous n'avez pas encore soumis de signalement",
+    "emptyBody": "Informez la communauté sur les événements, incidents ou lieux d'intérêt près de vous"
+  },
+  "businessRegistration": {
+    "serverError": "Erreur serveur",
+    "fillRequired": "Remplissez le nom, l'adresse et le téléphone",
+    "pickCuisine": "Sélectionnez au moins un type de cuisine",
+    "doneTitle": "Compte restaurant activé !",
+    "title": "Enregistrez votre restaurant",
+    "formSubtitle": "Nous allons vérifier que vous êtes le propriétaire en comparant le numéro de téléphone avec Google Maps.",
+    "restaurantName": "Nom du restaurant *",
+    "restaurantNamePlaceholder": "ex. Le Petit Bistrot",
+    "address": "Adresse *",
+    "addressPlaceholder": "Rue, numéro, ville",
+    "phone": "Téléphone du commerce (tel qu'il apparaît sur Google Maps) *",
+    "phonePlaceholder": "+33 963 710 366",
+    "mapsLink": "Lien Google Maps (optionnel)",
+    "mapsLinkPlaceholder": "https://maps.google.com/...",
+    "cuisineLabel": "Type de cuisine (vous pouvez en choisir plusieurs) *",
+    "cuisinePlaceholder": "Sélectionnez un ou plusieurs types",
+    "verifyCta": "Vérifier le commerce →",
+    "otpTitle": "Vérification par SMS",
+    "otpSubtitle": "Nous avons trouvé votre restaurant sur Google Maps.",
+    "foundRestaurant": "Restaurant trouvé",
+    "phoneVerified": "Téléphone vérifié avec Google Maps ✓",
+    "otpSent": "Nous avons envoyé un code au {{phone}}. Entrez-le pour confirmer que vous êtes le propriétaire.",
+    "otpCode": "Code OTP",
+    "otpPlaceholder": "123456",
+    "confirmCta": "Confirmer et activer le compte →",
+    "altTitle": "Vérification alternative",
+    "altSubtitle": "Le téléphone ne correspond pas à celui de Google Maps. Vous pouvez vérifier avec votre e-mail professionnel.",
+    "phoneMismatch": "Le téléphone ne correspond pas à Google Maps",
+    "businessEmail": "E-mail professionnel du commerce",
+    "businessEmailPlaceholder": "info@monrestaurant.com",
+    "sendVerification": "Envoyer la vérification →"
+  },
+  "whim": {
+    "selection": {
+      "foodTitle": "Qu'est-ce qui vous fait envie ?",
+      "speedTitle": "Comment le voulez-vous ?",
+      "budgetTitle": "Combien voulez-vous dépenser ?",
+      "moodTitle": "Quelle ambiance ?",
+      "conflict": "Cette combinaison ne fonctionne généralement pas bien 👀",
+      "search": "Rechercher WHIM"
+    },
+    "results": {
+      "title": "Résultats pour vous",
+      "subtitle": "Près de vous à Valence",
+      "foundCount": "{{count}} endroits trouvés",
+      "viewMap": "Voir sur la carte"
+    },
+    "empty": {
+      "title": "Cette combinaison ne fonctionne pas trop 😅",
+      "subtitle": "Essayez de changer quelque chose. Ces filtres ne sont pas compatibles.",
+      "conflictingFilter": "Filtre problématique :",
+      "removeFilter": "Supprimer le filtre le plus bizarre",
+      "reset": "Recommencer"
+    },
+    "loading": {
+      "title": "Recherche de votre prochain restaurant",
+      "phrases": [
+        "Lecture des vrais avis pour mieux filtrer...",
+        "Recherche de lieux qui vous correspondent vraiment...",
+        "Consultation de Google, OSM et d'autres sources...",
+        "Presque prêt, préparation de votre sélection finale...",
+        "Vérification des évaluations et de la distance..."
+      ]
+    }
+  },
+  "myOffers": {
+    "accessRestricted": "Accès restreint",
+    "reserved": "Réservée",
+    "client": "Client",
+    "withdrawOffer": "Retirer l'offre",
+    "noOffersFiltered": "Aucune offre dans ce filtre",
+    "reasonPlaceholder": "Écris la raison ici..."
+  },
+  "savedItems": {
+    "empty": "Aucun favori"
+  }
 }

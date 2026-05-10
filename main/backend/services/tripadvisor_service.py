@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 from difflib import SequenceMatcher
@@ -51,6 +52,8 @@ _INCOMPATIBLE_CATEGORY_TERMS = (
     "car",
 )
 
+_REVIEW_LANGUAGE_POOL = ("es", "en", "fr", "de", "pt", "it")
+
 
 def _get_http_client() -> httpx.AsyncClient:
     global _http_client
@@ -82,6 +85,15 @@ def _language_code(language: str) -> str:
     if "-" in raw:
         raw = raw.split("-", 1)[0]
     return raw or "es"
+
+
+def _review_languages_for(language: str) -> list[str]:
+    preferred = _language_code(language)
+    ordered = [preferred]
+    for lang in _REVIEW_LANGUAGE_POOL:
+        if lang not in ordered:
+            ordered.append(lang)
+    return ordered
 
 
 def _similarity(a: str, b: str) -> float:
@@ -460,7 +472,7 @@ async def get_tripadvisor_reviews(
     if not location_id:
         return {"reviews": [], "total_count": 0}
 
-    cache_key = f"tripadvisor_reviews_v7:{location_id}:{language}"
+    cache_key = f"tripadvisor_reviews_v8:{location_id}:{language}"
     cached = await cache_get(cache_key)
     if cached:
         return {"reviews": cached, "total_count": review_count}
@@ -483,9 +495,22 @@ async def get_tripadvisor_reviews(
             return []
         return _extract_tripadvisor_reviews(payload, language=lang)
 
-    reviews = await _fetch_reviews_for(language)
-    if not reviews and _language_code(language) != "en":
-        reviews = await _fetch_reviews_for("en")
+    seen: set[tuple[str, int, str, str]] = set()
+    reviews: list[dict] = []
+    language_results = await asyncio.gather(*[_fetch_reviews_for(lang) for lang in _review_languages_for(language)])
+    for batch in language_results:
+        for review in batch:
+            text = " ".join(str(review.get("text") or "").strip().lower().split())
+            fingerprint = (
+                str(review.get("author") or "").strip().lower(),
+                int(review.get("rating") or 0),
+                str(review.get("relative_time") or "").strip().lower(),
+                text,
+            )
+            if not text or fingerprint in seen:
+                continue
+            seen.add(fingerprint)
+            reviews.append(review)
 
     if review_count <= 0 and reviews:
         review_count = len(reviews)

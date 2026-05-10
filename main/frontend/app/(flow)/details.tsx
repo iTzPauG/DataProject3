@@ -611,9 +611,9 @@ export default function DetailsScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.notFound}>
-          <Text style={styles.notFoundTitle}>Place not found</Text>
+          <Text style={styles.notFoundTitle}>{t('placeDetails.notFound')}</Text>
           <Text style={styles.notFoundSub}>
-            Your search state expired. Start a fresh search to see updated results.
+            {t('placeDetails.searchExpired')}
           </Text>
           <View style={styles.notFoundButton}>
             <PrimaryButton label={t("common.close")} onPress={() => router.back()} />

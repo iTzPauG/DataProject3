@@ -81,13 +81,27 @@ def _extract_reviews(place: dict, source_language: str | None = None) -> list[di
     for rev in place.get("reviews", []):
         text_obj = rev.get("text", {})
         text = text_obj.get("text", "") if isinstance(text_obj, dict) else str(text_obj)
+        original_text_obj = rev.get("originalText", {})
+        original_text = (
+            original_text_obj.get("text", "")
+            if isinstance(original_text_obj, dict)
+            else str(original_text_obj)
+        )
         if not text:
             continue
         reviews.append({
+            "review_id": str(rev.get("name") or ""),
             "author": (lambda a: a.get("displayName", "") if isinstance(a, dict) else str(a) if a else "")(rev.get("authorAttribution")),
             "rating": rev.get("rating", 0),
             "text": text,
+            "original_text": original_text or text,
+            "original_language": (
+                original_text_obj.get("languageCode", "")
+                if isinstance(original_text_obj, dict)
+                else ""
+            ),
             "relative_time": rev.get("relativePublishTimeDescription", ""),
+            "publish_time": str(rev.get("publishTime") or ""),
             "source_language": source_language or "",
             "source": "google",
         })
@@ -275,13 +289,17 @@ async def search_places(
         )
         return []
 
-    def _review_fingerprint(review: dict) -> tuple[str, int, str, str]:
+    def _review_fingerprint(review: dict) -> tuple[str, str, str, int, str]:
+        review_id = str(review.get("review_id") or "").strip().lower()
+        publish_time = str(review.get("publish_time") or "").strip().lower()
+        original_text = " ".join(str(review.get("original_text", "")).strip().lower().split())
         text = " ".join(str(review.get("text", "")).strip().lower().split())
         return (
+            review_id,
+            publish_time,
             str(review.get("author", "")).strip().lower(),
             int(review.get("rating") or 0),
-            str(review.get("source_language", "")).strip().lower(),
-            text,
+            original_text or text,
         )
 
     merged_by_id: OrderedDict[str, dict] = OrderedDict()
@@ -407,8 +425,8 @@ async def get_place_details(place_id: str, language: str = "es", include_yelp: b
     if not GOOGLE_MAPS_API_KEY:
         return None
 
-    # Cache for 24 hours — reviews and details are stable enough
-    cache_key = f"gp_details_v3:{place_id}:{language}:{int(include_yelp)}"
+    # Cache for 24 hours — v4 widens review language coverage to the full pool.
+    cache_key = f"gp_details_v4:{place_id}:{language}:{int(include_yelp)}"
     cached = await cache_get(cache_key)
     if cached:
         return cached
@@ -444,7 +462,7 @@ async def get_place_details(place_id: str, language: str = "es", include_yelp: b
                 return res.json()
             return None
 
-        review_languages = _review_languages_for_place(language, max_languages=5)
+        review_languages = _review_languages_for_place(language, max_languages=len(_REVIEW_LANGUAGE_POOL))
         tasks = [_fetch_lang(lang) for lang in review_languages]
         
         results = await asyncio.gather(*tasks)
@@ -462,11 +480,11 @@ async def get_place_details(place_id: str, language: str = "es", include_yelp: b
             for r in _extract_reviews(res_data, source_language=lang):
                 txt = " ".join(str(r.get("text", "")).strip().lower().split())
                 fingerprint = (
+                    str(r.get("review_id", "")).strip().lower(),
+                    str(r.get("publish_time", "")).strip().lower(),
                     str(r.get("author", "")).strip().lower(),
                     int(r.get("rating") or 0),
-                    str(r.get("relative_time", "")).strip().lower(),
-                    str(r.get("source_language", "")).strip().lower(),
-                    txt,
+                    " ".join(str(r.get("original_text", "") or txt).strip().lower().split()),
                 )
                 if txt and fingerprint not in seen_reviews:
                     seen_reviews.add(fingerprint)
@@ -501,10 +519,11 @@ async def get_place_details(place_id: str, language: str = "es", include_yelp: b
         for r in yelp_reviews:
             txt = " ".join(str(r.get("text", "")).strip().lower().split())
             fingerprint = (
+                str(r.get("review_id", "")).strip().lower(),
+                str(r.get("publish_time", "")).strip().lower(),
                 str(r.get("author", "")).strip().lower(),
                 int(r.get("rating") or 0),
-                str(r.get("source_language", "")).strip().lower(),
-                txt,
+                " ".join(str(r.get("original_text", "") or txt).strip().lower().split()),
             )
             if txt and fingerprint not in seen_reviews:
                 seen_reviews.add(fingerprint)
@@ -561,4 +580,3 @@ async def get_photo_bytes(photo_name: str, max_width: int = 800) -> bytes | None
     except Exception as exc:
         log.warning("Google photo fetch error: %s", exc)
         return None
-

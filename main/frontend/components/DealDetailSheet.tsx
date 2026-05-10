@@ -21,9 +21,11 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { BlurView } from 'expo-blur';
+import { useTranslation } from 'react-i18next';
 import { LiveDeal } from '../hooks/useLiveDeals';
 import { useAuth } from '../hooks/useAuth';
 import { BASE_URL } from '../services/api';
+import { formatLocaleDate, formatLocaleDateTime, formatLocaleTime, formatExpiry } from '../utils/format';
 import { useTheme } from '../utils/theme';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -38,6 +40,7 @@ type SheetView = 'deal' | 'reserve' | 'confirmed';
 
 export default function DealDetailSheet({ deal, onClose }: Props) {
   const { colors, typography, shadows } = useTheme();
+  const { t, i18n } = useTranslation();
   const { profile, getToken } = useAuth();
   const [view, setView] = useState<SheetView>('deal');
   const [customerName, setCustomerName] = useState('');
@@ -53,35 +56,31 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
 
   const expiresText = useMemo(() => {
     if (!deal.expires_at) return null;
-    const diff = new Date(deal.expires_at).getTime() - Date.now();
-    if (diff <= 0) return 'Expirada';
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `Caduca en ${mins} min`;
-    return `Caduca en ${Math.floor(mins / 60)}h ${mins % 60}min`;
-  }, [deal.expires_at]);
+    return formatExpiry(deal.expires_at, t);
+  }, [deal.expires_at, t]);
 
   const scheduleText = useMemo(() => {
     if (!deal.available_at || !deal.expires_at) return null;
     const start = new Date(deal.available_at);
     const end = new Date(deal.expires_at);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
-    const dateText = start.toLocaleDateString('es-ES');
-    const startText = start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-    const endText = end.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    const dateText = formatLocaleDate(start, i18n.language);
+    const startText = formatLocaleTime(start, i18n.language);
+    const endText = formatLocaleTime(end, i18n.language);
     return `${dateText} · ${startText} - ${endText}`;
-  }, [deal.available_at, deal.expires_at]);
+  }, [deal.available_at, deal.expires_at, i18n.language]);
 
   const reservationDeadlineText = useMemo(() => {
     if (!deal.reservation_deadline_at) return null;
     const value = new Date(deal.reservation_deadline_at);
     if (Number.isNaN(value.getTime())) return null;
-    return value.toLocaleString('es-ES', {
+    return formatLocaleDateTime(value, i18n.language, {
       day: '2-digit',
       month: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
     });
-  }, [deal.reservation_deadline_at]);
+  }, [deal.reservation_deadline_at, i18n.language]);
 
   const handleReserve = useCallback(async () => {
     if (!profile) {
@@ -89,11 +88,11 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
       return;
     }
     if (isBusinessAccount) {
-      Alert.alert('No disponible', 'Las cuentas de restaurante no pueden reservar ofertas.');
+      Alert.alert(t('dealSheet.unavailableTitle'), t('dealSheet.unavailableBody'));
       return;
     }
     if (!customerName.trim() || !customerPhone.trim()) {
-      Alert.alert('Campos requeridos', 'Por favor, introduce tu nombre y teléfono.');
+      Alert.alert(t('dealSheet.requiredTitle'), t('dealSheet.requiredBody'));
       return;
     }
     setSubmitting(true);
@@ -112,21 +111,21 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
       });
       const data = await res.json();
       if (res.status === 409) {
-        Alert.alert('Reserva consumida', data?.detail || 'Esta reserva ya ha sido consumida por otro usuario.');
+        Alert.alert(t('dealSheet.takenTitle'), data?.detail || t('dealSheet.takenBody'));
         return;
       }
       if (res.status === 401) {
         setLoginPromptOpen(true);
         return;
       }
-      if (!res.ok) throw new Error(data.detail || 'No se pudo realizar la reserva');
+      if (!res.ok) throw new Error(data.detail || t('dealSheet.reserveError'));
       setView('confirmed');
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Error al reservar');
+      Alert.alert(t('common.error'), err?.message || t('dealSheet.reserveError'));
     } finally {
       setSubmitting(false);
     }
-  }, [deal.id, customerName, customerPhone, getToken, isBusinessAccount]);
+  }, [deal.id, customerName, customerPhone, getToken, isBusinessAccount, profile, t]);
 
   const styles = useMemo(
     () =>
@@ -370,7 +369,7 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
       {/* Meta chips */}
       <View style={styles.metaRow}>
         <View style={styles.metaChip}>
-          <Text style={styles.metaText}>👥 {deal.seats} {deal.seats === 1 ? 'persona' : 'personas'}</Text>
+          <Text style={styles.metaText}>{t('dealSheet.seats', { count: deal.seats })}</Text>
         </View>
         {expiresText ? (
           <View style={styles.metaChip}>
@@ -380,19 +379,19 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
         {deal.available_at ? (
           <View style={styles.metaChip}>
             <Text style={styles.metaText}>
-              🕐 {new Date(deal.available_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+              🕐 {formatLocaleTime(deal.available_at, i18n.language)}
             </Text>
           </View>
         ) : null}
         {reservationDeadlineText ? (
           <View style={styles.metaChip}>
-            <Text style={styles.metaText}>⛔ Reserva hasta {reservationDeadlineText}</Text>
+            <Text style={styles.metaText}>{t('dealSheet.reserveUntil', { dateTime: reservationDeadlineText })}</Text>
           </View>
         ) : null}
       </View>
 
       {scheduleText ? (
-        <Text style={[styles.descriptionText, { marginTop: 10 }]}>Franja: {scheduleText}</Text>
+        <Text style={[styles.descriptionText, { marginTop: 10 }]}>{t('dealSheet.timeWindow', { schedule: scheduleText })}</Text>
       ) : null}
 
       {/* CTA */}
@@ -404,7 +403,7 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
             return;
           }
           if (isBusinessAccount) {
-            Alert.alert('No disponible', 'Las cuentas de restaurante no pueden reservar ofertas.');
+            Alert.alert(t('dealSheet.unavailableTitle'), t('dealSheet.unavailableBody'));
             return;
           }
           setView('reserve');
@@ -412,7 +411,7 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
         activeOpacity={0.85}
       >
         <Text style={[styles.ctaText, isBusinessAccount ? styles.ctaTextDisabled : null]}>
-          {isBusinessAccount ? 'No disponible para cuentas restaurante' : 'Me interesa esta oferta →'}
+          {isBusinessAccount ? t('dealSheet.unavailableForBusiness') : t('dealSheet.interestedCta')}
         </Text>
       </TouchableOpacity>
     </ScrollView>
@@ -424,27 +423,27 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
       style={{ flex: 1 }}
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Reservar mesa</Text>
+        <Text style={[styles.sectionTitle, { marginTop: 8 }]}>{t('dealSheet.reserveTable')}</Text>
         <Text style={[styles.descriptionText, { marginBottom: 4 }]}>
           {deal.restaurant_name} — {deal.price.toFixed(2)} €
         </Text>
 
-        <Text style={styles.label}>Tu nombre</Text>
+        <Text style={styles.label}>{t('dealSheet.yourName')}</Text>
         <TextInput
           style={styles.input}
           value={customerName}
           onChangeText={setCustomerName}
-          placeholder="Nombre completo"
+          placeholder={t('dealSheet.fullNamePlaceholder')}
           placeholderTextColor="rgba(255,255,255,0.3)"
           autoCapitalize="words"
         />
 
-        <Text style={styles.label}>Teléfono de contacto</Text>
+        <Text style={styles.label}>{t('dealSheet.contactPhone')}</Text>
         <TextInput
           style={styles.input}
           value={customerPhone}
           onChangeText={setCustomerPhone}
-          placeholder="+34 600 000 000"
+          placeholder={t('dealSheet.phonePlaceholder')}
           placeholderTextColor="rgba(255,255,255,0.3)"
           keyboardType="phone-pad"
         />
@@ -458,7 +457,7 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
           {submitting ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.ctaText}>Confirmar reserva</Text>
+            <Text style={styles.ctaText}>{t('dealSheet.confirmReservation')}</Text>
           )}
         </TouchableOpacity>
 
@@ -467,7 +466,7 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
           style={{ alignItems: 'center', marginTop: 14 }}
           activeOpacity={0.7}
         >
-          <Text style={[styles.descriptionText, { textAlign: 'center' }]}>← Volver a la oferta</Text>
+          <Text style={[styles.descriptionText, { textAlign: 'center' }]}>{t('dealSheet.backToDeal')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -476,13 +475,12 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
   const renderConfirmedView = () => (
     <View style={styles.confirmedContainer}>
       <Text style={styles.confirmedEmoji}>✅</Text>
-      <Text style={styles.confirmedTitle}>¡Reserva confirmada!</Text>
+      <Text style={styles.confirmedTitle}>{t('dealSheet.confirmedTitle')}</Text>
       <Text style={styles.confirmedBody}>
-        Tu mesa en {deal.restaurant_name} está reservada.{'\n'}
-        El restaurante te contactará si necesita confirmar los detalles.
+        {t('dealSheet.confirmedBody', { restaurantName: deal.restaurant_name })}
       </Text>
       <TouchableOpacity style={styles.returnBtn} onPress={onClose} activeOpacity={0.85}>
-        <Text style={styles.returnText}>Volver al mapa</Text>
+        <Text style={styles.returnText}>{t('dealSheet.returnToMap')}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -504,10 +502,10 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
     >
       <View style={{ width: '100%', maxWidth: 360, borderRadius: 16, backgroundColor: '#181A23', padding: 18, gap: 10 }}>
         <Text style={{ color: '#fff', fontSize: 18, fontWeight: '800', fontFamily: typography.heading }}>
-          Inicia sesión para reservar
+          {t('dealSheet.signInTitle')}
         </Text>
         <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, lineHeight: 20, fontFamily: typography.body }}>
-          Necesitas una cuenta activa para confirmar una reserva.
+          {t('dealSheet.signInBody')}
         </Text>
         <TouchableOpacity
           style={[styles.ctaButton, { marginTop: 8 }]}
@@ -517,14 +515,14 @@ export default function DealDetailSheet({ deal, onClose }: Props) {
           }}
           activeOpacity={0.85}
         >
-          <Text style={styles.ctaText}>Ir a iniciar sesión</Text>
+          <Text style={styles.ctaText}>{t('dealSheet.goToSignIn')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.ctaButton, styles.ctaButtonDisabled]}
           onPress={() => setLoginPromptOpen(false)}
           activeOpacity={0.85}
         >
-          <Text style={[styles.ctaText, styles.ctaTextDisabled]}>Cancelar</Text>
+          <Text style={[styles.ctaText, styles.ctaTextDisabled]}>{t('common.cancel')}</Text>
         </TouchableOpacity>
       </View>
     </View>

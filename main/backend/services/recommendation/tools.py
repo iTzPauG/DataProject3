@@ -14,6 +14,7 @@ from services.cache_service import cache_get, cache_set
 log = logging.getLogger("pipeline")
 
 SEARCH_RESULT_TARGET = 60
+GOOGLE_SEARCH_MAX_LANGUAGES = 7
 FETCH_ALL_REVIEWS_TTL_S = 30 * 60
 FETCH_ALL_REVIEWS_EMPTY_TTL_S = 2 * 60
 FETCH_TIMEOUT_GOOGLE_S = 5.5
@@ -262,7 +263,7 @@ async def search_places(
             price_levels=runtime_options["price_levels"],
             open_now=runtime_options["open_now"],
             rank_preference=runtime_options["rank_preference"],
-            max_languages=1,
+            max_languages=GOOGLE_SEARCH_MAX_LANGUAGES,
         )
 
         for r in google_results:
@@ -377,13 +378,50 @@ def _normalize_reviews(raw_reviews: object, source: str) -> list[dict]:
         normalized.append(
             {
                 "source": source,
+                "review_id": str(review.get("review_id") or review.get("name") or ""),
                 "author": str(review.get("author") or "Anonymous"),
                 "rating": int(review.get("rating") or 0),
                 "text": text,
+                "original_text": str(review.get("original_text") or review.get("text") or text),
+                "original_language": str(review.get("original_language") or ""),
                 "relative_time": str(review.get("relative_time") or ""),
+                "publish_time": str(review.get("publish_time") or ""),
+                "source_language": str(review.get("source_language") or ""),
             }
         )
     return normalized
+
+
+def _review_fingerprint(review: dict) -> tuple[str, str, str, str, int, str]:
+    review_id = str(review.get("review_id") or "").strip().lower()
+    publish_time = str(review.get("publish_time") or "").strip().lower()
+    original_text = " ".join(str(review.get("original_text") or "").strip().lower().split())
+    text = " ".join(str(review.get("text") or "").strip().lower().split())
+    return (
+        str(review.get("source") or "").strip().lower(),
+        review_id,
+        publish_time,
+        str(review.get("author") or "").strip().lower(),
+        int(review.get("rating") or 0),
+        original_text or text,
+    )
+
+
+def merge_review_lists(*review_lists: object) -> list[dict]:
+    merged: list[dict] = []
+    seen: set[tuple[str, str, str, str, int, str]] = set()
+    for raw_list in review_lists:
+        if not isinstance(raw_list, list):
+            continue
+        for review in raw_list:
+            if not isinstance(review, dict):
+                continue
+            fingerprint = _review_fingerprint(review)
+            if not fingerprint[-1] or fingerprint in seen:
+                continue
+            seen.add(fingerprint)
+            merged.append(review)
+    return merged
 
 
 async def fetch_all_reviews(
@@ -397,8 +435,8 @@ async def fetch_all_reviews(
     """Fetch Google, Yelp, and TripAdvisor reviews in parallel."""
     t0 = time.perf_counter()
     safe_name = str(name or "Unknown")
-    # v7 invalidates stale entries created before TripAdvisor secret/cache fixes.
-    cache_key = f"all_reviews_v7:{place_id}:{language}:{lat:.4f}:{lng:.4f}"
+    # v8 invalidates stale entries so multi-language secondary review expansion can populate.
+    cache_key = f"all_reviews_v8:{place_id}:{language}:{lat:.4f}:{lng:.4f}"
     cached = await cache_get(cache_key)
     if cached:
         return cached
@@ -456,10 +494,14 @@ async def fetch_all_reviews(
         tripadvisor_count = 0
 
     google_reviews = _normalize_reviews(details.get("google_reviews", []), "google")
-    if not yelp_reviews:
-        yelp_reviews = _normalize_reviews(details.get("yelp_reviews", []), "yelp")
-    if not tripadvisor_reviews:
-        tripadvisor_reviews = _normalize_reviews(details.get("tripadvisor_reviews", []), "tripadvisor")
+    yelp_reviews = merge_review_lists(
+        yelp_reviews,
+        _normalize_reviews(details.get("yelp_reviews", []), "yelp"),
+    )
+    tripadvisor_reviews = merge_review_lists(
+        tripadvisor_reviews,
+        _normalize_reviews(details.get("tripadvisor_reviews", []), "tripadvisor"),
+    )
 
     total_ratings = details.get("user_rating_count")
     if total_ratings is None:
