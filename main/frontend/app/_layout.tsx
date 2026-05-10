@@ -95,6 +95,7 @@ function PreferencesSyncer() {
   }, [idToken, loading, setMapPreferences]);
 
   return null;
+}
 
 // Prefetch user interactions as soon as the user logs in so ForYou tab loads instantly
 function ForYouPrefetcher() {
@@ -104,8 +105,6 @@ function ForYouPrefetcher() {
     void getCurrentUserInteractions();
   }, [idToken]);
   return null;
-}
-
 }
 
 export default function RootLayout() {
