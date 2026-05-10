@@ -78,8 +78,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="(flow)" />
           <Stack.Screen name="(modals)" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="dashboard" />
-          <Stack.Screen name="restaurant" />
+          <Stack.Screen name="(views)" />
         </Stack>
       </AppStateProvider>
     </GestureHandlerRootView>
