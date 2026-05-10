@@ -1,6 +1,7 @@
 import { Ionicons } from '../../components/SafeIonicons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
@@ -40,6 +41,7 @@ const CUISINE_OPTIONS = [
 
 export default function RegisterBusinessModal() {
   const { colors, typography } = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const { getToken, refreshProfile } = useAuth();
 
@@ -71,13 +73,13 @@ export default function RegisterBusinessModal() {
       body: JSON.stringify(body),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Error del servidor');
+    if (!res.ok) throw new Error(data.detail || t('businessRegistration.serverError'));
     return data;
   }
 
   async function handleVerify() {
     if (!name || !address || !phone) {
-      setError('Rellena nombre, dirección y teléfono');
+      setError(t('businessRegistration.fillRequired'));
       return;
     }
     setError(null);
@@ -109,7 +111,7 @@ export default function RegisterBusinessModal() {
   async function handleComplete() {
     if (!placeData) return;
     if (selectedCuisines.length === 0) {
-      setError('Selecciona al menos un tipo de cocina');
+      setError(t('businessRegistration.pickCuisine'));
       return;
     }
     setLoading(true);
@@ -215,7 +217,7 @@ export default function RegisterBusinessModal() {
       <SafeAreaView style={s.safe}>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ fontSize: 48 }}>🎉</Text>
-          <Text style={s.doneText}>¡Cuenta de restaurante activada!</Text>
+          <Text style={s.doneText}>{t('businessRegistration.doneTitle')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -223,7 +225,7 @@ export default function RegisterBusinessModal() {
 
   const cuisinesLabel = selectedCuisines.length
     ? selectedCuisines.join(', ')
-    : 'Selecciona uno o varios tipos';
+    : t('businessRegistration.cuisinePlaceholder');
 
   const toggleCuisine = (value: string) => {
     setSelectedCuisines((prev) => {
@@ -244,21 +246,21 @@ export default function RegisterBusinessModal() {
           {(step === 'form' || step === 'verifying') && (
             <>
               <Text style={s.title}>Registra tu restaurante</Text>
-              <Text style={s.subtitle}>Verificaremos que eres el titular comparando el teléfono con Google Maps.</Text>
+              <Text style={s.subtitle}>{t('businessRegistration.formSubtitle')}</Text>
 
-              <Text style={s.label}>Nombre del restaurante *</Text>
-              <TextInput style={s.input} value={name} onChangeText={setName} placeholder="Ej: La Pepica" placeholderTextColor={colors.inkFaint} />
+              <Text style={s.label}>{t('businessRegistration.restaurantName')}</Text>
+              <TextInput style={s.input} value={name} onChangeText={setName} placeholder={t('businessRegistration.restaurantNamePlaceholder')} placeholderTextColor={colors.inkFaint} />
 
-              <Text style={s.label}>Dirección *</Text>
-              <TextInput style={s.input} value={address} onChangeText={setAddress} placeholder="Calle, número, ciudad" placeholderTextColor={colors.inkFaint} />
+              <Text style={s.label}>{t('businessRegistration.address')}</Text>
+              <TextInput style={s.input} value={address} onChangeText={setAddress} placeholder={t('businessRegistration.addressPlaceholder')} placeholderTextColor={colors.inkFaint} />
 
-              <Text style={s.label}>Teléfono del negocio (el que aparece en Google Maps) *</Text>
-              <TextInput style={s.input} value={phone} onChangeText={setPhone} placeholder="+34 963 71 03 66" placeholderTextColor={colors.inkFaint} keyboardType="phone-pad" />
+              <Text style={s.label}>{t('businessRegistration.phone')}</Text>
+              <TextInput style={s.input} value={phone} onChangeText={setPhone} placeholder={t('businessRegistration.phonePlaceholder')} placeholderTextColor={colors.inkFaint} keyboardType="phone-pad" />
 
-              <Text style={s.label}>Link de Google Maps (opcional)</Text>
-              <TextInput style={s.input} value={mapsUrl} onChangeText={setMapsUrl} placeholder="https://maps.google.com/..." placeholderTextColor={colors.inkFaint} autoCapitalize="none" />
+              <Text style={s.label}>{t('businessRegistration.mapsLink')}</Text>
+              <TextInput style={s.input} value={mapsUrl} onChangeText={setMapsUrl} placeholder={t('businessRegistration.mapsLinkPlaceholder')} placeholderTextColor={colors.inkFaint} autoCapitalize="none" />
 
-              <Text style={s.label}>Tipo de cocina (puedes elegir varias) *</Text>
+              <Text style={s.label}>{t('businessRegistration.cuisineLabel')}</Text>
               <TouchableOpacity
                 style={s.selectHeader}
                 onPress={() => setCuisineDropdownOpen((prev) => !prev)}
@@ -296,7 +298,7 @@ export default function RegisterBusinessModal() {
               {error && <Text style={s.error}>{error}</Text>}
 
               <TouchableOpacity style={s.btn} onPress={handleVerify} disabled={loading}>
-                {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Verificar negocio →</Text>}
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>{t('businessRegistration.verifyCta')}</Text>}
               </TouchableOpacity>
             </>
           )}
@@ -304,31 +306,31 @@ export default function RegisterBusinessModal() {
           {/* ── STEP: OTP (phone matched) ── */}
           {step === 'otp' && placeData && (
             <>
-              <Text style={s.title}>Verificación por SMS</Text>
-              <Text style={s.subtitle}>Hemos encontrado tu restaurante en Google Maps.</Text>
+              <Text style={s.title}>{t('businessRegistration.otpTitle')}</Text>
+              <Text style={s.subtitle}>{t('businessRegistration.otpSubtitle')}</Text>
 
               <View style={s.infoBox}>
-                <Text style={s.infoLabel}>Restaurante encontrado</Text>
+                <Text style={s.infoLabel}>{t('businessRegistration.foundRestaurant')}</Text>
                 <Text style={s.infoValue}>{placeData.name}</Text>
-                <Text style={[s.infoLabel, { marginTop: 8 }]}>Dirección</Text>
+                <Text style={[s.infoLabel, { marginTop: 8 }]}>{t('common.address')}</Text>
                 <Text style={s.infoValue}>{placeData.address}</Text>
                 <View style={s.matchBadge}>
                   <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
-                  <Text style={s.badgeText}>Teléfono verificado con Google Maps ✓</Text>
+                  <Text style={s.badgeText}>{t('businessRegistration.phoneVerified')}</Text>
                 </View>
               </View>
 
               <Text style={s.subtitle}>
-                Hemos enviado un código al {placeData.maps_phone}. Introdúcelo para confirmar que eres el titular.
+                {t('businessRegistration.otpSent', { phone: placeData.maps_phone })}
               </Text>
 
-              <Text style={s.label}>Código OTP</Text>
-              <TextInput style={s.input} value={otp} onChangeText={setOtp} placeholder="123456" placeholderTextColor={colors.inkFaint} keyboardType="number-pad" maxLength={6} />
+              <Text style={s.label}>{t('businessRegistration.otpCode')}</Text>
+              <TextInput style={s.input} value={otp} onChangeText={setOtp} placeholder={t('businessRegistration.otpPlaceholder')} placeholderTextColor={colors.inkFaint} keyboardType="number-pad" maxLength={6} />
 
               {error && <Text style={s.error}>{error}</Text>}
 
               <TouchableOpacity style={s.btn} onPress={handleComplete} disabled={loading || otp.length < 4}>
-                {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Confirmar y activar cuenta →</Text>}
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>{t('businessRegistration.confirmCta')}</Text>}
               </TouchableOpacity>
             </>
           )}
@@ -336,22 +338,22 @@ export default function RegisterBusinessModal() {
           {/* ── STEP: email fallback (phone didn't match) ── */}
           {step === 'email_fallback' && placeData && (
             <>
-              <Text style={s.title}>Verificación alternativa</Text>
-              <Text style={s.subtitle}>El teléfono no coincide con el de Google Maps. Puedes verificar con tu email corporativo.</Text>
+              <Text style={s.title}>{t('businessRegistration.altTitle')}</Text>
+              <Text style={s.subtitle}>{t('businessRegistration.altSubtitle')}</Text>
 
               <View style={s.infoBox}>
-                <Text style={s.infoLabel}>Restaurante encontrado</Text>
+                <Text style={s.infoLabel}>{t('businessRegistration.foundRestaurant')}</Text>
                 <Text style={s.infoValue}>{placeData.name}</Text>
                 <View style={s.noMatchBadge}>
                   <Ionicons name="warning" size={16} color="#EF4444" />
-                  <Text style={s.badgeText}>Teléfono no coincide con Google Maps</Text>
+                  <Text style={s.badgeText}>{t('businessRegistration.phoneMismatch')}</Text>
                 </View>
               </View>
 
-              <Text style={s.label}>Email corporativo del negocio</Text>
+              <Text style={s.label}>{t('businessRegistration.businessEmail')}</Text>
               <TextInput
                 style={s.input} value={corpEmail} onChangeText={setCorpEmail}
-                placeholder="info@mirestaurante.com" placeholderTextColor={colors.inkFaint}
+                placeholder={t('businessRegistration.businessEmailPlaceholder')} placeholderTextColor={colors.inkFaint}
                 keyboardType="email-address" autoCapitalize="none"
               />
 
@@ -362,7 +364,7 @@ export default function RegisterBusinessModal() {
                 onPress={handleComplete}
                 disabled={loading || !corpEmail.includes('@')}
               >
-                {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Enviar verificación →</Text>}
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>{t('businessRegistration.sendVerification')}</Text>}
               </TouchableOpacity>
             </>
           )}

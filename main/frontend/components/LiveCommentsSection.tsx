@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from './SafeIonicons';
 import { useTheme } from '../utils/theme';
 import { BASE_URL } from '../services/api';
+import { formatTimeAgo } from '../utils/format';
 
 type Comment = {
   id: string;
@@ -47,32 +48,19 @@ interface Props {
   canPost?: boolean;
 }
 
-const REPORT_TYPE_META: Record<string, { label: string; emoji: string; color: string }> = {
-  comment:      { label: 'Comentario',  emoji: '💬', color: '#7C6CF2' },
-  queue:        { label: 'Cola larga',  emoji: '👥', color: '#F59E0B' },
-  noise:        { label: 'Ruidoso',     emoji: '🔊', color: '#EF4444' },
-  live_music:   { label: 'Música',      emoji: '🎵', color: '#A855F7' },
-  free_stuff:   { label: 'Gratis',      emoji: '🎁', color: '#22C55E' },
-  food_truck:   { label: 'Food truck',  emoji: '🚚', color: '#FF6B35' },
-  popup_market: { label: 'Mercadillo',  emoji: '🏪', color: '#10B981' },
-  street_show:  { label: 'Espectáculo', emoji: '🎭', color: '#EC4899' },
-  other:        { label: 'Otro',        emoji: '📍', color: '#6366F1' },
+const REPORT_TYPE_META: Record<string, { labelKey: string; emoji: string; color: string }> = {
+  comment:      { labelKey: 'liveComments.types.comment', emoji: '💬', color: '#7C6CF2' },
+  queue:        { labelKey: 'liveComments.types.queue', emoji: '👥', color: '#F59E0B' },
+  noise:        { labelKey: 'liveComments.types.noise', emoji: '🔊', color: '#EF4444' },
+  live_music:   { labelKey: 'liveComments.types.live_music', emoji: '🎵', color: '#A855F7' },
+  free_stuff:   { labelKey: 'liveComments.types.free_stuff', emoji: '🎁', color: '#22C55E' },
+  food_truck:   { labelKey: 'liveComments.types.food_truck', emoji: '🚚', color: '#FF6B35' },
+  popup_market: { labelKey: 'liveComments.types.popup_market', emoji: '🏪', color: '#10B981' },
+  street_show:  { labelKey: 'liveComments.types.street_show', emoji: '🎭', color: '#EC4899' },
+  other:        { labelKey: 'liveComments.types.other', emoji: '📍', color: '#6366F1' },
 };
 
 const QUICK_TYPES = ['comment', 'queue', 'noise', 'live_music', 'free_stuff', 'other'];
-
-function formatRelative(iso: string): string {
-  const then = new Date(iso).getTime();
-  const now = Date.now();
-  const diff = Math.max(0, now - then);
-  const min = Math.round(diff / 60_000);
-  if (min < 1) return 'ahora';
-  if (min < 60) return `hace ${min} min`;
-  const hours = Math.round(min / 60);
-  if (hours < 24) return `hace ${hours} h`;
-  const days = Math.round(hours / 24);
-  return `hace ${days} d`;
-}
 
 function LiveCommentIcon({ size = 22, color = '#FFFFFF' }: { size?: number; color?: string }) {
   const pulse = useRef(new Animated.Value(0)).current;
@@ -134,7 +122,7 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
 
   const handleSubmit = async () => {
     if (title.trim().length < 2) {
-      Alert.alert('Aviso', 'El comentario debe ser más largo.');
+      Alert.alert(t('liveComments.validationTitle'), t('liveComments.validationBody'));
       return;
     }
     setSubmitting(true);
@@ -160,10 +148,10 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
         setLoading(true);
         fetchComments();
       } else {
-        Alert.alert('Error', 'No se pudo publicar el reporte.');
+        Alert.alert(t('common.error'), t('liveComments.publishError'));
       }
     } catch (e) {
-      Alert.alert('Error', 'No se pudo conectar al servidor.');
+      Alert.alert(t('common.error'), t('liveComments.connectionError'));
     } finally {
       setSubmitting(false);
     }
@@ -376,19 +364,19 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
           <Ionicons name="chatbubbles" size={20} color="#FFFFFF" />
-          <Text style={styles.title}>En directo</Text>
+          <Text style={styles.title}>{t('liveComments.title')}</Text>
         </View>
         <TouchableOpacity
           style={[styles.addBtn, !canPost && { opacity: 0.55 }]}
           onPress={() => {
             if (!canPost) {
-              Alert.alert('Acceso restringido', 'Inicia sesión para comentar.');
+              Alert.alert(t('profile.restrictedAccess'), t('liveComments.restrictedBody'));
               return;
             }
             setShowModal(true);
           }}
         >
-          <Text style={styles.addBtnText}>+ Añadir</Text>
+          <Text style={styles.addBtnText}>{t('liveComments.add')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -399,7 +387,7 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
       )}
 
       {(!data?.comments || data.comments.length === 0) ? (
-        <Text style={styles.emptyText}>No hay reportes recientes. ¡Sé el primero!</Text>
+        <Text style={styles.emptyText}>{t('liveComments.empty')}</Text>
       ) : (
         <View>
           {data.comments.map((comment) => {
@@ -415,9 +403,11 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
                     <Text style={styles.commentDesc} numberOfLines={2}>{comment.description}</Text>
                   ) : null}
                   <View style={styles.commentMetaRow}>
-                    <Text style={styles.commentMetaText}>{formatRelative(comment.created_at)}</Text>
+                    <Text style={styles.commentMetaText}>{formatTimeAgo(comment.created_at, t)}</Text>
                     {comment.distance_m != null && (
-                      <Text style={styles.commentMetaText}>· a {comment.distance_m}m</Text>
+                      <Text style={styles.commentMetaText}>
+                        {t('liveComments.distanceMeters', { count: Math.round(comment.distance_m) })}
+                      </Text>
                     )}
                   </View>
                 </View>
@@ -434,8 +424,8 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
               <Ionicons name="close" size={24} color={colors.ink} />
             </TouchableOpacity>
             
-            <Text style={styles.modalTitle}>¿Qué está pasando?</Text>
-            <Text style={styles.modalSub}>Reporta en vivo sobre {placeName}</Text>
+            <Text style={styles.modalTitle}>{t('liveComments.modalTitle')}</Text>
+            <Text style={styles.modalSub}>{t('liveComments.modalSubtitle', { placeName })}</Text>
 
             <View style={styles.typeGrid}>
               {QUICK_TYPES.map(key => {
@@ -448,7 +438,7 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
                     onPress={() => setReportType(key)}
                   >
                     <Text>{meta.emoji}</Text>
-                    <Text style={styles.typeBtnText}>{meta.label}</Text>
+                    <Text style={styles.typeBtnText}>{t(meta.labelKey)}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -456,7 +446,7 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
 
             <TextInput
               style={styles.input}
-              placeholder="Titular breve (ej. Cola de 20 mins)"
+              placeholder={t('liveComments.titlePlaceholder')}
               placeholderTextColor={colors.inkMuted}
               value={title}
               onChangeText={setTitle}
@@ -465,7 +455,7 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
 
             <TextInput
               style={[styles.input, styles.textarea]}
-              placeholder="Detalles adicionales (opcional)"
+              placeholder={t('liveComments.descriptionPlaceholder')}
               placeholderTextColor={colors.inkMuted}
               value={description}
               onChangeText={setDescription}
@@ -481,7 +471,7 @@ export default function LiveCommentsSection({ placeId, placeName, lat, lng, lang
               {submitting ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.submitBtnText}>Publicar ahora</Text>
+                <Text style={styles.submitBtnText}>{t('liveComments.submit')}</Text>
               )}
             </TouchableOpacity>
           </View>

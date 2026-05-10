@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
 import { useTheme } from '../../utils/theme';
 import {
@@ -42,7 +43,7 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // All available sections for random selection
 interface SectionConfig {
-  title: string;
+  titleKey: string;
   emoji: string;
   query: string;
   fixed?: boolean;
@@ -55,19 +56,19 @@ interface SectionConfig {
 }
 
 const ALL_SECTIONS: SectionConfig[] = [
-  { title: 'Tendencias',        emoji: '🔥', query: 'restaurante popular Valencia',        fixed: true, trending: true },
-  { title: 'Pizzerías',         emoji: '🍕', query: 'pizzeria restaurante',                affinityTags: ['pizza','italiana'],                                    dislikeTags: [] },
-  { title: 'Hamburguesas',      emoji: '🍔', query: 'hamburguesa restaurante',             affinityTags: ['hamburguesa','burger'],                                dislikeTags: ['hamburguesa','burger','fast food'] },
-  { title: 'Sushi',             emoji: '🍱', query: 'sushi japones restaurante',           affinityTags: ['sushi','japonés','asiático','ramen','poke'],            dislikeTags: ['sushi','japonés','asiático'] },
-  { title: 'Cafés & Brunch',    emoji: '☕', query: 'cafe brunch desayuno',                affinityTags: ['brunch','café','coffee','desayuno'],                    dislikeTags: [] },
-  { title: 'Vegano / Saludable',emoji: '🌱', query: 'vegano saludable restaurante',        affinityTags: ['vegano','saludable','healthy','vegan','orgánico'],      dislikeTags: ['vegano','saludable','healthy'] },
-  { title: 'Abiertos de noche', emoji: '🌙', query: 'restaurante nocturno',                affinityTags: ['nocturno','noche','bar','copas'],                       dislikeTags: [] },
-  { title: 'Para una cita',     emoji: '🎯', query: 'restaurante romantico cena',          affinityTags: [],                                                      dislikeTags: [] },
-  { title: 'Familiar',          emoji: '👨‍👩‍👧', query: 'restaurante familiar',            affinityTags: [],                                                      dislikeTags: [] },
-  { title: 'Instagrameables',   emoji: '📸', query: 'restaurante bonito moderno',          affinityTags: ['moderno','fusión','instagrameable'],                    dislikeTags: [] },
-  { title: 'Terrazas',          emoji: '🍹', query: 'restaurante terraza',                 affinityTags: ['terraza','exterior'],                                  dislikeTags: [] },
-  { title: 'Lo más nuevo',      emoji: '✨', query: 'restaurante reciente nuevo Valencia',  affinityTags: [],                                                      dislikeTags: [], newish: true },
-  { title: 'Comida Rápida',     emoji: '🍟', query: 'comida rapida burger fast food Valencia', affinityTags: ['fast food','comida rápida'],                       dislikeTags: ['fast food','comida rápida','mcdonalds','montaditos'] },
+  { titleKey: 'foryou.sections.trending', emoji: '🔥', query: 'restaurante popular Valencia', fixed: true, trending: true },
+  { titleKey: 'foryou.sections.pizza', emoji: '🍕', query: 'pizzeria restaurante', affinityTags: ['pizza','italiana'], dislikeTags: [] },
+  { titleKey: 'foryou.sections.burgers', emoji: '🍔', query: 'hamburguesa restaurante', affinityTags: ['hamburguesa','burger'], dislikeTags: ['hamburguesa','burger','fast food'] },
+  { titleKey: 'foryou.sections.sushi', emoji: '🍱', query: 'sushi japones restaurante', affinityTags: ['sushi','japonés','asiático','ramen','poke'], dislikeTags: ['sushi','japonés','asiático'] },
+  { titleKey: 'foryou.sections.coffeeBrunch', emoji: '☕', query: 'cafe brunch desayuno', affinityTags: ['brunch','café','coffee','desayuno'], dislikeTags: [] },
+  { titleKey: 'foryou.sections.veganHealthy', emoji: '🌱', query: 'vegano saludable restaurante', affinityTags: ['vegano','saludable','healthy','vegan','orgánico'], dislikeTags: ['vegano','saludable','healthy'] },
+  { titleKey: 'foryou.sections.nightOpen', emoji: '🌙', query: 'restaurante nocturno', affinityTags: ['nocturno','noche','bar','copas'], dislikeTags: [] },
+  { titleKey: 'foryou.sections.date', emoji: '🎯', query: 'restaurante romantico cena', affinityTags: [], dislikeTags: [] },
+  { titleKey: 'foryou.sections.family', emoji: '👨‍👩‍👧', query: 'restaurante familiar', affinityTags: [], dislikeTags: [] },
+  { titleKey: 'foryou.sections.instagrammable', emoji: '📸', query: 'restaurante bonito moderno', affinityTags: ['moderno','fusión','instagrameable'], dislikeTags: [] },
+  { titleKey: 'foryou.sections.terraces', emoji: '🍹', query: 'restaurante terraza', affinityTags: ['terraza','exterior'], dislikeTags: [] },
+  { titleKey: 'foryou.sections.new', emoji: '✨', query: 'restaurante reciente nuevo Valencia', affinityTags: [], dislikeTags: [], newish: true },
+  { titleKey: 'foryou.sections.fastFood', emoji: '🍟', query: 'comida rapida burger fast food Valencia', affinityTags: ['fast food','comida rápida'], dislikeTags: ['fast food','comida rápida','mcdonalds','montaditos'] },
 ] as (SectionConfig & { newish?: boolean })[];
 
 // Cuenta cuántos `affinityTags` de una sección coinciden con los positiveTags
@@ -360,6 +361,7 @@ function SectionRow({
 
 export default function ForYouTab() {
   const { colors, typography, radii, shadows } = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const auth = useAuth();
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -516,9 +518,9 @@ export default function ForYouTab() {
         // Good: despejado o casi despejado (0-1) sin precipitación
         const isGoodWeather = !isBadWeather && (code === 0 || code === 1);
         if (isBadWeather) {
-          setWeatherSection({ title: 'Para refugiarse', emoji: '🌧️', query: 'restaurante interior acogedor' });
+          setWeatherSection({ titleKey: 'foryou.weather.cozy', emoji: '🌧️', query: 'restaurante interior acogedor' });
         } else if (isGoodWeather) {
-          setWeatherSection({ title: 'Terrazas al sol', emoji: '☀️', query: 'restaurante terraza exterior' });
+          setWeatherSection({ titleKey: 'foryou.weather.sunny', emoji: '☀️', query: 'restaurante terraza exterior' });
         } else {
           setWeatherSection(null);
         }
@@ -654,7 +656,7 @@ export default function ForYouTab() {
                 >
                   <View style={dynamicStyles.heroContent}>
                     <View style={dynamicStyles.heroBadge}>
-                      <Text style={dynamicStyles.heroBadgeText}>Restaurante del día</Text>
+                      <Text style={dynamicStyles.heroBadgeText}>{t('foryou.dayRestaurant')}</Text>
                     </View>
 
                     <Text style={dynamicStyles.heroName}>{heroRestaurant.name}</Text>
@@ -670,7 +672,7 @@ export default function ForYouTab() {
                 <View style={dynamicStyles.heroContainer}>
                   <View style={dynamicStyles.heroContent}>
                     <View style={dynamicStyles.heroBadge}>
-                      <Text style={dynamicStyles.heroBadgeText}>Restaurante del día</Text>
+                      <Text style={dynamicStyles.heroBadgeText}>{t('foryou.dayRestaurant')}</Text>
                     </View>
 
                     <Text style={dynamicStyles.heroName}>{heroRestaurant.name}</Text>
@@ -710,7 +712,7 @@ export default function ForYouTab() {
           {sectionsRef.current.slice(0, 1).map((section) => (
             <SectionRow
               key={section.query}
-              title={section.title}
+              title={t(section.titleKey)}
               emoji={section.emoji}
               query={section.query.replace(/Valencia/gi, city)}
               lat={location.lat}
@@ -724,10 +726,54 @@ export default function ForYouTab() {
               onRestaurantPress={handleRestaurantPress}
             />
           ))}
+          {/* Personalized — only render if we have at least one positive tag. */}
+          {profile.positiveTags.size > 0 && (() => {
+            const sig = getRecommendationSignals(profile.positiveTags, city);
+            const personalLabel = sig.personalTokens.length > 0
+              ? sig.personalTokens.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ')
+              : null;
+            const sub = personalLabel
+              ? t('foryou.personalizedWithSignals', { signals: personalLabel, cluster: sig.cluster.id })
+              : t('foryou.personalizedWithCluster', { cluster: sig.cluster.id });
+            return (
+              <SectionRow
+                key="personalized"
+                title={t('foryou.personalizedTitle')}
+                emoji="✨"
+                subtitle={sub}
+                query={buildPersonalizedQuery(profile.positiveTags, city)}
+                lat={location.lat}
+                lng={location.lng}
+                radiusM={8000}
+                maxItems={12}
+                seenIdsRef={seenIdsRef}
+                colors={colors}
+                typography={typography}
+                radii={radii}
+                shadows={shadows}
+                onRestaurantPress={handleRestaurantPress}
+              />
+            );
+          })()}
+          {/* Collaborative-style cluster recommendation */}
+          <SectionRow
+            key="tribe"
+            title={t('foryou.tribeTitle')}
+            emoji="👥"
+            query={buildTribeQuery(profile.positiveTags, city)}
+            lat={location.lat}
+            lng={location.lng}
+            seenIdsRef={seenIdsRef}
+            colors={colors}
+            typography={typography}
+            radii={radii}
+            shadows={shadows}
+            onRestaurantPress={handleRestaurantPress}
+          />
           {/* Surprise / out of comfort zone */}
           <SectionRow
             key="surprise"
-            title="¿Te atreves?"
+            title={t('foryou.surpriseTitle')}
             emoji="🎲"
             query={buildSurpriseQuery(profile.positiveTags, city)}
             lat={location.lat}
@@ -743,7 +789,7 @@ export default function ForYouTab() {
           {weatherSection && (
             <SectionRow
               key={weatherSection.query}
-              title={weatherSection.title}
+              title={t(weatherSection.titleKey)}
               emoji={weatherSection.emoji}
               query={`${weatherSection.query} ${city}`}
               lat={location.lat}
@@ -759,7 +805,7 @@ export default function ForYouTab() {
           {sectionsRef.current.slice(1).map((section) => (
             <SectionRow
               key={section.query}
-              title={section.title}
+              title={t(section.titleKey)}
               emoji={section.emoji}
               query={section.query.replace(/Valencia/gi, city)}
               lat={location.lat}

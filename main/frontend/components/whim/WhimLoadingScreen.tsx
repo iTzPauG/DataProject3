@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import Animated, {
   Easing,
@@ -12,14 +13,6 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { useTheme } from "../../utils/theme";
-
-const LOADING_PHRASES = [
-  "Leyendo reseñas reales para filtrar mejor...",
-  "Buscando sitios que encajen contigo de verdad...",
-  "Consultando Google, OSM y más fuentes...",
-  "Casi listo, preparando tu selección final...",
-  "Comprobando valoraciones y distancia...",
-];
 
 const CATEGORY_EMOJIS: Record<string, string[]> = {
   pizza: ["🍕", "🧀", "🍝", "🍴"],
@@ -111,6 +104,8 @@ export const WhimLoadingScreen = ({
   selectedCategory?: string | null;
 }) => {
   const { colors, typography, radii, shadows } = useTheme();
+  const { t } = useTranslation();
+  const loadingPhrases = t('whim.loading.phrases', { returnObjects: true }) as string[];
   const [phraseIndex, setPhraseIndex] = useState(0);
   const glow = useSharedValue(0);
   const emojis = useMemo(() => emojisForCategory(selectedCategory), [selectedCategory]);
@@ -189,11 +184,11 @@ export const WhimLoadingScreen = ({
     );
 
     const interval = setInterval(() => {
-      setPhraseIndex((i) => (i + 1) % LOADING_PHRASES.length);
+      setPhraseIndex((i) => (i + 1) % Math.max(loadingPhrases.length, 1));
     }, 2600);
 
     return () => clearInterval(interval);
-  }, [glow]);
+  }, [glow, loadingPhrases.length]);
 
   const glowStyle = useAnimatedStyle(() => ({
     borderColor: interpolateColor(glow.value, [0, 1], [colors.stroke, colors.brand]),
@@ -213,8 +208,8 @@ export const WhimLoadingScreen = ({
             <BouncingEmoji key={`${emoji}-${index}`} emoji={emoji} delayMs={index * 130} />
           ))}
         </View>
-        <Text style={styles.heroTitle}>Buscando tu próximo restaurante</Text>
-        <Text style={styles.heroSubtitle}>{LOADING_PHRASES[phraseIndex]}</Text>
+        <Text style={styles.heroTitle}>{t('whim.loading.title')}</Text>
+        <Text style={styles.heroSubtitle}>{loadingPhrases[phraseIndex] || t('whim.loading.title')}</Text>
       </Animated.View>
 
       {activeFilters.length > 0 && (

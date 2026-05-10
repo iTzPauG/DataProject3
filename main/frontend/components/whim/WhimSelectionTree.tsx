@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -76,6 +77,7 @@ const FoodCard = ({ item, isSelected, onPress }: { item: any, isSelected: boolea
 };
 
 export const WhimSelectionTree = ({ onSearch }: { onSearch?: (selections: any) => void }) => {
+  const { t } = useTranslation();
   const [selections, setSelections] = useState({
     food: null as string | null,
     speed: null as string | null,
@@ -98,7 +100,7 @@ export const WhimSelectionTree = ({ onSearch }: { onSearch?: (selections: any) =
       <ScrollView contentContainerStyle={styles.scrollContent}>
         
         {/* Section 1: Food */}
-        <Text style={styles.sectionTitle}>¿Qué te apetece?</Text>
+        <Text style={styles.sectionTitle}>{t('whim.selection.foodTitle')}</Text>
         <View style={styles.grid}>
           {FOOD_CATEGORIES.map(item => (
             <FoodCard
@@ -111,7 +113,7 @@ export const WhimSelectionTree = ({ onSearch }: { onSearch?: (selections: any) =
         </View>
 
         {/* Section 2: Speed */}
-        <Text style={styles.sectionTitle}>¿Cómo lo quieres?</Text>
+        <Text style={styles.sectionTitle}>{t('whim.selection.speedTitle')}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
           {SPEED_OPTIONS.map(item => {
             const isSelected = selections.speed === item.id;
@@ -129,7 +131,7 @@ export const WhimSelectionTree = ({ onSearch }: { onSearch?: (selections: any) =
         </ScrollView>
 
         {/* Section 3: Budget */}
-        <Text style={styles.sectionTitle}>¿Cuánto te gastas?</Text>
+        <Text style={styles.sectionTitle}>{t('whim.selection.budgetTitle')}</Text>
         <View style={styles.segmentedControl}>
           {BUDGET_OPTIONS.map(item => {
             const isSelected = selections.budget === item.id;
@@ -146,7 +148,7 @@ export const WhimSelectionTree = ({ onSearch }: { onSearch?: (selections: any) =
         </View>
 
         {/* Section 4: Mood */}
-        <Text style={styles.sectionTitle}>¿Qué ambiente?</Text>
+        <Text style={styles.sectionTitle}>{t('whim.selection.moodTitle')}</Text>
         <View style={styles.rowWrap}>
           {MOOD_OPTIONS.map(item => {
             const isSelected = selections.mood === item.id;
@@ -172,7 +174,7 @@ export const WhimSelectionTree = ({ onSearch }: { onSearch?: (selections: any) =
       {/* CTA Bottom */}
       <View style={styles.ctaContainer}>
         {isConflicting && (
-          <Text style={styles.conflictText}>Esta combo no suele funcionar bien 👀</Text>
+          <Text style={styles.conflictText}>{t('whim.selection.conflict')}</Text>
         )}
         <Pressable 
           disabled={!hasSelection}
@@ -185,7 +187,7 @@ export const WhimSelectionTree = ({ onSearch }: { onSearch?: (selections: any) =
             end={{ x: 1, y: 1 }}
             style={styles.ctaButton}
           >
-            <Text style={[styles.ctaText, !hasSelection && { color: whimTheme.colors.text.secondary }]}>Buscar WHIM</Text>
+            <Text style={[styles.ctaText, !hasSelection && { color: whimTheme.colors.text.secondary }]}>{t('whim.selection.search')}</Text>
           </LinearGradient>
         </Pressable>
       </View>

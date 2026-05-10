@@ -98,7 +98,14 @@
       "savedDesc": "Places and events you bookmarked",
       "settings": "Preferences",
       "settingsDesc": "Map, notifications, language"
-    }
+    },
+    "restaurantPhotoTitle": "Restaurant photo",
+    "restaurantFallback": "Restaurant",
+    "photoUploading": "Uploading photo...",
+    "photoUploadCta": "Upload or change photo",
+    "photoUpdatedTitle": "Photo updated",
+    "photoUpdatedBody": "The restaurant image has been saved successfully.",
+    "photoUploadError": "Could not update the restaurant photo"
   },
   "report": {
     "title": "Report",
@@ -155,7 +162,18 @@
     "confirmations": "Confirmations",
     "denials": "Denials",
     "confidenceLevel": "Confidence",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "missingId": "Report ID not found",
+    "notFound": "Report not found",
+    "voteRestrictedBody": "Sign in to confirm or dismiss reports.",
+    "voteConfirmedTitle": "Confirmed!",
+    "voteConfirmedBody": "Thank you for confirming this report.",
+    "voteDismissedTitle": "Dismissed",
+    "voteDismissedBody": "Thank you. Your opinion helps the community.",
+    "voteError": "Could not record your vote. Please try again.",
+    "created": "Created {{timeAgo}}",
+    "voteQuestion": "Is this report still valid?",
+    "votedThanks": "Thanks for your contribution!"
   },
   "placeDetails": {
     "notFound": "Place not found",
@@ -171,7 +189,8 @@
     "recommended": "Recommended place",
     "rating": "Rating: {{rating}}",
     "whimTake": "WHIM's Take",
-    "bookmarkSignInHint": "Sign in to save your favorite places."
+    "bookmarkSignInHint": "Sign in to save your favorite places.",
+    "placeFallback": "Place"
   },
   "fuel": {
     "gasolina_95": "Gasolina 95",
@@ -219,7 +238,9 @@
     "price_2": "Medium",
     "price_3": "Premium",
     "moodTitle": "What's the plan?",
-    "moodSubtitle": "Choose the perfect mood"
+    "moodSubtitle": "Choose the perfect mood",
+    "loadMore": "Find more places",
+    "allResultsShown": "You have seen all available results."
   },
   "category": {
     "food": "Food",
@@ -514,5 +535,238 @@
     "Your trusted corners.",
     "The exclusive club of your saved places.",
     "Your discoveries, sorted and ready."
-  ]
+  ],
+  "location": {
+    "locating": "Locating you…",
+    "gateTitle": "Enable your location",
+    "gateBody": "We need to know where you are to show you deals, restaurants and events around you in real time.",
+    "enable": "Enable location",
+    "openSettings": "Open browser settings"
+  },
+  "time": {
+    "now": "now",
+    "momentAgo": "a moment ago",
+    "minutesAgo_one": "{{count}} minute ago",
+    "minutesAgo_other": "{{count}} minutes ago",
+    "hoursAgo_one": "{{count}} hour ago",
+    "hoursAgo_other": "{{count}} hours ago",
+    "daysAgo_one": "{{count}} day ago",
+    "daysAgo_other": "{{count}} days ago",
+    "monthsAgo_one": "{{count}} month ago",
+    "monthsAgo_other": "{{count}} months ago",
+    "expired": "Expired",
+    "expiresInMinutes_one": "Expires in {{count}}m",
+    "expiresInMinutes_other": "Expires in {{count}}m",
+    "expiresInHours_one": "Expires in {{count}}h",
+    "expiresInHours_other": "Expires in {{count}}h",
+    "expiresInHoursMinutes": "Expires in {{hours}}h {{minutes}}m"
+  },
+  "liveComments": {
+    "title": "Live",
+    "add": "+ Add",
+    "empty": "No recent reports. Be the first!",
+    "restrictedBody": "Sign in to comment.",
+    "modalTitle": "What is happening?",
+    "modalSubtitle": "Report live about {{placeName}}",
+    "titlePlaceholder": "Short headline (e.g. 20-min queue)",
+    "descriptionPlaceholder": "Additional details (optional)",
+    "submit": "Post now",
+    "validationTitle": "Notice",
+    "validationBody": "The comment must be longer.",
+    "publishError": "Could not publish the report.",
+    "connectionError": "Could not connect to the server.",
+    "distanceMeters": "· {{count}}m away",
+    "types": {
+      "comment": "Comment",
+      "queue": "Long queue",
+      "noise": "Noisy",
+      "live_music": "Music",
+      "free_stuff": "Free",
+      "food_truck": "Food truck",
+      "popup_market": "Pop-up market",
+      "street_show": "Street show",
+      "other": "Other"
+    }
+  },
+  "foryou": {
+    "dayRestaurant": "Restaurant of the day",
+    "personalizedTitle": "Based on your taste",
+    "tribeTitle": "Your tribe recommends",
+    "surpriseTitle": "Feeling adventurous?",
+    "personalizedWithSignals": "Based on what you have seen and saved: {{signals}}. Cluster · {{cluster}}.",
+    "personalizedWithCluster": "Based on your cluster · {{cluster}}.",
+    "weather": {
+      "cozy": "Cozy spots",
+      "sunny": "Sunny terraces"
+    },
+    "sections": {
+      "trending": "Trending",
+      "pizza": "Pizzerias",
+      "burgers": "Burgers",
+      "sushi": "Sushi",
+      "coffeeBrunch": "Cafés & Brunch",
+      "veganHealthy": "Vegan / Healthy",
+      "nightOpen": "Open at night",
+      "date": "For a date",
+      "family": "Family-friendly",
+      "instagrammable": "Instagrammable",
+      "terraces": "Terraces",
+      "new": "Newest",
+      "fastFood": "Fast food"
+    }
+  },
+  "publish": {
+    "title": "Publish a free table",
+    "subtitle": "Post last-minute tables and they will appear automatically on the user map.",
+    "restrictedBody": "This tab is only for verified restaurant accounts.",
+    "verifyRestaurant": "Verify restaurant",
+    "verifiedRestaurant": "Verified restaurant",
+    "currentPrice": "Current price (EUR)",
+    "originalPrice": "Original price (optional)",
+    "availableTables": "Available tables",
+    "offerDate": "Offer date (YYYY-MM-DD)",
+    "offerDatePlaceholder": "e.g. 2026-05-10",
+    "deadlineTime": "Booking deadline (HH:MM)",
+    "deadlinePlaceholder": "e.g. 19:45",
+    "startTime": "Start time (HH:MM)",
+    "startPlaceholder": "e.g. 20:00",
+    "endTime": "End time (HH:MM)",
+    "endPlaceholder": "e.g. 23:30",
+    "endHelper": "The offer is considered finished when the end time is reached if no incident is reported.",
+    "description": "Description",
+    "descriptionPlaceholder": "e.g. Tasting menu with discount until 22:00",
+    "warningTitle": "Review this offer",
+    "publishNow": "Publish now",
+    "successTitle": "Booking confirmed",
+    "successBody": "Your offer has been published successfully and is now visible for booking.",
+    "viewOnMap": "View on map",
+    "keepPublishing": "Keep publishing",
+    "defaultDescription": "Table available right now.",
+    "errors": {
+      "price": "The price must be a number greater than 0.",
+      "originalPrice": "The original price must be a valid number if you fill it in.",
+      "seats": "Please indicate at least one available table.",
+      "offerDate": "The date must use the YYYY-MM-DD format.",
+      "reservationDeadlineTime": "The booking deadline must be in HH:MM format.",
+      "startTime": "The start time must be in HH:MM format.",
+      "endTime": "The end time must be in HH:MM format.",
+      "reservationDeadlineParse": "Could not parse the booking deadline.",
+      "startParse": "Could not parse the start date/time.",
+      "endParse": "Could not parse the end date/time.",
+      "reservationRelation": "The booking deadline cannot be after the start time.",
+      "timeRelation": "The end time must be after the start time.",
+      "startRelation": "The start time must be after the current time.",
+      "publish": "Could not publish the offer",
+      "publishGeneric": "Publishing error"
+    }
+  },
+  "dealSheet": {
+    "unavailableTitle": "Not available",
+    "unavailableBody": "Restaurant accounts cannot book deals.",
+    "requiredTitle": "Required fields",
+    "requiredBody": "Please enter your name and phone number.",
+    "takenTitle": "Booking taken",
+    "takenBody": "This booking has already been taken by another user.",
+    "reserveError": "Booking error",
+    "seats_one": "👥 {{count}} person",
+    "seats_other": "👥 {{count}} people",
+    "reserveUntil": "⛔ Book until {{dateTime}}",
+    "timeWindow": "Slot: {{schedule}}",
+    "unavailableForBusiness": "Not available for restaurant accounts",
+    "interestedCta": "I'm interested in this deal →",
+    "reserveTable": "Book a table",
+    "yourName": "Your name",
+    "fullNamePlaceholder": "Full name",
+    "contactPhone": "Contact phone",
+    "phonePlaceholder": "+1 600 000 000",
+    "confirmReservation": "Confirm booking",
+    "backToDeal": "← Back to deal",
+    "confirmedTitle": "Booking confirmed!",
+    "confirmedBody": "Your table at {{restaurantName}} is booked.\nThe restaurant will contact you if it needs to confirm the details.",
+    "returnToMap": "Back to map",
+    "signInTitle": "Sign in to book",
+    "signInBody": "You need an active account to confirm a booking.",
+    "goToSignIn": "Go to sign in"
+  },
+  "nearbySheet": {
+    "showOnMap": "Show on map",
+    "viewDetails": "View details",
+    "showListMode": "Show in list mode",
+    "listMode": "List mode",
+    "backToMap": "Back to map",
+    "loadingPlaces": "Loading places...",
+    "noResults": "No results to show."
+  },
+  "myReports": {
+    "title": "My Reports",
+    "loadError": "Could not load your reports",
+    "emptyTitle": "You have not submitted any reports yet",
+    "emptyBody": "Inform the community about events, incidents or places of interest near you"
+  },
+  "businessRegistration": {
+    "serverError": "Server error",
+    "fillRequired": "Fill in name, address and phone",
+    "pickCuisine": "Select at least one cuisine type",
+    "doneTitle": "Restaurant account activated!",
+    "title": "Register your restaurant",
+    "formSubtitle": "We will verify you are the owner by matching the phone number with Google Maps.",
+    "restaurantName": "Restaurant name *",
+    "restaurantNamePlaceholder": "e.g. The Oak Tavern",
+    "address": "Address *",
+    "addressPlaceholder": "Street, number, city",
+    "phone": "Business phone (as it appears on Google Maps) *",
+    "phonePlaceholder": "+1 963 710 366",
+    "mapsLink": "Google Maps link (optional)",
+    "mapsLinkPlaceholder": "https://maps.google.com/...",
+    "cuisineLabel": "Cuisine type (you can choose several) *",
+    "cuisinePlaceholder": "Select one or more types",
+    "verifyCta": "Verify business →",
+    "otpTitle": "SMS Verification",
+    "otpSubtitle": "We found your restaurant on Google Maps.",
+    "foundRestaurant": "Restaurant found",
+    "phoneVerified": "Phone verified with Google Maps ✓",
+    "otpSent": "We have sent a code to {{phone}}. Enter it to confirm you are the owner.",
+    "otpCode": "OTP Code",
+    "otpPlaceholder": "123456",
+    "confirmCta": "Confirm and activate account →",
+    "altTitle": "Alternative verification",
+    "altSubtitle": "The phone does not match Google Maps. You can verify with your business email.",
+    "phoneMismatch": "Phone does not match Google Maps",
+    "businessEmail": "Business corporate email",
+    "businessEmailPlaceholder": "info@myrestaurant.com",
+    "sendVerification": "Send verification →"
+  },
+  "whim": {
+    "selection": {
+      "foodTitle": "What are you in the mood for?",
+      "speedTitle": "How do you want it?",
+      "budgetTitle": "How much do you want to spend?",
+      "moodTitle": "What atmosphere?",
+      "conflict": "This combo does not usually work well 👀",
+      "search": "Search WHIM"
+    },
+    "results": {
+      "title": "Results for you",
+      "subtitle": "Near you in Valencia",
+      "foundCount": "{{count}} places found",
+      "viewMap": "View on map"
+    },
+    "empty": {
+      "title": "This combo does not have much going for it 😅",
+      "subtitle": "Try changing something. These filters do not go well together.",
+      "conflictingFilter": "Problematic filter:",
+      "removeFilter": "Remove the oddest filter",
+      "reset": "Start over"
+    },
+    "loading": {
+      "title": "Finding your next restaurant",
+      "phrases": [
+        "Reading real reviews to filter better...",
+        "Looking for places that truly suit you...",
+        "Consulting Google, OSM and more sources...",
+        "Almost ready, preparing your final selection...",
+        "Checking ratings and distance..."
+      ]
+    }
+  }
 }

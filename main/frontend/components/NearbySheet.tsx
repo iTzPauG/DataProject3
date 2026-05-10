@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { BlurView } from 'expo-blur';
+import { useTranslation } from 'react-i18next';
 import { useDeviceType } from '../hooks/useDeviceType';
 import { MapItem } from '../types/map';
 import { formatDistance } from '../utils/format';
@@ -41,6 +42,7 @@ function NearbyItem({
   onOpenDetails: () => void;
 }) {
   const { colors, typography, space } = useTheme();
+  const { t } = useTranslation();
   const rating = item.metadata?.rating as number | undefined;
   const distance = item.distance_m > 0 ? formatDistance(item.distance_m) : '';
 
@@ -147,10 +149,10 @@ function NearbyItem({
 
       <View style={styles.actionsCol}>
         <TouchableOpacity onPress={onShowInMap} style={styles.mapBtn} activeOpacity={0.85}>
-          <Text style={styles.mapBtnText}>Mostrar en mapa</Text>
+          <Text style={styles.mapBtnText}>{t('nearbySheet.showOnMap')}</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={onOpenDetails} style={styles.detailBtn} activeOpacity={0.85}>
-          <Text style={styles.detailBtnText}>Ver ficha</Text>
+          <Text style={styles.detailBtnText}>{t('nearbySheet.viewDetails')}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -159,6 +161,7 @@ function NearbyItem({
 
 export default function NearbySheet({ items, selectedId, onSelectItem, loading, hasSearched }: Props) {
   const { colors, typography, space } = useTheme();
+  const { t } = useTranslation();
   const { isDesktop } = useDeviceType();
   const [expanded, setExpanded] = useState(false);
   const animHeight = useRef(new Animated.Value(COLLAPSED_HEIGHT)).current;
@@ -313,23 +316,23 @@ export default function NearbySheet({ items, selectedId, onSelectItem, loading, 
           <TouchableOpacity style={styles.collapsedLauncher} onPress={expand} activeOpacity={0.9}>
             <View style={styles.launcherPill}>
               <Icon name="tag" size={14} color={colors.ink} strokeWidth={2} />
-              <Text style={styles.launcherText}>Mostrar en modo lista</Text>
+              <Text style={styles.launcherText}>{t('nearbySheet.showListMode')}</Text>
             </View>
           </TouchableOpacity>
         ) : (
           <>
             <View style={styles.topRow}>
-              <Text style={styles.topTitle}>Modo lista</Text>
+              <Text style={styles.topTitle}>{t('nearbySheet.listMode')}</Text>
               <TouchableOpacity style={styles.mapBackBtn} onPress={collapse} activeOpacity={0.85}>
                 <Icon name="map" size={14} color={colors.ink} strokeWidth={2} />
-                <Text style={styles.mapBackText}>Volver al mapa</Text>
+                <Text style={styles.mapBackText}>{t('nearbySheet.backToMap')}</Text>
               </TouchableOpacity>
             </View>
 
             {loading ? (
-              <Text style={styles.emptyState}>Cargando lugares...</Text>
+              <Text style={styles.emptyState}>{t('nearbySheet.loadingPlaces')}</Text>
             ) : (hasSearched && items.length === 0) ? (
-              <Text style={styles.emptyState}>No hay resultados para mostrar.</Text>
+              <Text style={styles.emptyState}>{t('nearbySheet.noResults')}</Text>
             ) : (
               <FlatList
                 data={items}

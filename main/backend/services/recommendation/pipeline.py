@@ -23,7 +23,7 @@ from google.auth import default as google_auth_default
 from google import genai
 from google.genai import types
 
-from .tools import fetch_all_reviews, haversine, search_places
+from .tools import fetch_all_reviews, haversine, merge_review_lists, search_places
 from .category_flow import get_flow_definition
 from services.live_data_service import get_live_data
 from services.cache_service import cache_get, cache_set
@@ -975,9 +975,9 @@ def _merge_fetched_data(base: dict, fetched: dict) -> dict:
     merged = dict(base)
 
     for key in ("google_reviews", "yelp_reviews", "tripadvisor_reviews"):
-        value = fetched.get(key)
-        if isinstance(value, list) and value:
-            merged[key] = value
+        merged_list = merge_review_lists(base.get(key, []), fetched.get(key, []))
+        if merged_list:
+            merged[key] = merged_list
 
     for key in ("review_summary", "photo_url", "phone", "website", "yelp_review_count", "tripadvisor_review_count"):
         value = fetched.get(key)
@@ -1331,4 +1331,3 @@ async def recommend_stream(
         log.info("[STREAM v2] DONE in %.2fs, yielded %d results", total_time, result_index)
     finally:
         yield {"event": "done", "total": result_index}
-

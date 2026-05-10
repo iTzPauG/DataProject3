@@ -461,13 +461,13 @@ export default function ProfileTab() {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.detail || 'No se pudo subir la foto del restaurante');
+        throw new Error(data?.detail || t('profile.photoUploadError'));
       }
 
       await refreshProfile();
-      Alert.alert('Foto actualizada', 'La imagen del restaurante se ha guardado correctamente.');
+      Alert.alert(t('profile.photoUpdatedTitle'), t('profile.photoUpdatedBody'));
     } catch (error: any) {
-      Alert.alert('Error', error?.message || 'No se pudo actualizar la foto del restaurante');
+      Alert.alert(t('common.error'), error?.message || t('profile.photoUploadError'));
     } finally {
       setUploadingRestaurantPhoto(false);
     }
@@ -554,8 +554,8 @@ export default function ProfileTab() {
 
                 {profile?.role === 'business' ? (
                   <View style={styles.businessCard}>
-                    <Text style={styles.businessTitle}>Foto del restaurante</Text>
-                    <Text style={styles.businessName}>{profile.restaurant_name || 'Restaurante'}</Text>
+                    <Text style={styles.businessTitle}>{t('profile.restaurantPhotoTitle')}</Text>
+                    <Text style={styles.businessName}>{profile.restaurant_name || t('profile.restaurantFallback')}</Text>
                     {profile.restaurant_photo_url ? (
                       <Image source={{ uri: profile.restaurant_photo_url }} style={styles.restaurantImage} />
                     ) : null}
@@ -567,7 +567,7 @@ export default function ProfileTab() {
                     >
                       {uploadingRestaurantPhoto ? <ActivityIndicator size="small" color={colors.ink} /> : null}
                       <Text style={styles.photoUploadText}>
-                        {uploadingRestaurantPhoto ? 'Subiendo foto...' : 'Subir o cambiar foto'}
+                        {uploadingRestaurantPhoto ? t('profile.photoUploading') : t('profile.photoUploadCta')}
                       </Text>
                     </TouchableOpacity>
                   </View>
