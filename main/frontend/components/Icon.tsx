@@ -426,58 +426,62 @@ const ICONS: Record<IconName, IconRenderer> = {
     );
   },
 
-  // Location pin — circle head + inner dot + V-stem converging to a point
+  // Folded paper map — 3-panel rectangle with fold creases + road line + location dot
   map: ({ size, color, strokeWidth: sw }) => {
-    const head = size * 0.54;
-    const headTop = size * 0.04;
-    const dotD = head * 0.30;
-    const halfW = head * 0.28;
-    const stemTop = headTop + head * 0.80;
-    const tipY = size * 0.94;
-    const dY = tipY - stemTop;
-    const diagLen = Math.sqrt(halfW * halfW + dY * dY);
-    const diagAngle = Math.atan2(dY, halfW) * (180 / Math.PI);
-    const lCX = size / 2 - halfW / 2;
-    const lCY = (stemTop + tipY) / 2;
-    const rCX = size / 2 + halfW / 2;
+    const w = size * 0.86;
+    const h = size * 0.68;
+    const ox = (size - w) / 2;
+    const oy = (size - h) / 2;
+    const pw = w / 3;
+    const dotD = sw * 2.4;
     return (
       <View style={{ width: size, height: size }}>
-        <View style={box({ top: headTop, left: (size - head) / 2, width: head, height: head, borderRadius: head / 2, borderWidth: sw, borderColor: color })} />
-        <View style={box({ top: headTop + (head - dotD) / 2, left: (size - dotD) / 2, width: dotD, height: dotD, borderRadius: dotD / 2, backgroundColor: color })} />
-        <View style={box({ top: lCY - sw / 2, left: lCX - diagLen / 2, width: diagLen, height: sw, backgroundColor: color, borderRadius: sw / 2, transform: [{ rotate: `${diagAngle}deg` }] })} />
-        <View style={box({ top: lCY - sw / 2, left: rCX - diagLen / 2, width: diagLen, height: sw, backgroundColor: color, borderRadius: sw / 2, transform: [{ rotate: `-${diagAngle}deg` }] })} />
+        {/* outer border */}
+        <View style={box({ top: oy, left: ox, width: w, height: h, borderWidth: sw, borderColor: color, borderRadius: 2 })} />
+        {/* left fold crease */}
+        <View style={box({ top: oy, left: ox + pw, width: sw * 0.75, height: h, backgroundColor: color })} />
+        {/* right fold crease */}
+        <View style={box({ top: oy, left: ox + pw * 2, width: sw * 0.75, height: h, backgroundColor: color })} />
+        {/* horizontal road on middle panel */}
+        <View style={box({ top: oy + h * 0.55, left: ox + pw + sw, width: pw - sw * 2, height: sw * 0.8, backgroundColor: color, borderRadius: sw / 2 })} />
+        {/* location dot on middle panel */}
+        <View style={box({ top: oy + h * 0.28 - dotD / 2, left: ox + pw + pw / 2 - dotD / 2, width: dotD, height: dotD, borderRadius: dotD / 2, backgroundColor: color })} />
       </View>
     );
   },
 
-  // Compass — outer ring + N diamond (filled) + S diamond (outline, faint) + axle
+  // Compass — outer ring + solid N needle (filled arrow) + hollow S needle + pivot
   compass: ({ size, color, strokeWidth: sw }) => {
-    const nDia = size * 0.26;   // north diamond width/height
-    const sDia = size * 0.18;   // south diamond
-    const axle = size * 0.10;
+    const ring = size * 0.90;
+    const nH = size * 0.36;    // north needle half-height (above center)
+    const sH = size * 0.22;    // south needle half-height (below center)
+    const nW = Math.max(sw * 3, size * 0.13); // north needle width
+    const sW = Math.max(sw * 2, size * 0.09); // south needle width
+    const pivotD = size * 0.10;
     return (
       <View style={{ width: size, height: size }}>
-        <View style={box({ width: size, height: size, borderRadius: size / 2, borderWidth: sw, borderColor: color })} />
-        {/* N — solid filled diamond */}
-        <View style={box({ top: size * 0.13, left: (size - nDia) / 2, width: nDia, height: nDia, backgroundColor: color, transform: [{ rotate: '45deg' }] })} />
-        {/* S — outline diamond, faint */}
-        <View style={box({ top: size * 0.64, left: (size - sDia) / 2, width: sDia, height: sDia, borderWidth: sw, borderColor: color, transform: [{ rotate: '45deg' }], opacity: 0.35, backgroundColor: 'transparent' })} />
-        {/* axle dot */}
-        <View style={box({ top: (size - axle) / 2, left: (size - axle) / 2, width: axle, height: axle, borderRadius: axle / 2, backgroundColor: color })} />
+        {/* Outer ring */}
+        <View style={box({ top: (size - ring) / 2, left: (size - ring) / 2, width: ring, height: ring, borderRadius: ring / 2, borderWidth: sw, borderColor: color })} />
+        {/* North needle — solid, tapered to a point at top */}
+        <View style={box({ top: size / 2 - nH, left: size / 2 - nW / 2, width: nW, height: nH, backgroundColor: color, borderTopLeftRadius: nW / 2, borderTopRightRadius: nW / 2 })} />
+        {/* South needle — stroke only, shorter */}
+        <View style={box({ top: size / 2, left: size / 2 - sW / 2, width: sW, height: sH, borderWidth: sw * 0.75, borderColor: color, borderTopWidth: 0, borderBottomLeftRadius: sW / 2, borderBottomRightRadius: sW / 2, backgroundColor: 'transparent', opacity: 0.55 })} />
+        {/* Pivot dot */}
+        <View style={box({ top: (size - pivotD) / 2, left: (size - pivotD) / 2, width: pivotD, height: pivotD, borderRadius: pivotD / 2, backgroundColor: color })} />
       </View>
     );
   },
 
-  // 4-point sparkle — 2 long cross spokes + 2 shorter diagonal spokes
+  // Target / bullseye — 3 concentric rings converging to a filled centre dot
   'for-you': ({ size, color, strokeWidth: sw }) => {
-    const long = size * 0.78;
-    const short = size * 0.50;
+    const d1 = size * 0.26;   // filled centre dot
+    const d2 = size * 0.54;   // middle ring
+    const d3 = size * 0.86;   // outer ring
     return (
-      <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-        <View style={box({ width: long, height: sw, backgroundColor: color, borderRadius: sw / 2 })} />
-        <View style={box({ width: sw, height: long, backgroundColor: color, borderRadius: sw / 2 })} />
-        <View style={box({ width: short, height: sw, backgroundColor: color, borderRadius: sw / 2, transform: [{ rotate: '45deg' }] })} />
-        <View style={box({ width: short, height: sw, backgroundColor: color, borderRadius: sw / 2, transform: [{ rotate: '-45deg' }] })} />
+      <View style={{ width: size, height: size }}>
+        <View style={box({ top: (size - d3) / 2, left: (size - d3) / 2, width: d3, height: d3, borderRadius: d3 / 2, borderWidth: sw, borderColor: color })} />
+        <View style={box({ top: (size - d2) / 2, left: (size - d2) / 2, width: d2, height: d2, borderRadius: d2 / 2, borderWidth: sw, borderColor: color })} />
+        <View style={box({ top: (size - d1) / 2, left: (size - d1) / 2, width: d1, height: d1, borderRadius: d1 / 2, backgroundColor: color })} />
       </View>
     );
   },

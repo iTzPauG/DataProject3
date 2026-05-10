@@ -6,7 +6,8 @@
  *   2. Restaurant[] (legacy recommendation flow) — photo-circle markers with sentiment ring
  */
 import React, { useEffect, useRef, useMemo } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Callout, Marker } from 'react-native-maps';
 import { MINIMALIST_MAP_STYLE } from '../../utils/mapStyles';
 import { VoteData } from '../../services/api';
@@ -144,6 +145,20 @@ export default function Map({
       fontSize: 11,
       color: colors.inkMuted,
       fontStyle: 'italic',
+    },
+    calloutBtn: {
+      marginTop: 8,
+      height: 28,
+      borderRadius: 999,
+      backgroundColor: '#22C55E',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 12,
+    },
+    calloutBtnText: {
+      color: '#FFFFFF',
+      fontSize: 11,
+      fontWeight: '700',
     },
   }), [colors, radii, shadows, typography]);
 
@@ -298,9 +313,21 @@ export default function Map({
                 </View>
               )}
             </View>
-            <Callout tooltip>
+            <Callout
+              tooltip
+              onPress={() => {
+                if (item.item_id.startsWith('deal:')) {
+                  onSelectItem?.(item.item_id);
+                  return;
+                }
+                const pathname = item.item_type === 'event'
+                  ? '/(modals)/event-details'
+                  : '/(modals)/place-details';
+                router.push({ pathname: pathname as any, params: { id: item.item_id, type: item.item_type } });
+              }}
+            >
               <View style={styles.callout}>
-                <Text style={styles.calloutName} numberOfLines={1}>
+                <Text style={styles.calloutName} numberOfLines={2}>
                   {catStyle.icon} {item.title}
                 </Text>
                 <View style={styles.calloutMeta}>
@@ -312,6 +339,9 @@ export default function Map({
                       {ratingVal != null ? ' · ' : ''}{distance}
                     </Text>
                   ) : null}
+                </View>
+                <View style={styles.calloutBtn}>
+                  <Text style={styles.calloutBtnText}>Ver ficha →</Text>
                 </View>
               </View>
             </Callout>

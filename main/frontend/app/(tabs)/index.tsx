@@ -3,7 +3,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -64,7 +63,9 @@ export default function MapTab() {
   const insets = useSafeAreaInsets();
   const { isDesktop, width: windowWidth } = useDeviceType();
   const location = useLocation();
-  const { profile } = useAuth();
+  useAuth();
+  // Measured bottom edge of the header+filter panel (set via onLayout) so NearbySheet starts below it
+  const [listTopOffset, setListTopOffset] = useState(() => insets.top + 165);
   const {
     nearbyItems,
     setNearbyItems,
@@ -94,7 +95,7 @@ export default function MapTab() {
   const acTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const desktopWidth = Math.min(windowWidth - 40, 620);
   const leftOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
-  const rightOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 58;
+  const rightOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
   const minimalist = mapPreferences.mapStyle === 'minimal';
   const { deals: liveDeals, connected: dealsConnected } = useLiveDeals({
     lat: mapRegion?.lat ?? location.lat ?? undefined,
@@ -240,20 +241,7 @@ export default function MapTab() {
           paddingVertical: 8,
           gap: 6,
         },
-        profileBtn: {
-          position: 'absolute',
-          zIndex: 20,
-          width: 40,
-          height: 40,
-          borderRadius: 20,
-          overflow: 'hidden',
-          ...shadows.lift,
-        },
-        profileAvatar: {
-          width: 40,
-          height: 40,
-          borderRadius: 20,
-        },
+
       }),
     [colors, typography, shadows, rightOffset, isDesktop, insets.bottom],
   );
@@ -372,6 +360,13 @@ export default function MapTab() {
   // when the modal hydrates (the metadata, photo, lat/lng all come along).
   const handleDoubleClickItem = useCallback(
     (id: string, type: string) => {
+      // Deal bubbles open the deal sheet instead of navigating
+      if (id.startsWith('deal:')) {
+        const dealId = id.replace('deal:', '');
+        const deal = liveDeals.find((d: LiveDeal) => d.id === dealId) ?? null;
+        setSelectedDeal(deal);
+        return;
+      }
       if (type === 'event') {
         router.push({ pathname: '/(modals)/event-details', params: { id } });
         return;
@@ -385,7 +380,7 @@ export default function MapTab() {
         },
       });
     },
-    [nearbyItems],
+    [nearbyItems, liveDeals],
   );
 
   useEffect(() => {
@@ -611,6 +606,10 @@ export default function MapTab() {
               left: leftOffset,
               right: rightOffset,
             }}
+            onLayout={(e) => {
+              const { height } = e.nativeEvent.layout;
+              setListTopOffset(insets.top + 14 + height + 8);
+            }}
           >
             <View style={styles.panel}>
               <BlurView intensity={60} tint="dark" style={styles.panelBlur}>
@@ -818,22 +817,7 @@ export default function MapTab() {
           )}
         </View>
 
-        {/* Floating profile button — top-right corner */}
-        <TouchableOpacity
-          style={[styles.profileBtn, { top: insets.top + 14, right: 14 }]}
-          onPress={() => router.push('/(tabs)/profile')}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Perfil"
-        >
-          <BlurView intensity={60} tint="dark" style={[styles.panelBlur, { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }]}>
-            {profile?.avatar_url ? (
-              <Image source={{ uri: profile.avatar_url }} style={styles.profileAvatar} />
-            ) : (
-              <Icon name="person" size={18} color="#FFFFFF" strokeWidth={1.6} />
-            )}
-          </BlurView>
-        </TouchableOpacity>
+
 
         <NearbySheet
           items={displayItems}
@@ -841,6 +825,7 @@ export default function MapTab() {
           onSelectItem={handleSheetItemPress}
           loading={loading}
           hasSearched={true}
+          topOffset={listTopOffset}
         />
 
         {selectedDeal && (

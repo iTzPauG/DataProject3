@@ -9,10 +9,11 @@ import { useTheme } from '../../utils/theme';
 const TAB_GLYPHS: Record<string, IconName> = {
   index: 'map',
   explore: 'compass',
-  foryou: 'star',
+  foryou: 'for-you',
   publish: 'plus',
   'mis-ofertas': 'tag',
-  'mis-reservas': 'for-you',
+  'mis-reservas': 'bookmark',
+  profile: 'person',
 };
 
 export default function TabsLayout() {
@@ -21,7 +22,7 @@ export default function TabsLayout() {
   const { profile } = useAuth();
   const isBusiness = profile?.role === 'business';
 
-  const TAB_H = Platform.OS === 'ios' ? 82 : Platform.OS === 'web' ? 68 : 70;
+  const TAB_H = Platform.OS === 'ios' ? 86 : Platform.OS === 'web' ? 64 : 68;
 
   const styles = useMemo(
     () =>
@@ -31,8 +32,8 @@ export default function TabsLayout() {
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: colors.stroke,
           height: TAB_H,
-          paddingTop: 6,
-          paddingBottom: Platform.OS === 'ios' ? 18 : 6,
+          paddingTop: 8,
+          paddingBottom: Platform.OS === 'ios' ? 22 : 8,
           elevation: 0,
           shadowOpacity: 0,
           position: Platform.OS === 'web' ? undefined : 'absolute',
@@ -44,60 +45,56 @@ export default function TabsLayout() {
         },
         item: {
           flex: 1,
-          minWidth: 56,
+          maxWidth: 132,
           alignItems: 'center',
-          justifyContent: 'center',
-          gap: 3,
+          justifyContent: 'flex-start',
+          gap: 6,
           paddingTop: 4,
-          paddingBottom: 2,
         },
         label: {
-          fontSize: 12,
-          letterSpacing: 0.1,
+          fontSize: 9,
+          letterSpacing: 0.8,
+          textTransform: 'uppercase',
           fontFamily: typography.body,
           fontWeight: '600',
           textAlign: 'center',
-          marginTop: 2,
+          width: '100%',
         },
         underline: {
-          marginTop: 2,
-          width: 16,
-          height: 2,
-          borderRadius: 1,
+          marginTop: 5,
+          width: 18,
+          height: 1,
           backgroundColor: colors.ink,
         },
         underlinePlaceholder: {
-          marginTop: 2,
-          height: 2,
-          width: 16,
+          marginTop: 5,
+          height: 1,
+          width: 18,
           backgroundColor: 'transparent',
         },
       }),
     [colors, typography, TAB_H],
   );
 
-  const renderTab = (
-    routeName: 'index' | 'explore' | 'foryou' | 'publish' | 'mis-ofertas' | 'mis-reservas',
-    focused: boolean,
-  ) => {
-    const labelMap: Record<string, string> = {
-      index: t('tabs.index') || 'Mapa',
-      explore: t('tabs.explore') || 'Explorar',
-      foryou: t('tabs.foryou') || 'Para ti',
-      publish: t('tabs.publish') || 'Publicar',
-      'mis-ofertas': t('tabs.mis-ofertas') || 'Ofertas',
-      'mis-reservas': t('tabs.mis-reservas') || 'Reservas',
-    };
-    const label = labelMap[routeName];
+  const renderTab = (routeName: 'index' | 'explore' | 'foryou' | 'publish' | 'mis-ofertas' | 'mis-reservas' | 'profile', focused: boolean) => {
+    const label = t(`tabs.${routeName}`);
     const glyph = TAB_GLYPHS[routeName];
     const color = focused ? colors.ink : colors.inkFaint;
+    const labelStyle = routeName === 'mis-ofertas'
+      ? { fontSize: 8.2, letterSpacing: 0.2 }
+      : null;
     return (
       <View style={styles.item}>
-        <Icon name={glyph} size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
-        <Text style={[styles.label, { color }]} numberOfLines={1}>
+        <Icon name={glyph} size={18} color={color} strokeWidth={1.4} />
+        <Text
+          style={[styles.label, { color }, labelStyle]}
+          numberOfLines={1}
+        >
           {label}
         </Text>
-        <View style={focused ? styles.underline : styles.underlinePlaceholder} />
+        <View
+          style={focused ? styles.underline : styles.underlinePlaceholder}
+        />
       </View>
     );
   };
@@ -109,7 +106,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.ink,
         tabBarInactiveTintColor: colors.inkFaint,
         tabBarStyle: styles.tabBar,
-        tabBarItemStyle: { flex: 1 },
+        tabBarItemStyle: { flex: 1, marginHorizontal: 10 },
         tabBarHideOnKeyboard: true,
         tabBarShowLabel: false,
       }}
@@ -130,7 +127,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="foryou"
         options={{
-          href: isBusiness ? null : undefined,
+          href: undefined,
           tabBarIcon: ({ focused }) => renderTab('foryou', focused),
         }}
       />
@@ -157,7 +154,9 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="profile"
-        options={{ href: null }}
+        options={{
+          tabBarIcon: ({ focused }) => renderTab('profile', focused),
+        }}
       />
     </Tabs>
   );
