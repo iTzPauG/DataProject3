@@ -43,7 +43,7 @@ async def _compute_metrics() -> dict:
         cancelled_today          = int(await scalar("SELECT COUNT(*) FROM table_events WHERE is_active=0 AND created_at >= ?", (today_str,)))
         offers_last_hour         = int(await scalar("SELECT COUNT(*) FROM table_events WHERE created_at >= ?", (hour_ago,)))
         avg_duration_min         = round(float(await scalar(
-            "SELECT COALESCE(AVG(CAST((JULIANDAY(ends_at) - JULIANDAY(created_at)) * 1440 AS REAL)), 0) FROM table_events"
+            "SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (ends_at::timestamptz - created_at::timestamptz)) / 60.0), 0) FROM table_events"
         )), 1)
 
     cancellation_rate_today = round(
