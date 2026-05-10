@@ -16,7 +16,7 @@ from config import DATABASE_URL
 
 try:
     import asyncpg
-except ImportError:  # pragma: no cover - exercised only when dependency missing
+except ImportError:  # pragma: no cover
     asyncpg = None
 
 
@@ -25,6 +25,10 @@ logger = logging.getLogger(__name__)
 DB_PATH = os.getenv("DATABASE_PATH", "temp_local.db")
 USE_POSTGRES = bool(DATABASE_URL)
 
+
+# ============================================================================
+# SEED DATA CONSTANTS
+# ============================================================================
 
 CATEGORY_SEED = [
     ("food", "Comida y bebida", "🍴", "#FF6B35", 1),
@@ -195,7 +199,12 @@ EDUCATION_MOOD_SEED = [
 ]
 
 
-POSTGRES_SCHEMA = [
+# ============================================================================
+# UNIFIED SCHEMA - Uses same structure for Postgres and SQLite (adapted dynamically)
+# ============================================================================
+
+SCHEMA_STATEMENTS = [
+    # Core tables
     """
     CREATE TABLE IF NOT EXISTS categories (
         id TEXT PRIMARY KEY,
@@ -377,31 +386,22 @@ POSTGRES_SCHEMA = [
     )
     """,
     """
-    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'
-    """,
-    """
-    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_name TEXT
-    """,
-    """
-    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_address TEXT
-    """,
-    """
-    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_phone TEXT
-    """,
-    """
-    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_place_id TEXT
-    """,
-    """
-    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_lat REAL
-    """,
-    """
-    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_lng REAL
-    """,
-    """
-    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_cuisines TEXT DEFAULT '[]'
-    """,
-    """
-    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_photo_url TEXT
+    CREATE TABLE IF NOT EXISTS reservations (
+        id TEXT PRIMARY KEY,
+        deal_id TEXT,
+        restaurant_id TEXT NOT NULL,
+        user_id TEXT,
+        customer_name TEXT NOT NULL,
+        customer_phone TEXT,
+        reservation_date TIMESTAMPTZ NOT NULL,
+        party_size INTEGER NOT NULL,
+        notes TEXT,
+        status TEXT DEFAULT 'confirmed',
+        status_reason TEXT,
+        status_updated_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    )
     """,
     """
     CREATE TABLE IF NOT EXISTS deals (
@@ -425,119 +425,65 @@ POSTGRES_SCHEMA = [
         expires_at TEXT
     )
     """,
-    """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS restaurant_name TEXT
-    """,
-    """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS restaurant_id TEXT
-    """,
-    """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS restaurant_place_id TEXT
-    """,
-    """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS lat REAL
-    """,
-    """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS lng REAL
-    """,
-    """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS original_price REAL
-    """,
-    """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS seats INTEGER
-    """,
-    """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS cuisine TEXT NOT NULL DEFAULT 'general'
-    """,
-    """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS restaurant_cuisines TEXT DEFAULT '[]'
-    """,
-    """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS available_at TEXT
-    """,
-    """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS reservation_deadline_at TIMESTAMPTZ
-    """,
-    """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS description TEXT
-    """,
-    """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE
-    """,
-    """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS created_at TEXT DEFAULT CURRENT_TIMESTAMP
-    """,
-    """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS expires_at TEXT
-    """,
-    """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS cancellation_reason TEXT
-    """,
-    """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS cancelled_at TEXT
-    """,
-    """
-    ALTER TABLE deals ADD COLUMN IF NOT EXISTS not_presented_at TEXT
-    """,
-    """
-    ALTER TABLE deals ALTER COLUMN expires_at TYPE TIMESTAMPTZ USING expires_at::TIMESTAMPTZ
-    """,
-    """
-    ALTER TABLE deals ALTER COLUMN available_at TYPE TIMESTAMPTZ USING available_at::TIMESTAMPTZ
-    """,
-    """
-    ALTER TABLE deals ALTER COLUMN reservation_deadline_at TYPE TIMESTAMPTZ USING reservation_deadline_at::TIMESTAMPTZ
-    """,
-        """
-        DO $$
-        BEGIN
-            IF EXISTS (
-                SELECT 1
-                FROM information_schema.columns
-                WHERE table_schema = 'public'
-                    AND table_name = 'deals'
-                    AND column_name = 'cuisine'
-            ) THEN
-                EXECUTE 'ALTER TABLE deals ALTER COLUMN cuisine SET DEFAULT ''general''';
-            END IF;
-        END $$;
-        """,
-    """
-    CREATE INDEX IF NOT EXISTS idx_deals_active ON deals(is_active, available_at)
-    """,
-    """
-    CREATE INDEX IF NOT EXISTS idx_deals_owner ON deals(owner_uid)
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS reservations (
-        id TEXT PRIMARY KEY,
-        deal_id TEXT NOT NULL,
-        customer_uid TEXT,
-        customer_name TEXT NOT NULL,
-        customer_phone TEXT NOT NULL,
-        status TEXT DEFAULT 'confirmed',
-        status_reason TEXT,
-        status_updated_at TEXT,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-    """,
-    """
-    ALTER TABLE reservations ADD COLUMN IF NOT EXISTS status_reason TEXT
-    """,
-    """
-    ALTER TABLE reservations ADD COLUMN IF NOT EXISTS status_updated_at TEXT
-    """,
-    """
-    CREATE INDEX IF NOT EXISTS idx_reservations_deal ON reservations(deal_id, status)
-    """,
+    # ALTER TABLE statements
+    """ALTER TABLE profiles ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user' """,
+    """ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_name TEXT """,
+    """ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_address TEXT """,
+    """ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_phone TEXT """,
+    """ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_place_id TEXT """,
+    """ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_lat REAL """,
+    """ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_lng REAL """,
+    """ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_cuisines TEXT DEFAULT '[]' """,
+    """ALTER TABLE profiles ADD COLUMN IF NOT EXISTS restaurant_photo_url TEXT """,
+    """ALTER TABLE deals ADD COLUMN IF NOT EXISTS is_active INTEGER DEFAULT 1 """,
+    """ALTER TABLE deals ADD COLUMN IF NOT EXISTS cancellation_reason TEXT """,
+    """ALTER TABLE deals ADD COLUMN IF NOT EXISTS cancelled_at TEXT """,
+    """ALTER TABLE deals ADD COLUMN IF NOT EXISTS not_presented_at TEXT """,
+    """ALTER TABLE reservations ADD COLUMN IF NOT EXISTS status_reason TEXT """,
+    """ALTER TABLE reservations ADD COLUMN IF NOT EXISTS status_updated_at TEXT """,
+    # Indexes
+    """CREATE INDEX IF NOT EXISTS idx_deals_active ON deals(is_active, available_at) """,
+    """CREATE INDEX IF NOT EXISTS idx_deals_owner ON deals(owner_uid) """,
+    """CREATE INDEX IF NOT EXISTS idx_reservations_deal ON reservations(deal_id, status) """,
+]
+
+# SQLite-specific column additions (handle separately due to missing ADD COLUMN IF NOT EXISTS)
+SQLITE_PROFILE_COLUMNS = [
+    ("role", "TEXT NOT NULL DEFAULT 'user'"),
+    ("restaurant_name", "TEXT"),
+    ("restaurant_address", "TEXT"),
+    ("restaurant_phone", "TEXT"),
+    ("restaurant_place_id", "TEXT"),
+    ("restaurant_lat", "REAL"),
+    ("restaurant_lng", "REAL"),
+    ("restaurant_cuisines", "TEXT DEFAULT '[]'"),
+    ("restaurant_photo_url", "TEXT"),
+]
+
+SQLITE_DEALS_COLUMNS = [
+    ("is_active", "INTEGER DEFAULT 1"),
+    ("cancellation_reason", "TEXT"),
+    ("cancelled_at", "TEXT"),
+    ("not_presented_at", "TEXT"),
+]
+
+SQLITE_RESERVATIONS_COLUMNS = [
+    ("status_reason", "TEXT"),
+    ("status_updated_at", "TEXT"),
 ]
 
 
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
 def using_postgres() -> bool:
+    """Check if using Postgres backend."""
     return USE_POSTGRES
 
 
 def _postgres_connect_kwargs() -> dict[str, Any]:
+    """Parse DATABASE_URL and return asyncpg connection kwargs."""
     parsed = urlparse(DATABASE_URL)
     query = parse_qs(parsed.query)
     host = query.get("host", [parsed.hostname or "localhost"])[0]
@@ -552,6 +498,7 @@ def _postgres_connect_kwargs() -> dict[str, Any]:
 
 
 async def _postgres_connect():
+    """Create asyncpg connection to Postgres."""
     if asyncpg is None:
         raise RuntimeError("DATABASE_URL is set but asyncpg is not installed")
     kwargs = _postgres_connect_kwargs()
@@ -577,6 +524,7 @@ def _coerce_pg_param(val: Any) -> Any:
 
 
 def _translate_sql(sql: str) -> str:
+    """Convert SQLite ? placeholders to Postgres $N format."""
     parts: list[str] = []
     index = 1
     for char in sql:
@@ -589,26 +537,38 @@ def _translate_sql(sql: str) -> str:
 
 
 def _is_read_query(sql: str) -> bool:
+    """Check if SQL is a read-only query."""
     stripped = sql.lstrip().lower()
     return stripped.startswith(("select", "with", "show", "explain"))
 
 
+# ============================================================================
+# DATABASE COMPATIBILITY LAYER
+# ============================================================================
+
 class CompatCursor:
+    """Cursor wrapper that normalizes asyncpg/aiosqlite result formats."""
+
     def __init__(self, rows: Sequence[Any] | None = None):
         self._rows = [dict(row) if not isinstance(row, dict) else row for row in (rows or [])]
 
     async def fetchone(self):
+        """Return first row or None."""
         return self._rows[0] if self._rows else None
 
     async def fetchall(self):
+        """Return all rows as list."""
         return list(self._rows)
 
 
 class PostgresCompatConnection:
+    """Wrapper for asyncpg connection that emulates aiosqlite interface."""
+
     def __init__(self, conn: Any):
         self._conn = conn
 
     async def execute(self, sql: str, params: Sequence[Any] | None = None):
+        """Execute query and return CompatCursor."""
         params = tuple(_coerce_pg_param(p) for p in (params or ()))
         translated = _translate_sql(sql)
         if _is_read_query(sql):
@@ -618,15 +578,22 @@ class PostgresCompatConnection:
         return CompatCursor()
 
     async def executemany(self, sql: str, param_sets: Iterable[Sequence[Any]]):
+        """Execute query multiple times with different params."""
         translated = _translate_sql(sql)
         coerced = [tuple(_coerce_pg_param(p) for p in row) for row in param_sets]
         await self._conn.executemany(translated, coerced)
 
     async def commit(self):
+        """No-op for asyncpg (auto-commits)."""
         return None
 
 
+# ============================================================================
+# SEEDING FUNCTIONS
+# ============================================================================
+
 async def _sync_education_subcategories(db: Any) -> None:
+    """Sync education subcategories and moods (special handling)."""
     await db.execute("DELETE FROM category_subcategories WHERE category_id = ?", ("education",))
     await db.executemany(
         "INSERT INTO category_subcategories (id, category_id, label, icon, sort_order) VALUES (?, ?, ?, ?, ?)",
@@ -640,390 +607,138 @@ async def _sync_education_subcategories(db: Any) -> None:
     await db.commit()
 
 
-async def _seed_sqlite(db: aiosqlite.Connection) -> None:
-    cursor = await db.execute("SELECT COUNT(*) FROM categories")
-    if (await cursor.fetchone())[0] == 0:
-        await db.executemany(
-            "INSERT INTO categories (id, label, icon, color, sort_order) VALUES (?, ?, ?, ?, ?)",
-            CATEGORY_SEED,
-        )
-        await db.commit()
-
-    cursor = await db.execute("SELECT COUNT(*) FROM category_subcategories")
-    if (await cursor.fetchone())[0] == 0:
-        await db.executemany(
-            "INSERT INTO category_subcategories (id, category_id, label, icon, sort_order) VALUES (?, ?, ?, ?, ?)",
-            CATEGORY_SUBCATEGORY_SEED,
-        )
-        await db.commit()
-
-    cursor = await db.execute("SELECT COUNT(*) FROM category_moods")
-    if (await cursor.fetchone())[0] == 0:
-        await db.executemany(
-            "INSERT INTO category_moods (id, category_id, label, icon, sort_order) VALUES (?, ?, ?, ?, ?)",
-            CATEGORY_MOOD_SEED,
-        )
-        await db.commit()
-
-    await _sync_education_subcategories(db)
-
-    cursor = await db.execute("SELECT COUNT(*) FROM report_types")
-    if (await cursor.fetchone())[0] == 0:
-        await db.executemany(
-            "INSERT INTO report_types (id, label, icon, color, duration_h, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
-            REPORT_TYPE_SEED,
-        )
-        await db.commit()
-
-
-async def _seed_postgres(db: PostgresCompatConnection) -> None:
+async def _seed_db(db: Any) -> None:
+    """Seed categories, subcategories, moods, and report types."""
+    # Check if already seeded
     cursor = await db.execute("SELECT COUNT(*) AS count FROM categories")
     row = await cursor.fetchone()
-    if not row or not row["count"]:
-        await db.executemany(
-            "INSERT INTO categories (id, label, icon, color, sort_order) VALUES (?, ?, ?, ?, ?)",
-            CATEGORY_SEED,
-        )
+    if row and row.get("count", 0) > 0:
+        return  # Already seeded
 
-    cursor = await db.execute("SELECT COUNT(*) AS count FROM category_subcategories")
-    row = await cursor.fetchone()
-    if not row or not row["count"]:
-        await db.executemany(
-            "INSERT INTO category_subcategories (id, category_id, label, icon, sort_order) VALUES (?, ?, ?, ?, ?)",
-            CATEGORY_SUBCATEGORY_SEED,
-        )
+    # Seed categories
+    await db.executemany(
+        "INSERT INTO categories (id, label, icon, color, sort_order) VALUES (?, ?, ?, ?, ?)",
+        CATEGORY_SEED,
+    )
 
-    cursor = await db.execute("SELECT COUNT(*) AS count FROM category_moods")
-    row = await cursor.fetchone()
-    if not row or not row["count"]:
-        await db.executemany(
-            "INSERT INTO category_moods (id, category_id, label, icon, sort_order) VALUES (?, ?, ?, ?, ?)",
-            CATEGORY_MOOD_SEED,
-        )
+    # Seed subcategories
+    await db.executemany(
+        "INSERT INTO category_subcategories (id, category_id, label, icon, sort_order) VALUES (?, ?, ?, ?, ?)",
+        CATEGORY_SUBCATEGORY_SEED,
+    )
 
+    # Seed moods
+    await db.executemany(
+        "INSERT INTO category_moods (id, category_id, label, icon, sort_order) VALUES (?, ?, ?, ?, ?)",
+        CATEGORY_MOOD_SEED,
+    )
+
+    # Sync education-specific data
     await _sync_education_subcategories(db)
 
-    cursor = await db.execute("SELECT COUNT(*) AS count FROM report_types")
-    row = await cursor.fetchone()
-    if not row or not row["count"]:
-        await db.executemany(
-            "INSERT INTO report_types (id, label, icon, color, duration_h, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
-            REPORT_TYPE_SEED,
-        )
+    # Seed report types
+    await db.executemany(
+        "INSERT INTO report_types (id, label, icon, color, duration_h, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+        REPORT_TYPE_SEED,
+    )
 
+    await db.commit()
+
+
+# ============================================================================
+# INITIALIZATION FUNCTIONS
+# ============================================================================
 
 async def _init_sqlite() -> None:
+    """Initialize SQLite database with schema and seed data."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("PRAGMA foreign_keys = ON")
-        for statement in [
-            """
-            CREATE TABLE IF NOT EXISTS categories (
-                id TEXT PRIMARY KEY,
-                label TEXT NOT NULL,
-                icon TEXT,
-                color TEXT,
-                description TEXT,
-                has_price BOOLEAN DEFAULT 1,
-                search_mode TEXT DEFAULT 'guided_ranked',
-                default_radius_m INTEGER DEFAULT 5000,
-                fallback_radius_m INTEGER DEFAULT 25000,
-                provider_types TEXT DEFAULT '[]',
-                sort_order INTEGER,
-                is_active BOOLEAN DEFAULT 1
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS places (
-                id TEXT PRIMARY KEY,
-                external_id TEXT,
-                osm_id TEXT,
-                osm_type TEXT,
-                source TEXT DEFAULT 'manual',
-                category_id TEXT NOT NULL REFERENCES categories(id),
-                subcategory TEXT,
-                amenity TEXT,
-                name TEXT NOT NULL,
-                description TEXT,
-                address TEXT,
-                phone TEXT,
-                website TEXT,
-                photo_url TEXT,
-                rating REAL,
-                price_level INTEGER,
-                lat REAL NOT NULL,
-                lng REAL NOT NULL,
-                tags TEXT,
-                opening_hours TEXT,
-                metadata TEXT,
-                is_verified BOOLEAN DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(source, external_id)
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS events (
-                id TEXT PRIMARY KEY,
-                category_id TEXT NOT NULL REFERENCES categories(id),
-                subcategory TEXT,
-                title TEXT NOT NULL,
-                description TEXT,
-                lat REAL NOT NULL,
-                lng REAL NOT NULL,
-                address TEXT,
-                photo_url TEXT,
-                starts_at DATETIME NOT NULL,
-                ends_at DATETIME,
-                price_info TEXT,
-                metadata TEXT,
-                status TEXT DEFAULT 'active',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS community_reports (
-                id TEXT PRIMARY KEY,
-                created_by TEXT,
-                anon_fingerprint TEXT,
-                report_type TEXT NOT NULL,
-                title TEXT NOT NULL,
-                description TEXT,
-                lat REAL NOT NULL,
-                lng REAL NOT NULL,
-                address_hint TEXT,
-                photo_urls TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                expires_at DATETIME NOT NULL,
-                is_active BOOLEAN DEFAULT 1,
-                confirmations INTEGER DEFAULT 0,
-                denials INTEGER DEFAULT 0,
-                confidence REAL DEFAULT 0.5
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS profiles (
-                id TEXT PRIMARY KEY,
-                firebase_uid TEXT UNIQUE,
-                display_name TEXT,
-                avatar_url TEXT,
-                restaurant_photo_url TEXT,
-                anon_fingerprint TEXT UNIQUE,
-                reputation_score INTEGER DEFAULT 0,
-                reports_count INTEGER DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS saved_items (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-                item_type TEXT NOT NULL,
-                item_id TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE (user_id, item_type, item_id)
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS item_votes (
-                id TEXT PRIMARY KEY,
-                item_id TEXT NOT NULL,
-                voter_id TEXT NOT NULL,
-                vote INTEGER NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE (item_id, voter_id)
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS user_preferences (
-                user_id TEXT PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
-                default_radius_m INTEGER DEFAULT 2000,
-                favorite_cats TEXT DEFAULT '[]',
-                map_style TEXT DEFAULT 'standard',
-                map_minimal BOOLEAN DEFAULT 0,
-                map_preset TEXT DEFAULT 'classic',
-                gado_overlay_on BOOLEAN DEFAULT 1,
-                notifications_on BOOLEAN DEFAULT 1,
-                language TEXT DEFAULT 'es',
-                theme TEXT DEFAULT 'system',
-                show_real_time_events BOOLEAN DEFAULT 1,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS category_subcategories (
-                id TEXT NOT NULL,
-                category_id TEXT NOT NULL REFERENCES categories(id),
-                label TEXT NOT NULL,
-                icon TEXT,
-                metadata TEXT,
-                sort_order INTEGER,
-                is_active BOOLEAN DEFAULT 1,
-                PRIMARY KEY (id, category_id)
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS category_moods (
-                id TEXT NOT NULL,
-                category_id TEXT NOT NULL REFERENCES categories(id),
-                label TEXT NOT NULL,
-                icon TEXT,
-                metadata TEXT,
-                sort_order INTEGER,
-                is_active BOOLEAN DEFAULT 1,
-                PRIMARY KEY (id, category_id)
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS report_confirmations (
-                id TEXT PRIMARY KEY,
-                report_id TEXT NOT NULL REFERENCES community_reports(id) ON DELETE CASCADE,
-                user_id TEXT,
-                anon_fingerprint TEXT,
-                actor_key TEXT NOT NULL,
-                vote INTEGER NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(report_id, actor_key)
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS report_types (
-                id TEXT PRIMARY KEY,
-                label TEXT NOT NULL,
-                icon TEXT,
-                color TEXT,
-                duration_h INTEGER DEFAULT 2,
-                sort_order INTEGER,
-                is_active BOOLEAN DEFAULT 1
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS deals (
-                id TEXT PRIMARY KEY,
-                owner_uid TEXT NOT NULL,
-                restaurant_id TEXT NOT NULL,
-                restaurant_name TEXT NOT NULL,
-                restaurant_place_id TEXT,
-                lat REAL NOT NULL,
-                lng REAL NOT NULL,
-                price REAL NOT NULL,
-                original_price REAL,
-                seats INTEGER NOT NULL,
-                cuisine TEXT NOT NULL DEFAULT 'general',
-                restaurant_cuisines TEXT DEFAULT '[]',
-                available_at TEXT NOT NULL,
-                reservation_deadline_at TEXT,
-                description TEXT,
-                is_active INTEGER DEFAULT 1,
-                cancellation_reason TEXT,
-                cancelled_at TEXT,
-                not_presented_at TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                expires_at TEXT
-            )
-            """,
-            """
-            CREATE INDEX IF NOT EXISTS idx_deals_active ON deals(is_active, available_at)
-            """,
-            """
-            CREATE INDEX IF NOT EXISTS idx_deals_owner ON deals(owner_uid)
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS reservations (
-                id TEXT PRIMARY KEY,
-                deal_id TEXT NOT NULL UNIQUE,
-                customer_uid TEXT,
-                customer_name TEXT NOT NULL,
-                customer_phone TEXT NOT NULL,
-                status TEXT DEFAULT 'confirmed',
-                status_reason TEXT,
-                status_updated_at TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-            """,
-            """
-            CREATE INDEX IF NOT EXISTS idx_reservations_deal ON reservations(deal_id, status)
-            """,
-            """
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_reservations_deal_unique ON reservations(deal_id)
-            """,
-        ]:
-            await db.execute(statement)
 
-        # SQLite does not support ADD COLUMN IF NOT EXISTS, so we add profile
-        # columns only when missing.
+        # Create base tables
+        for statement in SCHEMA_STATEMENTS:
+            try:
+                await db.execute(statement)
+            except Exception as e:
+                logger.debug(f"SQLite schema statement failed (may be expected): {e}")
+
+        # Add missing profile columns
         cols_cursor = await db.execute("PRAGMA table_info(profiles)")
         cols = await cols_cursor.fetchall()
-        existing = {row[1] for row in cols}
-        profile_additions = [
-            ("role", "TEXT NOT NULL DEFAULT 'user'"),
-            ("restaurant_name", "TEXT"),
-            ("restaurant_address", "TEXT"),
-            ("restaurant_phone", "TEXT"),
-            ("restaurant_place_id", "TEXT"),
-            ("restaurant_lat", "REAL"),
-            ("restaurant_lng", "REAL"),
-            ("restaurant_cuisines", "TEXT DEFAULT '[]'"),
-            ("restaurant_photo_url", "TEXT"),
-        ]
-        for col_name, col_type in profile_additions:
-            if col_name not in existing:
+        existing_cols = {row[1] for row in cols}
+        for col_name, col_type in SQLITE_PROFILE_COLUMNS:
+            if col_name not in existing_cols:
                 await db.execute(f"ALTER TABLE profiles ADD COLUMN {col_name} {col_type}")
 
+        # Add missing deals columns
         deal_cols_cursor = await db.execute("PRAGMA table_info(deals)")
         deal_cols = await deal_cols_cursor.fetchall()
         existing_deal_cols = {row[1] for row in deal_cols}
-        deal_additions = [
-            ("restaurant_name", "TEXT"),
-            ("restaurant_id", "TEXT"),
-            ("restaurant_place_id", "TEXT"),
-            ("lat", "REAL"),
-            ("lng", "REAL"),
-            ("original_price", "REAL"),
-            ("seats", "INTEGER"),
-            ("cuisine", "TEXT NOT NULL DEFAULT 'general'"),
-            ("restaurant_cuisines", "TEXT DEFAULT '[]'"),
-            ("available_at", "TEXT"),
-            ("reservation_deadline_at", "TEXT"),
-            ("description", "TEXT"),
-            ("is_active", "INTEGER DEFAULT 1"),
-            ("cancellation_reason", "TEXT"),
-            ("cancelled_at", "TEXT"),
-            ("not_presented_at", "TEXT"),
-            ("created_at", "TEXT DEFAULT CURRENT_TIMESTAMP"),
-            ("expires_at", "TEXT"),
-        ]
-        for col_name, col_type in deal_additions:
+        for col_name, col_type in SQLITE_DEALS_COLUMNS:
             if col_name not in existing_deal_cols:
                 await db.execute(f"ALTER TABLE deals ADD COLUMN {col_name} {col_type}")
 
+        # Add missing reservations columns
         reservation_cols_cursor = await db.execute("PRAGMA table_info(reservations)")
         reservation_cols = await reservation_cols_cursor.fetchall()
         existing_reservation_cols = {row[1] for row in reservation_cols}
-        reservation_additions = [
-            ("status_reason", "TEXT"),
-            ("status_updated_at", "TEXT"),
-        ]
-        for col_name, col_type in reservation_additions:
+        for col_name, col_type in SQLITE_RESERVATIONS_COLUMNS:
             if col_name not in existing_reservation_cols:
                 await db.execute(f"ALTER TABLE reservations ADD COLUMN {col_name} {col_type}")
 
         await db.commit()
-        await _seed_sqlite(db)
+        await _seed_db(db)
 
 
 async def _init_postgres() -> None:
+    """Initialize Postgres database with schema and seed data."""
     conn = await _postgres_connect()
     try:
         db = PostgresCompatConnection(conn)
-        for statement in POSTGRES_SCHEMA:
-            await conn.execute(statement)
-        await _seed_postgres(db)
+        for statement in SCHEMA_STATEMENTS:
+            try:
+                await conn.execute(statement)
+            except Exception as e:
+                logger.debug(f"Postgres schema statement failed (may be expected): {e}")
+        # saved_items.item_id was originally UUID but must be TEXT to support
+        # Google Place IDs (e.g. ChIJ...) which are not valid UUIDs.
+        try:
+            await conn.execute(
+                "ALTER TABLE saved_items ALTER COLUMN item_id TYPE TEXT USING item_id::TEXT"
+            )
+            logger.info("Migrated saved_items.item_id from UUID to TEXT")
+        except Exception as e:
+            logger.debug(f"saved_items.item_id migration (expected if already TEXT): {e}")
+        # saved_items.user_id was UUID — migrate to TEXT so string params match.
+        try:
+            await conn.execute(
+                "ALTER TABLE saved_items ALTER COLUMN user_id TYPE TEXT USING user_id::TEXT"
+            )
+            logger.info("Migrated saved_items.user_id from UUID to TEXT")
+        except Exception as e:
+            logger.debug(f"saved_items.user_id migration (expected if already TEXT): {e}")
+        # Add metadata columns to saved_items so lat/lng/title are stored at bookmark time.
+        for col_sql in [
+            "ALTER TABLE saved_items ADD COLUMN IF NOT EXISTS title TEXT",
+            "ALTER TABLE saved_items ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION",
+            "ALTER TABLE saved_items ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION",
+            "ALTER TABLE saved_items ADD COLUMN IF NOT EXISTS photo_url TEXT",
+            "ALTER TABLE saved_items ADD COLUMN IF NOT EXISTS category_id TEXT",
+        ]:
+            try:
+                await conn.execute(col_sql)
+            except Exception as e:
+                logger.debug(f"saved_items column migration (may already exist): {e}")
+        await _seed_db(db)
     finally:
         await conn.close()
 
 
+# ============================================================================
+# PUBLIC API
+# ============================================================================
+
 async def init_db():
-    """Initialize the configured database backend."""
+    """Initialize the configured database backend (Postgres or SQLite)."""
     if USE_POSTGRES:
         logger.info("Initializing Cloud SQL compatibility schema...")
         await _init_postgres()
@@ -1035,6 +750,10 @@ async def init_db():
 
 @asynccontextmanager
 async def get_db() -> AsyncGenerator[Any, None]:
+    """
+    Context manager to get database connection.
+    Returns PostgresCompatConnection for Postgres, aiosqlite.Connection for SQLite.
+    """
     if USE_POSTGRES:
         conn = await _postgres_connect()
         try:

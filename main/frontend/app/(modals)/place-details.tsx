@@ -204,8 +204,12 @@ export default function PlaceDetailsModal() {
   }, [id, nearbyItems, prefill, recordRecentView]);
 
   useEffect(() => {
-    setIsBookmarked((bookmarkedIds ?? []).includes(id));
-  }, [bookmarkedIds, id]);
+    if (user) {
+      import('../../services/api').then(({ checkBookmark }) => {
+        checkBookmark(id).then(setIsBookmarked).catch(() => {});
+      });
+    }
+  }, [id, user]);
 
   async function handleToggleBookmark() {
     if (!user) {
@@ -215,7 +219,13 @@ export default function PlaceDetailsModal() {
     if (!item) return;
     setLoadingBookmark(true);
     try {
-      await toggleBookmark(id, item.item_type, isBookmarked);
+      await toggleBookmark(id, item.item_type, isBookmarked, {
+        title: item.title,
+        lat: item.lat,
+        lng: item.lng,
+        photoUrl: item.metadata?.photo_url as string | undefined,
+        categoryId: item.category_id ?? '',
+      });
       setIsBookmarked(!isBookmarked);
     } catch (err) {
       const message = err instanceof Error ? err.message : t('common.error');
@@ -305,16 +315,16 @@ export default function PlaceDetailsModal() {
           </TouchableOpacity>
           {item && (
             <TouchableOpacity
-              style={dynamicStyles.circleButton}
+              style={[dynamicStyles.circleButton, isBookmarked && { borderColor: '#FFD700', borderWidth: 1.5 }]}
               onPress={handleToggleBookmark}
               activeOpacity={0.7}
               disabled={loadingBookmark}
               accessibilityLabel={t('common.save')}
             >
               <Ionicons
-                name={isBookmarked ? "heart" : "heart-outline"}
+                name={isBookmarked ? "star" : "star-outline"}
                 size={24}
-                color={isBookmarked ? colors.danger : colors.ink}
+                color={isBookmarked ? "#FFD700" : colors.ink}
               />
             </TouchableOpacity>
           )}

@@ -189,6 +189,30 @@ async def list_deals(
     return {"deals": deals}
 
 
+@router.get("/my-reservations")
+async def my_reservations(request: Request):
+    """List all reservations made by the authenticated user."""
+    uid = get_optional_user(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Autenticación requerida")
+    async with get_db() as db:
+        rows = await _fetch_all(
+            db,
+            """
+            SELECT r.id, r.deal_id, r.customer_name, r.customer_phone,
+                   r.status, r.status_reason, r.created_at,
+                   d.restaurant_name, d.price, d.original_price,
+                   d.available_at, d.expires_at, d.description, d.cuisine
+            FROM reservations r
+            LEFT JOIN deals d ON r.deal_id::text = d.id::text
+            WHERE r.user_id::text = ?
+            ORDER BY r.created_at DESC
+            """,
+            (uid,),
+        )
+    return {"reservations": rows}
+
+
 @router.get("/{deal_id}")
 async def get_deal(deal_id: str):
     async with get_db() as db:
@@ -394,8 +418,8 @@ async def create_reservation(deal_id: str, body: ReservationCreate, request: Req
         res_id = str(uuid.uuid4())
         try:
             await db.execute(
-                "INSERT INTO reservations (id, deal_id, customer_uid, customer_name, customer_phone) VALUES (?, ?, ?, ?, ?)",
-                (res_id, deal_id, uid, body.customer_name, body.customer_phone),
+                "INSERT INTO reservations (id, deal_id, restaurant_id, user_id, customer_name, customer_phone) VALUES (?, ?, ?, ?, ?, ?)",
+                (res_id, deal_id, deal["restaurant_id"], uid, body.customer_name, body.customer_phone),
             )
             await db.execute(
                 "UPDATE deals SET is_active = FALSE WHERE id = ?",

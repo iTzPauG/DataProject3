@@ -84,7 +84,7 @@ def _extract_reviews(place: dict, source_language: str | None = None) -> list[di
         if not text:
             continue
         reviews.append({
-            "author": rev.get("authorAttribution", {}).get("displayName", ""),
+            "author": (lambda a: a.get("displayName", "") if isinstance(a, dict) else str(a) if a else "")(rev.get("authorAttribution")),
             "rating": rev.get("rating", 0),
             "text": text,
             "relative_time": rev.get("relativePublishTimeDescription", ""),
