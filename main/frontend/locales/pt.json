@@ -68,7 +68,9 @@
     "saved": "Saved",
     "index": "Mapa",
     "publish": "Publicar",
-    "mis-ofertas": "Ofertas"
+    "mis-ofertas": "Ofertas",
+    "dashboard": "Dashboard",
+    "restaurant": "Restaurante"
   },
   "home": {
     "locationNow": "València · Now",
