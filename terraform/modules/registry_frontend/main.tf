@@ -23,7 +23,7 @@ resource "null_resource" "docker_build_push" {
   provisioner "local-exec" {
     command = <<EOT
       gcloud auth configure-docker ${var.region}-docker.pkg.dev --quiet
-      docker build --platform linux/amd64 --provenance=false \
+      docker build --no-cache --platform linux/amd64 --provenance=false \
         --build-arg EXPO_PUBLIC_BACKEND_URL="${var.backend_url}" \
         --build-arg EXPO_PUBLIC_FIREBASE_API_KEY="${var.firebase_api_key}" \
         --build-arg EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN="${var.firebase_auth_domain}" \

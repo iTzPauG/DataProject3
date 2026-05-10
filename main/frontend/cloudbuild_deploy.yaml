@@ -1,0 +1,24 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  env:
+    - DOCKER_BUILDKIT=1
+  args:
+    - build
+    - --no-cache
+    - --platform=linux/amd64
+    - --build-arg=EXPO_PUBLIC_BACKEND_URL=https://restaurant-api-dev-data-uxrrrtx5tq-ew.a.run.app
+    - --build-arg=EXPO_PUBLIC_FIREBASE_API_KEY=AIzaSyAzE_VWqkw2-xlJ6evSw4BzIAb0ZcVLaqM
+    - --build-arg=EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=project1grupo7.firebaseapp.com
+    - --build-arg=EXPO_PUBLIC_FIREBASE_PROJECT_ID=project1grupo7
+    - --build-arg=EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=project1grupo7.firebasestorage.app
+    - --build-arg=EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=149307894342
+    - --build-arg=EXPO_PUBLIC_FIREBASE_APP_ID=1:149307894342:web:71e4c6fb21156ce0dbf847
+    - -t=europe-west1-docker.pkg.dev/project1grupo7/frontend/frontend:latest
+    - .
+
+images:
+  - europe-west1-docker.pkg.dev/project1grupo7/frontend/frontend:latest
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
