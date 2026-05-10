@@ -9,6 +9,7 @@ import { useTheme } from '../../utils/theme';
 const TAB_GLYPHS: Record<string, IconName> = {
   index: 'map',
   explore: 'compass',
+  foryou: 'star',
   publish: 'plus',
   'mis-ofertas': 'tag',
   'mis-reservas': 'for-you',
@@ -20,8 +21,6 @@ export default function TabsLayout() {
   const { profile } = useAuth();
   const isBusiness = profile?.role === 'business';
 
-  // A few extra px on every platform so the icon + label + underline never get
-  // clipped together (iOS already adds safe-area padding inside `paddingBottom`).
   const TAB_H = Platform.OS === 'ios' ? 82 : Platform.OS === 'web' ? 68 : 70;
 
   const styles = useMemo(
@@ -78,12 +77,13 @@ export default function TabsLayout() {
   );
 
   const renderTab = (
-    routeName: 'index' | 'explore' | 'publish' | 'mis-ofertas' | 'mis-reservas',
+    routeName: 'index' | 'explore' | 'foryou' | 'publish' | 'mis-ofertas' | 'mis-reservas',
     focused: boolean,
   ) => {
     const labelMap: Record<string, string> = {
       index: t('tabs.index') || 'Mapa',
       explore: t('tabs.explore') || 'Explorar',
+      foryou: t('tabs.foryou') || 'Para ti',
       publish: t('tabs.publish') || 'Publicar',
       'mis-ofertas': t('tabs.mis-ofertas') || 'Ofertas',
       'mis-reservas': t('tabs.mis-reservas') || 'Reservas',
@@ -125,6 +125,13 @@ export default function TabsLayout() {
         options={{
           href: isBusiness ? null : undefined,
           tabBarIcon: ({ focused }) => renderTab('explore', focused),
+        }}
+      />
+      <Tabs.Screen
+        name="foryou"
+        options={{
+          href: isBusiness ? null : undefined,
+          tabBarIcon: ({ focused }) => renderTab('foryou', focused),
         }}
       />
       <Tabs.Screen

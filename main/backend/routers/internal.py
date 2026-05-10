@@ -2,6 +2,7 @@
 import json
 import logging
 from collections import Counter
+from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
@@ -17,6 +18,26 @@ def _require_internal(x_internal_secret: str | None):
     """Validate the internal secret header. Configure via SECRET_MANAGER in production."""
     if not x_internal_secret:
         raise HTTPException(status_code=403, detail="Forbidden")
+
+
+def _row_to_dict(row: Any) -> dict[str, Any]:
+    """Normalize aiosqlite.Row, asyncpg.Record, and plain dict rows."""
+    return dict(row) if row is not None else {}
+
+
+def _str_or_none(value: Any) -> str | None:
+    return str(value) if value is not None else None
+
+
+def _json_or_none(value: Any) -> Any:
+    if value is None or value == "":
+        return None
+    if isinstance(value, (dict, list)):
+        return value
+    try:
+        return json.loads(value)
+    except (TypeError, ValueError):
+        return value
 
 
 @router.get("/maps/place/{place_id}")
@@ -78,7 +99,31 @@ async def client_log(payload: ClientLogPayload):
     return {"ok": True}
 
 
-# ── User Interactions endpoint (for AI preferences algorithm) ─────────────────
+# User interactions endpoint for AI preferences.
+
+@router.get("/users")
+async def list_users(x_internal_secret: str | None = Header(None)):
+    """Return all user profiles."""
+    _require_internal(x_internal_secret)
+    async with get_db() as db:
+        cursor = await db.execute(
+            """
+            SELECT CAST(id AS TEXT) AS id,
+                   firebase_uid,
+                   display_name,
+                   role,
+                   reputation_score,
+                   reports_count,
+                   created_at
+            FROM profiles
+            ORDER BY created_at DESC
+            """
+        )
+        rows = await cursor.fetchall()
+
+    users = [_row_to_dict(row) for row in rows]
+    return {"users": users, "total": len(users)}
+
 
 @router.get("/users/{firebase_uid}/interactions")
 async def get_user_interactions(
@@ -87,55 +132,68 @@ async def get_user_interactions(
 ):
     """
     Return all recorded interactions for a given user.
-
-    Used by the AI team to build preference / recommendation models.
-    Reproducible across dev-data, dev-ia and main environments.
-
-    Requires header:  X-Internal-Secret: <any non-empty value>
-
-    Response shape:
-    {
-      "firebase_uid": "...",
-      "profile": { id, display_name, role, reputation_score, ... },
-      "interactions": {
-        "votes":          [{ item_id, item_type, vote, created_at }],
-        "saved_items":    [{ item_id, item_type, title, category_id, lat, lng, created_at }],
-        "search_history": [{ query, category, lat, lng, result_count, created_at }]
-      },
-      "summary": {
-        "total_votes": N, "upvotes": N, "downvotes": N,
-        "total_saved": N, "total_searches": N,
-        "top_voted_categories": [...],
-        "top_saved_categories": [...]
-      }
-    }
+    Accepts firebase_uid or internal profile id.
     """
     _require_internal(x_internal_secret)
 
     async with get_db() as db:
-        # 1. Fetch profile
         cursor = await db.execute(
             """
-            SELECT id::text AS id, firebase_uid, display_name, role,
-                   reputation_score, reports_count, created_at
+            SELECT CAST(id AS TEXT) AS id,
+                   firebase_uid,
+                   display_name,
+                   role,
+                   reputation_score,
+                   reports_count,
+                   created_at
             FROM profiles
             WHERE firebase_uid = ?
             """,
             (firebase_uid,),
         )
         profile_row = await cursor.fetchone()
+
+        if not profile_row:
+            cursor = await db.execute(
+                """
+                SELECT CAST(id AS TEXT) AS id,
+                       firebase_uid,
+                       display_name,
+                       role,
+                       reputation_score,
+                       reports_count,
+                       created_at
+                FROM profiles
+                WHERE CAST(id AS TEXT) = ?
+                """,
+                (firebase_uid,),
+            )
+            profile_row = await cursor.fetchone()
+
         if not profile_row:
             raise HTTPException(status_code=404, detail=f"User '{firebase_uid}' not found")
 
-        profile_id = profile_row["id"]
+        profile = _row_to_dict(profile_row)
+        profile_id = profile["id"]
 
-        # 2. Votes  (voter_id = "{profile_uuid}::{item_id}")
         cursor = await db.execute(
             """
-            SELECT iv.item_id, iv.vote, iv.created_at,
-                   p.category_id AS item_type
+            SELECT CAST(iv.item_id AS TEXT) AS item_id,
+                   COALESCE(p.category_id, 'place') AS item_type,
+                   p.name AS title,
+                   p.category_id,
+                   p.subcategory,
+                   p.amenity,
+                   p.tags,
+                   p.metadata,
+                   p.rating,
+                   p.price_level,
+                   p.lat,
+                   p.lng,
+                   iv.vote,
+                   iv.created_at
             FROM item_votes iv
-            LEFT JOIN places p ON p.id::text = iv.item_id
+            LEFT JOIN places p ON CAST(p.id AS TEXT) = CAST(iv.item_id AS TEXT)
             WHERE iv.voter_id LIKE ? || '::%'
             ORDER BY iv.created_at DESC
             """,
@@ -143,90 +201,126 @@ async def get_user_interactions(
         )
         votes_rows = await cursor.fetchall()
 
-        # 3. Saved items  (user_id = profile.id UUID)
         cursor = await db.execute(
             """
-            SELECT item_id, item_type, title, category_id,
-                   lat, lng, created_at
-            FROM saved_items
-            WHERE user_id::text = ?
-            ORDER BY created_at DESC
+            SELECT CAST(si.item_id AS TEXT) AS item_id,
+                   si.item_type,
+                   COALESCE(si.title, p.name) AS title,
+                   COALESCE(si.category_id, p.category_id) AS category_id,
+                   p.subcategory,
+                   p.amenity,
+                   p.tags,
+                   p.metadata,
+                   p.rating,
+                   p.price_level,
+                   COALESCE(si.lat, p.lat) AS lat,
+                   COALESCE(si.lng, p.lng) AS lng,
+                   si.created_at
+            FROM saved_items si
+            LEFT JOIN places p ON CAST(p.id AS TEXT) = CAST(si.item_id AS TEXT)
+            WHERE CAST(si.user_id AS TEXT) = ?
+            ORDER BY si.created_at DESC
             """,
             (profile_id,),
         )
         saved_rows = await cursor.fetchall()
 
-        # 4. Search history  (user_id = profile.id UUID)
-        cursor = await db.execute(
-            """
-            SELECT query, category, lat, lng, result_count, created_at
-            FROM search_history
-            WHERE user_id::text = ?
-            ORDER BY created_at DESC
-            """,
-            (profile_id,),
-        )
-        search_rows = await cursor.fetchall()
-
-    # ── Serialize ──────────────────────────────────────────────────────────
-
-    def _str(v):
-        return str(v) if v is not None else None
+        try:
+            cursor = await db.execute(
+                """
+                SELECT query, category, lat, lng, result_count, created_at
+                FROM search_history
+                WHERE CAST(user_id AS TEXT) = ?
+                ORDER BY created_at DESC
+                """,
+                (profile_id,),
+            )
+            search_rows = await cursor.fetchall()
+        except Exception as exc:
+            logger.debug("search_history unavailable for internal export: %s", exc)
+            search_rows = []
 
     votes = [
         {
-            "item_id": _str(r["item_id"]),
-            "item_type": r.get("item_type"),
-            "vote": r["vote"],
-            "created_at": _str(r["created_at"]),
+            "item_id": _str_or_none(row["item_id"]),
+            "item_type": row["item_type"],
+            "title": row.get("title"),
+            "category_id": row.get("category_id"),
+            "subcategory": row.get("subcategory"),
+            "amenity": row.get("amenity"),
+            "tags": _json_or_none(row.get("tags")),
+            "metadata": _json_or_none(row.get("metadata")),
+            "rating": row.get("rating"),
+            "price_level": row.get("price_level"),
+            "lat": row.get("lat"),
+            "lng": row.get("lng"),
+            "vote": row["vote"],
+            "created_at": _str_or_none(row["created_at"]),
         }
-        for r in votes_rows
+        for row in (_row_to_dict(r) for r in votes_rows)
     ]
 
     saved = [
         {
-            "item_id": _str(r["item_id"]),
-            "item_type": r.get("item_type"),
-            "title": r.get("title"),
-            "category_id": r.get("category_id"),
-            "lat": r.get("lat"),
-            "lng": r.get("lng"),
-            "created_at": _str(r["created_at"]),
+            "item_id": _str_or_none(row["item_id"]),
+            "item_type": row.get("item_type"),
+            "title": row.get("title"),
+            "category_id": row.get("category_id"),
+            "subcategory": row.get("subcategory"),
+            "amenity": row.get("amenity"),
+            "tags": _json_or_none(row.get("tags")),
+            "metadata": _json_or_none(row.get("metadata")),
+            "rating": row.get("rating"),
+            "price_level": row.get("price_level"),
+            "lat": row.get("lat"),
+            "lng": row.get("lng"),
+            "created_at": _str_or_none(row["created_at"]),
         }
-        for r in saved_rows
+        for row in (_row_to_dict(r) for r in saved_rows)
     ]
 
     searches = [
         {
-            "query": r["query"],
-            "category": r.get("category"),
-            "lat": r.get("lat"),
-            "lng": r.get("lng"),
-            "result_count": r.get("result_count", 0),
-            "created_at": _str(r["created_at"]),
+            "query": row["query"],
+            "category": row.get("category"),
+            "lat": row.get("lat"),
+            "lng": row.get("lng"),
+            "result_count": row.get("result_count", 0),
+            "created_at": _str_or_none(row["created_at"]),
         }
-        for r in search_rows
+        for row in (_row_to_dict(r) for r in search_rows)
     ]
 
-    # ── Summary ────────────────────────────────────────────────────────────
-
-    upvotes = sum(1 for v in votes if v["vote"] == 1)
-    downvotes = sum(1 for v in votes if v["vote"] == -1)
-
+    upvotes = sum(1 for vote in votes if vote["vote"] == 1)
+    downvotes = sum(1 for vote in votes if vote["vote"] == -1)
     top_voted = [
-        cat for cat, _ in Counter(
-            v["item_type"] for v in votes if v.get("item_type")
+        cat
+        for cat, _ in Counter(
+            vote["item_type"] for vote in votes if vote.get("item_type")
         ).most_common(5)
     ]
     top_saved = [
-        cat for cat, _ in Counter(
-            s["category_id"] for s in saved if s.get("category_id")
+        cat
+        for cat, _ in Counter(
+            item["category_id"] for item in saved if item.get("category_id")
+        ).most_common(5)
+    ]
+    top_voted_subcategories = [
+        sub
+        for sub, _ in Counter(
+            vote["subcategory"] for vote in votes if vote.get("subcategory")
+        ).most_common(5)
+    ]
+    top_saved_subcategories = [
+        sub
+        for sub, _ in Counter(
+            item["subcategory"] for item in saved if item.get("subcategory")
         ).most_common(5)
     ]
 
     return {
-        "firebase_uid": firebase_uid,
-        "profile": dict(profile_row),
+        "firebase_uid": profile.get("firebase_uid") or firebase_uid,
+        "profile": profile,
         "interactions": {
             "votes": votes,
             "saved_items": saved,
@@ -240,5 +334,7 @@ async def get_user_interactions(
             "total_searches": len(searches),
             "top_voted_categories": top_voted,
             "top_saved_categories": top_saved,
+            "top_voted_subcategories": top_voted_subcategories,
+            "top_saved_subcategories": top_saved_subcategories,
         },
     }
