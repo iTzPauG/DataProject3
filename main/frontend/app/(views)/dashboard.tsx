@@ -34,6 +34,110 @@ interface Metrics {
   saved_to_bigquery: boolean;
 }
 
+// ── Bar chart horizontal ──────────────────────────────────────────────────────
+function HBarChart({
+  rows,
+  colors,
+  typography,
+}: {
+  rows: { label: string; value: number; color: string }[];
+  colors: any;
+  typography: any;
+}) {
+  const max = Math.max(...rows.map(r => r.value), 1);
+  return (
+    <View style={[styles.card, { backgroundColor: colors.surface, gap: 14 }]}>
+      {rows.map((row, i) => (
+        <View key={i}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+            <Text style={{ color: colors.inkMuted, fontSize: 12, fontFamily: typography.body }}>{row.label}</Text>
+            <Text style={{ color: colors.ink, fontSize: 14, fontWeight: '700', fontFamily: typography.heading }}>{row.value}</Text>
+          </View>
+          <View style={{ height: 10, backgroundColor: colors.shell, borderRadius: 5, overflow: 'hidden' }}>
+            <View style={{
+              height: '100%',
+              width: `${Math.max((row.value / max) * 100, row.value > 0 ? 4 : 0)}%` as any,
+              backgroundColor: row.color,
+              borderRadius: 5,
+            }} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ── Tabla de métricas ─────────────────────────────────────────────────────────
+function MetricsTable({
+  rows,
+  colors,
+  typography,
+}: {
+  rows: { label: string; value: string | number; accent?: string }[];
+  colors: any;
+  typography: any;
+}) {
+  return (
+    <View style={[styles.card, { backgroundColor: colors.surface, padding: 0, overflow: 'hidden' }]}>
+      {rows.map((row, i) => (
+        <View key={i} style={[
+          styles.tableRow,
+          { borderBottomColor: colors.stroke, borderBottomWidth: i < rows.length - 1 ? StyleSheet.hairlineWidth : 0 },
+        ]}>
+          <Text style={[styles.tableLabel, { color: colors.inkMuted, fontFamily: typography.body }]}>{row.label}</Text>
+          <Text style={[styles.tableValue, {
+            color: row.accent ?? colors.ink,
+            fontFamily: typography.heading,
+          }]}>{row.value}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ── Gráfico de barras vertical (histórico) ────────────────────────────────────
+function VerticalBarChart({
+  history,
+  colors,
+  typography,
+}: {
+  history: Record<string, any>[];
+  colors: any;
+  typography: any;
+}) {
+  const bars = [...history].reverse().slice(-24);
+  const maxVal = Math.max(...bars.map(s => s.active_offers ?? 0), 1);
+  if (bars.length === 0) return null;
+  const first = new Date(bars[0].snapshot_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  const last  = new Date(bars[bars.length - 1].snapshot_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  return (
+    <View style={[styles.card, { backgroundColor: colors.surface }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 90 }}>
+        {bars.map((s, i) => {
+          const pct = (s.active_offers ?? 0) / maxVal;
+          return (
+            <View key={i} style={{ flex: 1, height: '100%', justifyContent: 'flex-end' }}>
+              <View style={{
+                height: `${Math.max(pct * 100, s.active_offers > 0 ? 4 : 1)}%` as any,
+                backgroundColor: '#3B82F6',
+                borderRadius: 3,
+                opacity: 0.5 + pct * 0.5,
+              }} />
+            </View>
+          );
+        })}
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+        <Text style={{ color: colors.inkFaint, fontSize: 10, fontFamily: typography.mono }}>{first}</Text>
+        <Text style={[{ color: colors.inkFaint, fontSize: 10, fontFamily: typography.body, textAlign: 'center', flex: 1 }]}>
+          Ofertas activas — {bars.length} snapshots BigQuery
+        </Text>
+        <Text style={{ color: colors.inkFaint, fontSize: 10, fontFamily: typography.mono }}>{last}</Text>
+      </View>
+    </View>
+  );
+}
+
 // ── KPI card ──────────────────────────────────────────────────────────────────
 function KpiCard({
   label,
@@ -234,66 +338,63 @@ export default function ExecutiveDashboard() {
 
         {metrics && (
           <>
-            {/* ── Sección: Ofertas ── */}
+            {/* ── Sección: Ofertas — KPIs destacados ── */}
             <Text style={[styles.sectionTitle, { color: colors.inkFaint, fontFamily: typography.body }]}>
               OFERTAS DE MESA
             </Text>
             <View style={styles.row}>
               <KpiCard label="Activas ahora" value={metrics.active_offers}
                 accent="#3B82F6" sub="en tiempo real" colors={colors} typography={typography} />
-              <KpiCard label="Última hora" value={metrics.offers_last_hour}
-                accent="#8B5CF6" colors={colors} typography={typography} />
-            </View>
-            <View style={styles.row}>
-              <KpiCard label="Hoy" value={metrics.total_offers_today}
-                accent="#10B981" colors={colors} typography={typography} />
               <KpiCard label="Total histórico" value={metrics.total_offers_alltime}
                 accent="#64748B" colors={colors} typography={typography} />
             </View>
-            <View style={styles.row}>
-              <KpiCard label="Canceladas hoy" value={metrics.cancelled_today}
-                accent="#EF4444" colors={colors} typography={typography} />
-              <KpiCard label="Tasa cancelación" value={fmt(metrics.cancellation_rate_today, 1)}
-                unit="%" accent="#F59E0B" colors={colors} typography={typography} />
-            </View>
 
-            {/* ── Sección: Restaurantes ── */}
+            {/* ── Gráfico de barras: comparativa de ofertas ── */}
+            <Text style={[styles.sectionTitle, { color: colors.inkFaint, fontFamily: typography.body }]}>
+              COMPARATIVA DE ACTIVIDAD
+            </Text>
+            <HBarChart
+              colors={colors}
+              typography={typography}
+              rows={[
+                { label: 'Activas ahora',     value: metrics.active_offers,           color: '#3B82F6' },
+                { label: 'Última hora',        value: metrics.offers_last_hour,        color: '#8B5CF6' },
+                { label: 'Publicadas hoy',     value: metrics.total_offers_today,      color: '#10B981' },
+                { label: 'Canceladas hoy',     value: metrics.cancelled_today,         color: '#EF4444' },
+              ]}
+            />
+
+            {/* ── Sección: Restaurantes — tabla ── */}
             <Text style={[styles.sectionTitle, { color: colors.inkFaint, fontFamily: typography.body }]}>
               RESTAURANTES
             </Text>
-            <View style={styles.row}>
-              <KpiCard label="Registrados" value={metrics.registered_restaurants}
-                accent="#EC4899" sub="total histórico" colors={colors} typography={typography} />
-              <KpiCard label="Activos hoy" value={metrics.active_restaurants_today}
-                accent="#F97316" colors={colors} typography={typography} />
-            </View>
-            <View style={styles.row}>
-              <KpiCard label="Activos esta semana" value={metrics.active_restaurants_week}
-                accent="#06B6D4" colors={colors} typography={typography} />
-            </View>
+            <MetricsTable
+              colors={colors}
+              typography={typography}
+              rows={[
+                { label: 'Restaurantes registrados',    value: metrics.registered_restaurants },
+                { label: 'Activos hoy',                 value: metrics.active_restaurants_today,  accent: metrics.active_restaurants_today > 0 ? '#10B981' : undefined },
+                { label: 'Activos esta semana',         value: metrics.active_restaurants_week },
+                { label: 'Tasa de cancelación hoy',     value: `${fmt(metrics.cancellation_rate_today, 1)} %`, accent: metrics.cancellation_rate_today > 20 ? '#EF4444' : '#F59E0B' },
+              ]}
+            />
 
-            {/* ── Sección: Plazas y precios ── */}
+            {/* ── Sección: Plazas y precios — tabla ── */}
             <Text style={[styles.sectionTitle, { color: colors.inkFaint, fontFamily: typography.body }]}>
               PLAZAS Y PRECIOS
             </Text>
-            <View style={styles.row}>
-              <KpiCard label="Plazas disponibles" value={metrics.total_seats_available}
-                accent="#22C55E" sub="en oferta activa" colors={colors} typography={typography} />
-              <KpiCard label="Media plazas/oferta" value={fmt(metrics.avg_seats_per_offer, 1)}
-                accent="#84CC16" colors={colors} typography={typography} />
-            </View>
-            <View style={styles.row}>
-              <KpiCard label="Precio medio" value={fmt(metrics.avg_offer_price, 2)}
-                unit="€" accent="#F59E0B" colors={colors} typography={typography} />
-              <KpiCard label="Precio mínimo" value={fmt(metrics.min_price_active, 2)}
-                unit="€" accent="#10B981" colors={colors} typography={typography} />
-            </View>
-            <View style={styles.row}>
-              <KpiCard label="Precio máximo" value={fmt(metrics.max_price_active, 2)}
-                unit="€" accent="#EF4444" colors={colors} typography={typography} />
-              <KpiCard label="Duración media" value={fmt(metrics.avg_duration_min, 0)}
-                unit="min" accent="#6366F1" colors={colors} typography={typography} />
-            </View>
+            <MetricsTable
+              colors={colors}
+              typography={typography}
+              rows={[
+                { label: 'Plazas disponibles ahora',    value: metrics.total_seats_available },
+                { label: 'Media plazas / oferta',       value: fmt(metrics.avg_seats_per_offer, 1) },
+                { label: 'Precio medio (€)',             value: `${fmt(metrics.avg_offer_price, 2)} €` },
+                { label: 'Precio mínimo activo (€)',     value: `${fmt(metrics.min_price_active, 2)} €`,  accent: '#10B981' },
+                { label: 'Precio máximo activo (€)',     value: `${fmt(metrics.max_price_active, 2)} €`,  accent: '#EF4444' },
+                { label: 'Duración media oferta',        value: `${fmt(metrics.avg_duration_min, 0)} min` },
+              ]}
+            />
 
             {/* ── Sección: Plataforma ── */}
             <Text style={[styles.sectionTitle, { color: colors.inkFaint, fontFamily: typography.body }]}>
@@ -304,25 +405,13 @@ export default function ExecutiveDashboard() {
                 accent="#3B82F6" sub="clientes en tiempo real" colors={colors} typography={typography} />
             </View>
 
-            {/* ── Histórico BigQuery ── */}
+            {/* ── Histórico BigQuery — gráfico vertical ── */}
             {history.length > 0 && (
               <>
                 <Text style={[styles.sectionTitle, { color: colors.inkFaint, fontFamily: typography.body }]}>
-                  HISTÓRICO BIGQUERY — Ofertas activas
+                  EVOLUCIÓN BIGQUERY
                 </Text>
-                <View style={[styles.historyBox, { backgroundColor: colors.surface }]}>
-                  <View style={[styles.historyHeader, { borderBottomColor: colors.stroke }]}>
-                    <Text style={[styles.historyHeaderText, { color: colors.inkMuted, fontFamily: typography.body }]}>Hora</Text>
-                    <Text style={[styles.historyHeaderText, { color: colors.inkMuted, fontFamily: typography.body, flex: 1, textAlign: 'center' }]}>Evolución</Text>
-                    <Text style={[styles.historyHeaderText, { color: colors.inkMuted, fontFamily: typography.body }]}>Activas</Text>
-                  </View>
-                  {history.slice(0, 20).map((s, i) => (
-                    <HistoryRow key={i} snapshot={s} maxOffers={maxOffers} colors={colors} typography={typography} />
-                  ))}
-                  <Text style={[styles.historyFooter, { color: colors.inkFaint, fontFamily: typography.body }]}>
-                    {history.length} snapshots guardados en BigQuery
-                  </Text>
-                </View>
+                <VerticalBarChart history={history} colors={colors} typography={typography} />
               </>
             )}
           </>
@@ -376,21 +465,11 @@ const styles = StyleSheet.create({
     position: 'absolute', bottom: -6, right: -6,
     width: 32, height: 32, borderRadius: 16, opacity: 0.12,
   },
-  historyBox: { borderRadius: 14, overflow: 'hidden', marginBottom: 8 },
-  historyHeader: {
+  tableRow: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth, gap: 12,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 13,
   },
-  historyHeaderText: { fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: '600' },
-  historyRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  historyTs: { fontSize: 12, width: 42 },
-  historyVal: { fontSize: 14, fontWeight: '700', width: 28, textAlign: 'right' },
-  historyFooter: {
-    fontSize: 11, textAlign: 'center', paddingVertical: 10,
-  },
+  tableLabel: { fontSize: 13, flex: 1 },
+  tableValue: { fontSize: 15, fontWeight: '700', textAlign: 'right' },
 });
