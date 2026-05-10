@@ -12,7 +12,6 @@ const TAB_GLYPHS: Record<string, IconName> = {
   publish: 'plus',
   'mis-ofertas': 'tag',
   'mis-reservas': 'bookmark',
-  profile: 'person',
 };
 
 export default function TabsLayout() {
@@ -79,18 +78,15 @@ export default function TabsLayout() {
   );
 
   const renderTab = (
-    routeName: 'index' | 'explore' | 'publish' | 'mis-ofertas' | 'mis-reservas' | 'profile',
+    routeName: 'index' | 'explore' | 'publish' | 'mis-ofertas' | 'mis-reservas',
     focused: boolean,
   ) => {
-    // Mapped Spanish-friendly labels with safe fallbacks. We keep them short so
-    // none get clipped at small widths (5–6 visible tabs depending on role).
     const labelMap: Record<string, string> = {
       index: t('tabs.index') || 'Mapa',
       explore: t('tabs.explore') || 'Explorar',
       publish: t('tabs.publish') || 'Publicar',
       'mis-ofertas': t('tabs.mis-ofertas') || 'Ofertas',
       'mis-reservas': t('tabs.mis-reservas') || 'Reservas',
-      profile: t('tabs.profile') || 'Perfil',
     };
     const label = labelMap[routeName];
     const glyph = TAB_GLYPHS[routeName];
@@ -145,7 +141,6 @@ export default function TabsLayout() {
           tabBarIcon: ({ focused }) => renderTab('mis-ofertas', focused),
         }}
       />
-      {/* Profile lives in the bottom tab bar (the floating map avatar was removed). */}
       <Tabs.Screen
         name="mis-reservas"
         options={{
@@ -155,9 +150,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="profile"
-        options={{
-          tabBarIcon: ({ focused }) => renderTab('profile', focused),
-        }}
+        options={{ href: null }}
       />
     </Tabs>
   );

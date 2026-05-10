@@ -426,90 +426,65 @@ const ICONS: Record<IconName, IconRenderer> = {
   },
 
   map: ({ size, color, strokeWidth: sw }) => {
-    const w = size * 0.8;
-    const h = size * 0.62;
+    const w = size * 0.82;
+    const h = size * 0.64;
+    const dotSize = size * 0.14;
     return (
-      <View
-        style={{
-          width: size,
-          height: size,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <View
-          style={box({
-            width: w,
-            height: h,
-            borderWidth: sw,
-            borderColor: color,
-          })}
-        />
-        {/* vertical fold lines */}
-        <View
-          style={box({
-            left: (size - w) / 2 + w / 3,
-            top: (size - h) / 2,
-            width: sw,
-            height: h,
-            backgroundColor: color,
-          })}
-        />
-        <View
-          style={box({
-            left: (size - w) / 2 + (2 * w) / 3,
-            top: (size - h) / 2,
-            width: sw,
-            height: h,
-            backgroundColor: color,
-          })}
-        />
+      <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={box({
+          top: (size - h) / 2,
+          left: (size - w) / 2,
+          width: w,
+          height: h,
+          borderWidth: sw,
+          borderColor: color,
+          borderRadius: 3,
+        })} />
+        <View style={box({
+          top: size / 2 - dotSize / 2,
+          left: size / 2 - dotSize / 2,
+          width: dotSize,
+          height: dotSize,
+          borderRadius: dotSize / 2,
+          backgroundColor: color,
+        })} />
       </View>
     );
   },
 
   compass: ({ size, color, strokeWidth: sw }) => {
-    const needleH = size * 0.44;
+    const needleH = size * 0.46;
     const needleW = size * 0.1;
     return (
       <View style={{ width: size, height: size }}>
-        <View
-          style={box({
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-            borderWidth: sw,
-            borderColor: color,
-          })}
-        />
-        <View
-          style={box({
-            top: (size - needleH) / 2,
-            left: (size - needleW) / 2,
+        <View style={box({
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          borderWidth: sw,
+          borderColor: color,
+        })} />
+        <View style={box({
+          top: (size - needleH) / 2,
+          left: (size - needleW) / 2,
+          width: needleW,
+          height: needleH,
+        })}>
+          <View style={{
             width: needleW,
-            height: needleH,
-            transform: [{ rotate: '25deg' }],
-          })}
-        >
-          <View
-            style={{
-              width: needleW,
-              height: needleH / 2,
-              backgroundColor: color,
-              borderTopLeftRadius: needleW,
-              borderTopRightRadius: needleW,
-            }}
-          />
-          <View
-            style={{
-              width: needleW,
-              height: needleH / 2,
-              backgroundColor: color,
-              opacity: 0.35,
-              borderBottomLeftRadius: needleW,
-              borderBottomRightRadius: needleW,
-            }}
-          />
+            height: needleH / 2,
+            backgroundColor: color,
+            borderTopLeftRadius: needleW,
+            borderTopRightRadius: needleW,
+          }} />
+          <View style={{
+            width: needleW,
+            height: needleH / 2,
+            backgroundColor: color,
+            opacity: 0.3,
+            borderBottomLeftRadius: needleW,
+            borderBottomRightRadius: needleW,
+          }} />
         </View>
       </View>
     );
@@ -550,39 +525,39 @@ const ICONS: Record<IconName, IconRenderer> = {
   },
 
   bookmark: ({ size, color, strokeWidth: sw }) => {
-    const w = size * 0.52;
-    const h = size * 0.76;
-    const notch = size * 0.2;
+    const bw = size * 0.50;
+    const bh = size * 0.74;
+    const notch = size * 0.22;
+    const bodyH = bh - notch;
+    const ox = (size - bw) / 2;
+    const oy = (size - bh) / 2;
+    const halfW = bw / 2;
+    const diagLen = Math.sqrt(halfW * halfW + notch * notch);
+    const diagAngle = Math.atan2(notch, halfW) * (180 / Math.PI);
+    const midY = oy + bodyH + notch / 2;
     return (
-      <View
-        style={{
-          width: size,
-          height: size,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <View
-          style={{
-            width: w,
-            height: h,
-            borderWidth: sw,
-            borderColor: color,
-            backgroundColor: 'transparent',
-            overflow: 'hidden',
-          }}
-        >
-          <View
-            style={box({
-              bottom: -notch * 0.7,
-              left: (w - notch * 1.6) / 2 - sw,
-              width: notch * 1.6,
-              height: notch * 1.6,
-              backgroundColor: '#000',
-              transform: [{ rotate: '45deg' }],
-            })}
-          />
-        </View>
+      <View style={{ width: size, height: size }}>
+        <View style={box({ top: oy, left: ox, width: bw, height: sw, backgroundColor: color, borderRadius: sw / 2 })} />
+        <View style={box({ top: oy, left: ox, width: sw, height: bodyH, backgroundColor: color, borderRadius: sw / 2 })} />
+        <View style={box({ top: oy, left: ox + bw - sw, width: sw, height: bodyH, backgroundColor: color, borderRadius: sw / 2 })} />
+        <View style={box({
+          top: midY - sw / 2,
+          left: ox + halfW / 2 - diagLen / 2,
+          width: diagLen,
+          height: sw,
+          backgroundColor: color,
+          borderRadius: sw / 2,
+          transform: [{ rotate: `${diagAngle}deg` }],
+        })} />
+        <View style={box({
+          top: midY - sw / 2,
+          left: ox + bw - halfW / 2 - diagLen / 2,
+          width: diagLen,
+          height: sw,
+          backgroundColor: color,
+          borderRadius: sw / 2,
+          transform: [{ rotate: `-${diagAngle}deg` }],
+        })} />
       </View>
     );
   },
@@ -639,32 +614,21 @@ const ICONS: Record<IconName, IconRenderer> = {
   },
 
   plus: ({ size, color, strokeWidth: sw }) => {
-    const len = size * 0.6;
+    const len = size * 0.46;
+    const circleD = size * 0.88;
     return (
-      <View
-        style={{
-          width: size,
-          height: size,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <View
-          style={box({
-            width: len,
-            height: sw,
-            backgroundColor: color,
-            borderRadius: sw / 2,
-          })}
-        />
-        <View
-          style={box({
-            width: sw,
-            height: len,
-            backgroundColor: color,
-            borderRadius: sw / 2,
-          })}
-        />
+      <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={box({
+          top: (size - circleD) / 2,
+          left: (size - circleD) / 2,
+          width: circleD,
+          height: circleD,
+          borderRadius: circleD / 2,
+          borderWidth: sw,
+          borderColor: color,
+        })} />
+        <View style={box({ width: len, height: sw, backgroundColor: color, borderRadius: sw / 2 })} />
+        <View style={box({ width: sw, height: len, backgroundColor: color, borderRadius: sw / 2 })} />
       </View>
     );
   },
@@ -799,32 +763,27 @@ const ICONS: Record<IconName, IconRenderer> = {
   tag: ({ size, color, strokeWidth: sw }) => {
     const s = size * 0.72;
     const offset = (size - s) / 2;
+    const holeSize = sw * 2.8;
     return (
       <View style={{ width: size, height: size }}>
-        {/* tag body (square rotated 45deg) */}
-        <View
-          style={box({
-            top: offset,
-            left: offset,
-            width: s,
-            height: s,
-            borderWidth: sw,
-            borderColor: color,
-            borderRadius: 3,
-            transform: [{ rotate: '45deg' }],
-          })}
-        />
-        {/* dot (hole) */}
-        <View
-          style={box({
-            top: size * 0.25,
-            left: size * 0.25,
-            width: sw * 2.5,
-            height: sw * 2.5,
-            borderRadius: sw * 1.25,
-            backgroundColor: color,
-          })}
-        />
+        <View style={box({
+          top: offset,
+          left: offset,
+          width: s,
+          height: s,
+          borderWidth: sw,
+          borderColor: color,
+          borderRadius: 3,
+          transform: [{ rotate: '45deg' }],
+        })} />
+        <View style={box({
+          top: offset + size * 0.04,
+          left: size / 2 - holeSize / 2,
+          width: holeSize,
+          height: holeSize,
+          borderRadius: holeSize / 2,
+          backgroundColor: color,
+        })} />
       </View>
     );
   },

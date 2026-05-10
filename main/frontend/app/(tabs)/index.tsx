@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -62,10 +63,7 @@ export default function MapTab() {
   const insets = useSafeAreaInsets();
   const { isDesktop, width: windowWidth } = useDeviceType();
   const location = useLocation();
-  // Auth state is consumed elsewhere in the tree (NearbySheet, etc.); this
-  // module no longer uses the avatar/profile fields directly so we don't
-  // destructure here to avoid lint warnings on unused locals.
-  useAuth();
+  const { profile } = useAuth();
   const {
     nearbyItems,
     setNearbyItems,
@@ -95,10 +93,7 @@ export default function MapTab() {
   const acTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const desktopWidth = Math.min(windowWidth - 40, 620);
   const leftOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
-  // Search panel now spans the full available width — the floating avatar was
-  // moved into the bottom tab bar, so the previous 70px right reserve isn't
-  // needed anymore.
-  const rightOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
+  const rightOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 58;
   const minimalist = mapPreferences.mapStyle === 'minimal';
   const { deals: liveDeals, connected: dealsConnected } = useLiveDeals({
     lat: mapRegion?.lat ?? location.lat ?? undefined,
@@ -243,6 +238,20 @@ export default function MapTab() {
           paddingHorizontal: 12,
           paddingVertical: 8,
           gap: 6,
+        },
+        profileBtn: {
+          position: 'absolute',
+          zIndex: 20,
+          width: 40,
+          height: 40,
+          borderRadius: 20,
+          overflow: 'hidden',
+          ...shadows.lift,
+        },
+        profileAvatar: {
+          width: 40,
+          height: 40,
+          borderRadius: 20,
         },
       }),
     [colors, typography, shadows, rightOffset, isDesktop, insets.bottom],
@@ -807,6 +816,23 @@ export default function MapTab() {
             </View>
           )}
         </View>
+
+        {/* Floating profile button — top-right corner */}
+        <TouchableOpacity
+          style={[styles.profileBtn, { top: insets.top + 14, right: 14 }]}
+          onPress={() => router.push('/(tabs)/profile')}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Perfil"
+        >
+          <BlurView intensity={60} tint="dark" style={[styles.panelBlur, { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }]}>
+            {profile?.avatar_url ? (
+              <Image source={{ uri: profile.avatar_url }} style={styles.profileAvatar} />
+            ) : (
+              <Icon name="person" size={18} color="#FFFFFF" strokeWidth={1.6} />
+            )}
+          </BlurView>
+        </TouchableOpacity>
 
         <NearbySheet
           items={displayItems}
