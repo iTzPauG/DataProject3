@@ -46,7 +46,15 @@ export default function ProfileTab() {
   const [showDirectorPanel, setShowDirectorPanel] = React.useState(false);
 
   const DIRECTOR_UIDS = ['5duJR57R28cOaVgKQBv9EyAClXp2'];
-  const isDirector = profile?.role === 'director' || DIRECTOR_UIDS.includes(user?.uid ?? '');
+  const DIRECTOR_EMAILS = ['director@whim.app'];
+  const normalizedRole = String(profile?.role ?? '').toLowerCase().trim();
+  const normalizedEmail = String(user?.email ?? '').toLowerCase().trim();
+  const isDirector = (
+    normalizedRole === 'director'
+    || normalizedRole === 'admin'
+    || DIRECTOR_UIDS.includes(user?.uid ?? '')
+    || DIRECTOR_EMAILS.includes(normalizedEmail)
+  );
 
   const profileDesc = useMemo(() => {
     const variations = t("profile_variations", { returnObjects: true });
@@ -678,7 +686,6 @@ export default function ProfileTab() {
           </View>
         </ScrollView>
       </SafeAreaView>
-    </AnimatedTabScene>
 
       <Modal
         visible={showDirectorPanel}
@@ -691,6 +698,7 @@ export default function ProfileTab() {
           alreadyAuthenticated={isDirector}
         />
       </Modal>
+    </AnimatedTabScene>
     </>
   );
 }
