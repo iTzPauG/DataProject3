@@ -244,7 +244,8 @@
     "loadMore": "Weitere Orte suchen",
     "allResultsShown": "Sie haben alle verfügbaren Ergebnisse gesehen.",
     "nearbyResults": "Ergebnisse in der Nähe",
-    "viewMap": "Karte ansehen"
+    "viewMap": "Karte ansehen",
+    "filtersLabel": "Filter"
   },
   "category": {
     "food": "Essen",
@@ -434,7 +435,8 @@
     "parking": "Parking",
     "tires": "Reifen / Räder",
     "itv": "TÜV-Stelle",
-    "car_rental": "Autovermietung"
+    "car_rental": "Autovermietung",
+    "tapas": "Tapas"
   },
   "mood": {
     "quick": "Schnell was",
@@ -771,6 +773,30 @@
         "Fast fertig, Ihre endgültige Auswahl wird vorbereitet...",
         "Bewertungen und Entfernung werden geprüft..."
       ]
+    },
+    "options": {
+      "food": {
+        "pizza": "Pizza",
+        "hamburguesa": "Burger",
+        "japones": "Japanisch",
+        "italiano": "Italienisch",
+        "tapas": "Tapas",
+        "bocadillos": "Sandwiches",
+        "cafeteria": "Café",
+        "panaderia": "Bäckerei"
+      },
+      "speed": {
+        "quick": "Schnell",
+        "sit": "Hinsetzen",
+        "takeaway": "Mitnehmen"
+      },
+      "mood": {
+        "romantico": "Romantisch",
+        "animado": "Lebhaft",
+        "tranquilo": "Ruhig",
+        "familiar": "Familiär",
+        "terraza": "Terrasse"
+      }
     }
   },
   "myOffers": {
@@ -779,9 +805,26 @@
     "client": "Kunde",
     "withdrawOffer": "Angebot zurückziehen",
     "noOffersFiltered": "Keine Angebote in diesem Filter",
-    "reasonPlaceholder": "Grund hier eintragen..."
+    "reasonPlaceholder": "Grund hier eintragen...",
+    "filters": {
+      "all": "Alle",
+      "active": "Aktive",
+      "reserved": "Reserviert",
+      "cancelled": "Storniert",
+      "no_show": "Nicht erschienen",
+      "finalized": "Abgeschlossen"
+    }
   },
   "savedItems": {
-    "empty": "Keine Favoriten"
+    "empty": "Keine Favoriten",
+    "types": {
+      "place": "Ort",
+      "event": "Event",
+      "report": "Bericht"
+    }
+  },
+  "mapFilters": {
+    "deals": "Angebote",
+    "favorites": "Favoriten"
   }
 }

@@ -244,7 +244,8 @@
     "loadMore": "Trouver plus d'endroits",
     "allResultsShown": "Vous avez vu tous les résultats disponibles.",
     "nearbyResults": "Résultats à proximité",
-    "viewMap": "Voir la carte"
+    "viewMap": "Voir la carte",
+    "filtersLabel": "Filtres"
   },
   "category": {
     "food": "Restauration",
@@ -434,7 +435,8 @@
     "parking": "Parking",
     "tires": "Pneus / Roues",
     "itv": "Centre de controle technique",
-    "car_rental": "Location de voitures"
+    "car_rental": "Location de voitures",
+    "tapas": "Tapas"
   },
   "mood": {
     "quick": "Repas rapide",
@@ -771,6 +773,30 @@
         "Presque prêt, préparation de votre sélection finale...",
         "Vérification des évaluations et de la distance..."
       ]
+    },
+    "options": {
+      "food": {
+        "pizza": "Pizza",
+        "hamburguesa": "Burger",
+        "japones": "Japonais",
+        "italiano": "Italien",
+        "tapas": "Tapas",
+        "bocadillos": "Sandwichs",
+        "cafeteria": "Café",
+        "panaderia": "Boulangerie"
+      },
+      "speed": {
+        "quick": "Rapide",
+        "sit": "Sur place",
+        "takeaway": "À emporter"
+      },
+      "mood": {
+        "romantico": "Romantique",
+        "animado": "Animé",
+        "tranquilo": "Tranquille",
+        "familiar": "Familial",
+        "terraza": "Terrasse"
+      }
     }
   },
   "myOffers": {
@@ -779,9 +805,26 @@
     "client": "Client",
     "withdrawOffer": "Retirer l'offre",
     "noOffersFiltered": "Aucune offre dans ce filtre",
-    "reasonPlaceholder": "Écris la raison ici..."
+    "reasonPlaceholder": "Écris la raison ici...",
+    "filters": {
+      "all": "Toutes",
+      "active": "Actives",
+      "reserved": "Réservées",
+      "cancelled": "Annulées",
+      "no_show": "Absentes",
+      "finalized": "Terminées"
+    }
   },
   "savedItems": {
-    "empty": "Aucun favori"
+    "empty": "Aucun favori",
+    "types": {
+      "place": "Lieu",
+      "event": "Événement",
+      "report": "Signalement"
+    }
+  },
+  "mapFilters": {
+    "deals": "Offres",
+    "favorites": "Favoris"
   }
 }

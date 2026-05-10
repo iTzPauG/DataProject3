@@ -244,7 +244,8 @@
     "loadMore": "Find more places",
     "allResultsShown": "You have seen all available results.",
     "nearbyResults": "Nearby results",
-    "viewMap": "View map"
+    "viewMap": "View map",
+    "filtersLabel": "Filters"
   },
   "category": {
     "food": "Food",
@@ -434,7 +435,8 @@
     "parking": "Parking",
     "tires": "Tyres / Wheels",
     "itv": "MOT centre",
-    "car_rental": "Car rental"
+    "car_rental": "Car rental",
+    "tapas": "Tapas"
   },
   "mood": {
     "quick": "Quick bite",
@@ -771,6 +773,30 @@
         "Almost ready, preparing your final selection...",
         "Checking ratings and distance..."
       ]
+    },
+    "options": {
+      "food": {
+        "pizza": "Pizza",
+        "hamburguesa": "Burger",
+        "japones": "Japanese",
+        "italiano": "Italian",
+        "tapas": "Tapas",
+        "bocadillos": "Sandwiches",
+        "cafeteria": "Café",
+        "panaderia": "Bakery"
+      },
+      "speed": {
+        "quick": "Quick",
+        "sit": "Sit-down",
+        "takeaway": "Takeaway"
+      },
+      "mood": {
+        "romantico": "Romantic",
+        "animado": "Lively",
+        "tranquilo": "Quiet",
+        "familiar": "Family",
+        "terraza": "Terrace"
+      }
     }
   },
   "myOffers": {
@@ -779,9 +805,26 @@
     "client": "Client",
     "withdrawOffer": "Withdraw offer",
     "noOffersFiltered": "No offers in this filter",
-    "reasonPlaceholder": "Write the reason here..."
+    "reasonPlaceholder": "Write the reason here...",
+    "filters": {
+      "all": "All",
+      "active": "Active",
+      "reserved": "Reserved",
+      "cancelled": "Cancelled",
+      "no_show": "No-shows",
+      "finalized": "Finalized"
+    }
   },
   "savedItems": {
-    "empty": "No saved items"
+    "empty": "No saved items",
+    "types": {
+      "place": "Place",
+      "event": "Event",
+      "report": "Report"
+    }
+  },
+  "mapFilters": {
+    "deals": "Deals",
+    "favorites": "Favorites"
   }
 }

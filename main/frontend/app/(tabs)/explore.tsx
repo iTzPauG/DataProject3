@@ -13,17 +13,17 @@ import AnimatedTabScene from '../../components/AnimatedTabScene';
 import { useFlowState } from '../../hooks/useFlowState';
 import { useTheme } from '../../utils/theme';
 
-const FOOD_SUBCATEGORIES = [
-  { id: 'pizza', label: 'Pizza', emoji: '🍕' },
-  { id: 'sushi', label: 'Sushi', emoji: '🍱' },
-  { id: 'tapas', label: 'Tapas', emoji: '🥘' },
-  { id: 'burgers', label: 'Hamburguesas', emoji: '🍔' },
-  { id: 'asian', label: 'Asiática', emoji: '🍜' },
-  { id: 'italian', label: 'Italiana', emoji: '🍝' },
-  { id: 'mexican', label: 'Mexicana', emoji: '🌮' },
-  { id: 'healthy', label: 'Saludable', emoji: '🥗' },
-  { id: 'vegan', label: 'Vegano', emoji: '🌱' },
-  { id: 'kebab', label: 'Kebab', emoji: '🥙' },
+const FOOD_SUBCATEGORIES: Array<{ id: string; labelKey: string; emoji: string }> = [
+  { id: 'pizza',   labelKey: 'subcategory.pizza',     emoji: '🍕' },
+  { id: 'sushi',   labelKey: 'subcategory.sushi',     emoji: '🍱' },
+  { id: 'tapas',   labelKey: 'subcategory.tapas',     emoji: '🥘' },
+  { id: 'burgers', labelKey: 'subcategory.hamburger', emoji: '🍔' },
+  { id: 'asian',   labelKey: 'subcategory.asian',     emoji: '🍜' },
+  { id: 'italian', labelKey: 'subcategory.italian',   emoji: '🍝' },
+  { id: 'mexican', labelKey: 'subcategory.mexican',   emoji: '🌮' },
+  { id: 'healthy', labelKey: 'subcategory.healthy',   emoji: '🥗' },
+  { id: 'vegan',   labelKey: 'subcategory.vegan',     emoji: '🌱' },
+  { id: 'kebab',   labelKey: 'subcategory.kebab',     emoji: '🥙' },
 ];
 
 export default function ExploreTab() {
@@ -148,11 +148,11 @@ export default function ExploreTab() {
                 style={dynamicStyles.foodCard}
                 activeOpacity={0.7}
                 onPress={() => handleFoodSubcatPress(sub.id)}
-                accessibilityLabel={sub.label}
+                accessibilityLabel={t(sub.labelKey)}
                 accessibilityRole="button"
               >
                 <Text style={dynamicStyles.foodCardEmoji}>{sub.emoji}</Text>
-                <Text style={dynamicStyles.foodCardLabel}>{sub.label}</Text>
+                <Text style={dynamicStyles.foodCardLabel}>{t(sub.labelKey)}</Text>
               </TouchableOpacity>
             ))}
           </View>

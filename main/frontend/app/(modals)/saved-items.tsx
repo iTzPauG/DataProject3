@@ -19,11 +19,11 @@ import { useTheme } from '../../utils/theme';
 
 const ITEM_TYPE_CONFIG: Record<
   SavedItem['item_type'],
-  { icon: keyof typeof Ionicons.glyphMap; color: string; label: string; route: string }
+  { icon: keyof typeof Ionicons.glyphMap; color: string; labelKey: string; route: string }
 > = {
-  place: { icon: 'location', color: '#FF6B35', label: 'Lugar', route: '/(modals)/place-details' },
-  event: { icon: 'calendar', color: '#8B5CF6', label: 'Evento', route: '/(modals)/event-details' },
-  report: { icon: 'megaphone', color: '#F59E0B', label: 'Reporte', route: '/(modals)/report-details' },
+  place:  { icon: 'location',  color: '#FF6B35', labelKey: 'savedItems.types.place',  route: '/(modals)/place-details' },
+  event:  { icon: 'calendar',  color: '#8B5CF6', labelKey: 'savedItems.types.event',  route: '/(modals)/event-details' },
+  report: { icon: 'megaphone', color: '#F59E0B', labelKey: 'savedItems.types.report', route: '/(modals)/report-details' },
 };
 
 export default function SavedItemsModal() {
@@ -208,9 +208,10 @@ export default function SavedItemsModal() {
       ITEM_TYPE_CONFIG[item.item_type] ?? {
         icon: 'bookmark' as const,
         color: '#999',
-        label: item.item_type,
+        labelKey: 'savedItems.types.place',
         route: '/(modals)/place-details',
       };
+    const typeLabel = t(config.labelKey, { defaultValue: item.item_type });
     const photoUrl = (item.metadata as any)?.photo_url as string | undefined;
     const rating = (item.metadata as any)?.rating as number | undefined;
     return (
@@ -219,7 +220,7 @@ export default function SavedItemsModal() {
         onPress={() => openBookmark(item)}
         activeOpacity={0.85}
         accessibilityRole="button"
-        accessibilityLabel={`${config.label} guardado: ${item.title}`}
+        accessibilityLabel={t('savedItems.itemAccessibility', { type: typeLabel, title: item.title, defaultValue: `${typeLabel}: ${item.title}` })}
       >
         {photoUrl ? (
           <Image source={{ uri: photoUrl }} style={styles.thumb} />
@@ -230,10 +231,10 @@ export default function SavedItemsModal() {
         )}
         <View style={styles.itemContent}>
           <Text style={[styles.itemType, { color: config.color }]}>
-            {config.label.toUpperCase()}
+            {typeLabel.toUpperCase()}
           </Text>
           <Text style={styles.itemTitle} numberOfLines={1}>
-            {item.title || 'Sin título'}
+            {item.title || t('common.untitled', { defaultValue: 'Sin título' })}
           </Text>
           <Text style={styles.itemMeta} numberOfLines={1}>
             {rating != null ? `★ ${rating.toFixed(1)} · ` : ''}

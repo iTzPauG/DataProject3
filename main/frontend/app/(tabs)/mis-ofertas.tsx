@@ -725,21 +725,14 @@ export default function MisOfertasTab() {
 
         <View style={styles.filterRow}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScrollContent}>
-            {[
-              { key: 'all', label: 'Todas' },
-              { key: 'active', label: 'Activas' },
-              { key: 'reserved', label: 'Reservadas' },
-              { key: 'cancelled', label: 'Canceladas' },
-              { key: 'no_show', label: 'No presentadas' },
-                { key: 'finalized', label: 'Finalizadas' },
-            ].map((filter) => (
+            {(['all', 'active', 'reserved', 'cancelled', 'no_show', 'finalized'] as const).map((key) => (
               <TouchableOpacity
-                key={filter.key}
-                style={[styles.filterBtn, activeFilter === filter.key ? styles.filterBtnActive : null]}
-                onPress={() => setActiveFilter(filter.key as DealFilter)}
+                key={key}
+                style={[styles.filterBtn, activeFilter === key ? styles.filterBtnActive : null]}
+                onPress={() => setActiveFilter(key as DealFilter)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.filterText}>{filter.label}</Text>
+                <Text style={styles.filterText}>{t(`myOffers.filters.${key}`)}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>

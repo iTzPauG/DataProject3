@@ -690,8 +690,8 @@ export default function ResultsMapScreen() {
     if (moodLabel) return { key: "mood" as const, label: moodLabel };
     if (priceLabel) return { key: "price" as const, label: priceLabel };
     if (categoryLabel) return { key: "category" as const, label: categoryLabel };
-    return { key: "category" as const, label: "Filtros" };
-  }, [moodLabel, priceLabel, categoryLabel]);
+    return { key: "category" as const, label: t("flow.filtersLabel") };
+  }, [moodLabel, priceLabel, categoryLabel, t]);
 
   const handleRemoveConflictingFilter = useCallback(() => {
     if (conflictingFilter.key === "mood") {

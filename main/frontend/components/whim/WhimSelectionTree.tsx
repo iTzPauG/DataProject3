@@ -7,35 +7,36 @@ import { whimTheme } from '../../constants/whimTheme';
 
 const { width } = Dimensions.get('window');
 
-const FOOD_CATEGORIES = [
-  { id: 'pizza', label: 'Pizza', emoji: '🍕' },
-  { id: 'hamburguesa', label: 'Hamburguesa', emoji: '🍔' },
-  { id: 'japones', label: 'Japonés', emoji: '🍣' },
-  { id: 'italiano', label: 'Italiano', emoji: '🍝' },
-  { id: 'tapas', label: 'Tapas', emoji: '🧆' },
-  { id: 'bocadillos', label: 'Bocadillos', emoji: '🥖' },
-  { id: 'cafeteria', label: 'Cafetería', emoji: '☕' },
-  { id: 'panaderia', label: 'Panadería', emoji: '🥐' },
+const FOOD_CATEGORIES: Array<{ id: string; labelKey: string; emoji: string }> = [
+  { id: 'pizza',       labelKey: 'whim.options.food.pizza',       emoji: '🍕' },
+  { id: 'hamburguesa', labelKey: 'whim.options.food.hamburguesa', emoji: '🍔' },
+  { id: 'japones',     labelKey: 'whim.options.food.japones',     emoji: '🍣' },
+  { id: 'italiano',    labelKey: 'whim.options.food.italiano',    emoji: '🍝' },
+  { id: 'tapas',       labelKey: 'whim.options.food.tapas',       emoji: '🧆' },
+  { id: 'bocadillos',  labelKey: 'whim.options.food.bocadillos',  emoji: '🥖' },
+  { id: 'cafeteria',   labelKey: 'whim.options.food.cafeteria',   emoji: '☕' },
+  { id: 'panaderia',   labelKey: 'whim.options.food.panaderia',   emoji: '🥐' },
 ];
 
-const SPEED_OPTIONS = [
-  { id: 'quick', label: 'Quick', emoji: '⚡' },
-  { id: 'sit', label: 'Sentarse', emoji: '🪑' },
-  { id: 'takeaway', label: 'Para llevar', emoji: '📦' },
+const SPEED_OPTIONS: Array<{ id: string; labelKey: string; emoji: string }> = [
+  { id: 'quick',    labelKey: 'whim.options.speed.quick',    emoji: '⚡' },
+  { id: 'sit',      labelKey: 'whim.options.speed.sit',      emoji: '🪑' },
+  { id: 'takeaway', labelKey: 'whim.options.speed.takeaway', emoji: '📦' },
 ];
 
+// Budget labels are pure currency symbols — language-independent.
 const BUDGET_OPTIONS = [
   { id: '1', label: '€' },
   { id: '2', label: '€€' },
   { id: '3', label: '€€€' },
 ];
 
-const MOOD_OPTIONS = [
-  { id: 'romantico', label: 'Romántico' },
-  { id: 'animado', label: 'Animado' },
-  { id: 'tranquilo', label: 'Tranquilo' },
-  { id: 'familiar', label: 'Familiar' },
-  { id: 'terraza', label: 'Terraza' },
+const MOOD_OPTIONS: Array<{ id: string; labelKey: string }> = [
+  { id: 'romantico', labelKey: 'whim.options.mood.romantico' },
+  { id: 'animado',   labelKey: 'whim.options.mood.animado' },
+  { id: 'tranquilo', labelKey: 'whim.options.mood.tranquilo' },
+  { id: 'familiar',  labelKey: 'whim.options.mood.familiar' },
+  { id: 'terraza',   labelKey: 'whim.options.mood.terraza' },
 ];
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -105,7 +106,7 @@ export const WhimSelectionTree = ({ onSearch }: { onSearch?: (selections: any) =
           {FOOD_CATEGORIES.map(item => (
             <FoodCard
               key={item.id}
-              item={item}
+              item={{ ...item, label: t(item.labelKey) }}
               isSelected={selections.food === item.id}
               onPress={() => toggleSelection('food', item.id)}
             />
@@ -124,7 +125,7 @@ export const WhimSelectionTree = ({ onSearch }: { onSearch?: (selections: any) =
                 style={[styles.pill, isSelected && { backgroundColor: whimTheme.colors.accent.teal, borderColor: whimTheme.colors.accent.teal }]}
               >
                 <Text style={styles.pillEmoji}>{item.emoji}</Text>
-                <Text style={[styles.pillLabel, isSelected && { color: '#12122A', fontWeight: 'bold' }]}>{item.label}</Text>
+                <Text style={[styles.pillLabel, isSelected && { color: '#12122A', fontWeight: 'bold' }]}>{t(item.labelKey)}</Text>
               </Pressable>
             );
           })}
@@ -161,7 +162,7 @@ export const WhimSelectionTree = ({ onSearch }: { onSearch?: (selections: any) =
                   colors={isSelected ? [whimTheme.colors.accent.mood, '#9D4EDD'] : [whimTheme.colors.surface, whimTheme.colors.surface]}
                   style={[styles.moodCard, isSelected && styles.moodCardSelected]}
                 >
-                  <Text style={[styles.moodLabel, isSelected && { color: '#FFF' }]}>{item.label}</Text>
+                  <Text style={[styles.moodLabel, isSelected && { color: '#FFF' }]}>{t(item.labelKey)}</Text>
                 </LinearGradient>
               </Pressable>
             );

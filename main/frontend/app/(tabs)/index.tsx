@@ -42,19 +42,19 @@ type AutocompleteResult = {
   raw?: any;
 };
 
-const FOOD_SUBCATEGORIES = [
-  { id: 'pizza', label: 'Pizza', emoji: '🍕' },
-  { id: 'sushi', label: 'Sushi', emoji: '🍣' },
-  { id: 'tapas', label: 'Tapas', emoji: '🥘' },
-  { id: 'burgers', label: 'Burgers', emoji: '🍔' },
-  { id: 'asian', label: 'Asiática', emoji: '🍜' },
-  { id: 'italian', label: 'Italiana', emoji: '🍝' },
-  { id: 'mexican', label: 'Mexicana', emoji: '🌮' },
-  { id: 'healthy', label: 'Sano', emoji: '🥗' },
-  { id: 'vegan', label: 'Vegano', emoji: '🌱' },
-  { id: 'kebab', label: 'Kebab', emoji: '🥙' },
-  { id: 'brunch', label: 'Brunch', emoji: '🥞' },
-  { id: 'coffee', label: 'Café', emoji: '☕' },
+const FOOD_SUBCATEGORIES: Array<{ id: string; labelKey: string; emoji: string }> = [
+  { id: 'pizza',    labelKey: 'subcategory.pizza',     emoji: '🍕' },
+  { id: 'sushi',    labelKey: 'subcategory.sushi',     emoji: '🍣' },
+  { id: 'tapas',    labelKey: 'subcategory.tapas',     emoji: '🥘' },
+  { id: 'burgers',  labelKey: 'subcategory.hamburger', emoji: '🍔' },
+  { id: 'asian',    labelKey: 'subcategory.asian',     emoji: '🍜' },
+  { id: 'italian',  labelKey: 'subcategory.italian',   emoji: '🍝' },
+  { id: 'mexican',  labelKey: 'subcategory.mexican',   emoji: '🌮' },
+  { id: 'healthy',  labelKey: 'subcategory.healthy',   emoji: '🥗' },
+  { id: 'vegan',    labelKey: 'subcategory.vegan',     emoji: '🌱' },
+  { id: 'kebab',    labelKey: 'subcategory.kebab',     emoji: '🥙' },
+  { id: 'brunch',   labelKey: 'subcategory.brunch',    emoji: '🥞' },
+  { id: 'coffee',   labelKey: 'subcategory.coffee',    emoji: '☕' },
 ];
 
 export default function MapTab() {
@@ -724,7 +724,7 @@ export default function MapTab() {
                     activeOpacity={0.7}
                   >
                     <Text style={{ fontSize: 12, fontWeight: '700', color: showDealsOnly ? '#fff' : '#F97316' }}>
-                      🔥 Anuncios{liveDealItems.length > 0 ? ` (${liveDealItems.length})` : ''}
+                      🔥 {t('mapFilters.deals')}{liveDealItems.length > 0 ? ` (${liveDealItems.length})` : ''}
                     </Text>
                   </TouchableOpacity>
 
@@ -757,7 +757,7 @@ export default function MapTab() {
                     }}
                     activeOpacity={0.7}
                   >
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: showFavoritesOnly ? '#000' : '#FFD700' }}>⭐ Favoritos</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: showFavoritesOnly ? '#000' : '#FFD700' }}>⭐ {t('mapFilters.favorites')}</Text>
                   </TouchableOpacity>
 
                   {/* Tipologías */}
@@ -777,7 +777,7 @@ export default function MapTab() {
                       >
                         <Text>{sub.emoji}</Text>
                         <Text style={[styles.foodSubcatChipText, active && styles.foodSubcatChipTextActive]}>
-                          {sub.label}
+                          {t(sub.labelKey)}
                         </Text>
                       </TouchableOpacity>
                     );

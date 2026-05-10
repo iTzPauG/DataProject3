@@ -251,7 +251,8 @@
     "moodTitle": "¿Cuál es el plan?",
     "moodSubtitle": "Elige el ambiente perfecto",
     "nearbyResults": "Resultados cercanos",
-    "viewMap": "Ver mapa"
+    "viewMap": "Ver mapa",
+    "filtersLabel": "Filtros"
   },
   "category": {
     "food": "Comida",
@@ -506,6 +507,30 @@
         "Casi listo, preparando tu selección final...",
         "Comprobando valoraciones y distancia..."
       ]
+    },
+    "options": {
+      "food": {
+        "pizza": "Pizza",
+        "hamburguesa": "Hamburguesa",
+        "japones": "Japonés",
+        "italiano": "Italiano",
+        "tapas": "Tapas",
+        "bocadillos": "Bocadillos",
+        "cafeteria": "Cafetería",
+        "panaderia": "Panadería"
+      },
+      "speed": {
+        "quick": "Rápido",
+        "sit": "Sentarse",
+        "takeaway": "Para llevar"
+      },
+      "mood": {
+        "romantico": "Romántico",
+        "animado": "Animado",
+        "tranquilo": "Tranquilo",
+        "familiar": "Familiar",
+        "terraza": "Terraza"
+      }
     }
   },
   "settings": {
@@ -667,7 +692,8 @@
     "parking": "Parking",
     "tires": "Neumáticos / Ruedas",
     "itv": "Centro ITV",
-    "car_rental": "Alquiler coches"
+    "car_rental": "Alquiler coches",
+    "tapas": "Tapas"
   },
   "mood": {
     "quick": "Algo rápido",
@@ -779,9 +805,26 @@
     "client": "Cliente",
     "withdrawOffer": "Retirar oferta",
     "noOffersFiltered": "No hay ofertas en este filtro",
-    "reasonPlaceholder": "Escribe aquí el motivo..."
+    "reasonPlaceholder": "Escribe aquí el motivo...",
+    "filters": {
+      "all": "Todas",
+      "active": "Activas",
+      "reserved": "Reservadas",
+      "cancelled": "Canceladas",
+      "no_show": "No presentadas",
+      "finalized": "Finalizadas"
+    }
   },
   "savedItems": {
-    "empty": "Sin guardados"
+    "empty": "Sin guardados",
+    "types": {
+      "place": "Lugar",
+      "event": "Evento",
+      "report": "Reporte"
+    }
+  },
+  "mapFilters": {
+    "deals": "Anuncios",
+    "favorites": "Favoritos"
   }
 }

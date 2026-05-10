@@ -244,7 +244,8 @@
     "loadMore": "Encontrar mais lugares",
     "allResultsShown": "Você viu todos os resultados disponíveis.",
     "nearbyResults": "Resultados próximos",
-    "viewMap": "Ver mapa"
+    "viewMap": "Ver mapa",
+    "filtersLabel": "Filtros"
   },
   "category": {
     "food": "Comida",
@@ -434,7 +435,8 @@
     "parking": "Parking",
     "tires": "Pneus / Rodas",
     "itv": "Centro de inspeção",
-    "car_rental": "Aluguer de carros"
+    "car_rental": "Aluguer de carros",
+    "tapas": "Petiscos"
   },
   "mood": {
     "quick": "Algo rápido",
@@ -771,6 +773,30 @@
         "Quase pronto, a preparar a sua seleção final...",
         "A verificar classificações e distância..."
       ]
+    },
+    "options": {
+      "food": {
+        "pizza": "Piza",
+        "hamburguesa": "Hambúrguer",
+        "japones": "Japonês",
+        "italiano": "Italiano",
+        "tapas": "Petiscos",
+        "bocadillos": "Sandes",
+        "cafeteria": "Café",
+        "panaderia": "Padaria"
+      },
+      "speed": {
+        "quick": "Rápido",
+        "sit": "Mesa",
+        "takeaway": "Para levar"
+      },
+      "mood": {
+        "romantico": "Romântico",
+        "animado": "Animado",
+        "tranquilo": "Tranquilo",
+        "familiar": "Familiar",
+        "terraza": "Esplanada"
+      }
     }
   },
   "myOffers": {
@@ -779,9 +805,26 @@
     "client": "Cliente",
     "withdrawOffer": "Retirar oferta",
     "noOffersFiltered": "Não há ofertas neste filtro",
-    "reasonPlaceholder": "Escreve aqui o motivo..."
+    "reasonPlaceholder": "Escreve aqui o motivo...",
+    "filters": {
+      "all": "Todas",
+      "active": "Ativas",
+      "reserved": "Reservadas",
+      "cancelled": "Canceladas",
+      "no_show": "Não compareceu",
+      "finalized": "Finalizadas"
+    }
   },
   "savedItems": {
-    "empty": "Sem guardados"
+    "empty": "Sem guardados",
+    "types": {
+      "place": "Sítio",
+      "event": "Evento",
+      "report": "Reporte"
+    }
+  },
+  "mapFilters": {
+    "deals": "Anúncios",
+    "favorites": "Favoritos"
   }
 }
