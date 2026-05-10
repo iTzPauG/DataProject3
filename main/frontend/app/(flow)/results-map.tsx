@@ -853,7 +853,7 @@ export default function ResultsMapScreen() {
     <View style={StyleSheet.absoluteFill}>
       {showMap ? (
         <Map
-          restaurants={restaurants}
+          restaurants={restaurants.slice(0, 5)}
           items={savedItems}
           selectedId={selectedId}
           onSelectRestaurant={handlePinSelect}
