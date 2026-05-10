@@ -9,8 +9,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BASE_URL } from '../services/api';
-import { useTheme } from '../utils/theme';
+import { BASE_URL } from '../../services/api';
+import { useTheme } from '../../utils/theme';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Metrics {

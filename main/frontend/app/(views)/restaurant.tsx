@@ -10,9 +10,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BASE_URL } from '../services/api';
-import { useTheme } from '../utils/theme';
-import { TableEvent, useTableEvents } from '../hooks/useTableEvents';
+import { BASE_URL } from '../../services/api';
+import { useTheme } from '../../utils/theme';
+import { TableEvent, useTableEvents } from '../../hooks/useTableEvents';
 
 // ── Pantalla de acceso ─────────────────────────────────────────────────────────
 function LoginScreen({ onLogin }: { onLogin: (name: string) => void }) {
