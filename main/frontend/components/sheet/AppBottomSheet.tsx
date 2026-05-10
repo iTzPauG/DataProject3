@@ -5,7 +5,7 @@ import BottomSheet, {
   BottomSheetScrollView, 
   BottomSheetProps as GorhomBottomSheetProps
 } from '@gorhom/bottom-sheet';
-import { useTheme } from '../../../utils/theme';
+import { useTheme } from '../../utils/theme';
 
 interface AppBottomSheetProps extends Omit<GorhomBottomSheetProps, 'children'> {
   header?: React.ReactNode;
