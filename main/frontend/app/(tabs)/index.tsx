@@ -95,7 +95,7 @@ export default function MapTab() {
   const acTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const desktopWidth = Math.min(windowWidth - 40, 620);
   const leftOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
-  const rightOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 58;
+  const rightOffset = isDesktop ? (windowWidth - desktopWidth) / 2 : 14;
   const minimalist = mapPreferences.mapStyle === 'minimal';
   const { deals: liveDeals, connected: dealsConnected } = useLiveDeals({
     lat: mapRegion?.lat ?? location.lat ?? undefined,
