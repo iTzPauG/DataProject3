@@ -46,6 +46,8 @@ FROM profiles
 """
 
 
+ADMIN_UIDS = {"5duJR57R28cOaVgKQBv9EyAClXp2"}
+
 DEV_BUSINESS_PROFILES = {
     "test-business-1": {
         "restaurant_name": "La Pepica",
@@ -158,7 +160,12 @@ async def sync_profile(body: SyncProfileBody, request: Request):
                 (new_id, firebase_uid, body.display_name or "Local User", body.avatar_url),
             )
 
-            if firebase_uid in DEV_BUSINESS_PROFILES:
+            if firebase_uid in ADMIN_UIDS:
+                await db.execute(
+                    "UPDATE profiles SET role = 'admin', updated_at = CURRENT_TIMESTAMP WHERE firebase_uid = ?",
+                    (firebase_uid,),
+                )
+            elif firebase_uid in DEV_BUSINESS_PROFILES:
                 business = DEV_BUSINESS_PROFILES[firebase_uid]
                 await db.execute(
                     """UPDATE profiles SET

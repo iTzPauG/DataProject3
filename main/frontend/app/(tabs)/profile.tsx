@@ -102,7 +102,7 @@ export default function ProfileTab() {
         description: t('profile.menu.settingsDesc'),
         icon: 'sliders',
       },
-      ...(user ? [{
+      ...(isDirector ? [{
         id: 'director',
         label: 'Panel Directivos',
         description: 'Métricas y gestión de la plataforma',
@@ -511,6 +511,7 @@ export default function ProfileTab() {
 
   return (
     <>
+      <AnimatedTabScene>
       <View style={StyleSheet.absoluteFillObject}>
         <Animated.View style={[styles.blob, { backgroundColor: colors.brandDeep }, blob1Style]} />
         <Animated.View style={[styles.blob, { backgroundColor: colors.accent, width: width * 1.1, height: width * 1.1 }, blob2Style]} />

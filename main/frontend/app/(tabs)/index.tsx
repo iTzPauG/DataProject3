@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
+  LayoutChangeEvent,
   ScrollView,
   StyleSheet,
   Text,
@@ -92,6 +93,7 @@ export default function MapTab() {
   const [searchQuery, setSearchQuery] = useState('');
   const [acResults, setAcResults] = useState<AutocompleteResult[]>([]);
   const [selectedSearchItem, setSelectedSearchItem] = useState<AutocompleteResult | null>(null);
+  const [searchPanelHeight, setSearchPanelHeight] = useState(0);
   const [savedPins, setSavedPins] = useState<MapItem[]>([]);
   const hasAutoCentered = useRef(false);
   const acTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -174,10 +176,9 @@ export default function MapTab() {
 
         dropdown: {
           position: 'absolute',
-          top: '100%',
+          top: searchPanelHeight + 8,
           left: 0,
           right: 0,
-          marginTop: 8,
           borderRadius: 20,
           overflow: 'hidden',
           ...shadows.lift,
@@ -356,6 +357,11 @@ export default function MapTab() {
     },
     [],
   );
+
+  const handleTopOverlayLayout = useCallback((e: LayoutChangeEvent) => {
+    const { height } = e.nativeEvent.layout;
+    setListTopOffset(insets.top + 14 + height);
+  }, [insets.top]);
 
   // Double-click on a map marker → open the place's full details modal.
   // Passing the full item as `prefill` avoids a second backend round-trip
@@ -611,8 +617,9 @@ export default function MapTab() {
               left: leftOffset,
               right: rightOffset,
             }}
+            onLayout={handleTopOverlayLayout}
           >
-            <View style={styles.panel}>
+            <View style={styles.panel} onLayout={(e) => setSearchPanelHeight(e.nativeEvent.layout.height)}>
               <BlurView intensity={60} tint="dark" style={styles.panelBlur}>
                 <View style={styles.eyebrowRow}>
                   <Text style={styles.eyebrow}>{t("home.locationNow")}</Text>
@@ -703,13 +710,7 @@ export default function MapTab() {
             </View>
 
             {/* Filter chips row: Anuncios → Favoritos → tipologías */}
-            <View
-              style={styles.filterPanel}
-              onLayout={(e) => {
-                const { y, height } = e.nativeEvent.layout;
-                setListTopOffset(insets.top + 14 + y + height);
-              }}
-            >
+            <View style={styles.filterPanel}>
               <BlurView intensity={60} tint="dark" style={[styles.panelBlur, { borderRadius: 16 }]}>
                 <ScrollView
                   horizontal
