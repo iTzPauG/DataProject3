@@ -15,6 +15,7 @@ from config import ALLOWED_ORIGINS
 from database import init_db, using_postgres
 from routers import health, recommend, votes, places, events, reports, categories, bookmarks, search, brain, photos, preferences, compare, deals, reservations, interactions, internal, auth
 from routers import table_events, dashboard
+from services import bigquery_service
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,10 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to init DB: {e}")
         with open("startup.log", "a") as f:
             f.write(f"DB init failed: {e}\n{traceback.format_exc()}\n")
+    try:
+        bigquery_service.ensure_table()
+    except Exception as e:
+        logger.warning("BigQuery setup failed: %s", e)
     yield
     # Clean up if needed
 

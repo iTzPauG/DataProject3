@@ -93,25 +93,24 @@ def insert_snapshot(metrics: dict) -> bool:
 
 
 def get_recent_snapshots(limit: int = 48) -> list[dict]:
-    """Return the last `limit` snapshots ordered newest-first."""
+    """Return the last `limit` snapshots ordered newest-first.
+
+    Uses tabledata.list instead of a query job — no bigquery.jobs.create needed.
+    """
     client = _client()
     if not client:
         return []
     try:
-        query = f"""
-            SELECT *
-            FROM `{BQ_PROJECT}.{BQ_DATASET}.{BQ_TABLE}`
-            ORDER BY snapshot_at DESC
-            LIMIT {int(limit)}
-        """
-        rows = client.query(query).result()
+        table_ref = f"{BQ_PROJECT}.{BQ_DATASET}.{BQ_TABLE}"
+        rows = client.list_rows(table_ref)
         result = []
         for row in rows:
             d = dict(row)
             if hasattr(d.get("snapshot_at"), "isoformat"):
                 d["snapshot_at"] = d["snapshot_at"].isoformat()
             result.append(d)
-        return result
+        result.sort(key=lambda x: x.get("snapshot_at", ""), reverse=True)
+        return result[:int(limit)]
     except Exception as e:
-        logger.warning("[BQ] query error: %s", e)
+        logger.warning("[BQ] list_rows error: %s", e)
         return []
