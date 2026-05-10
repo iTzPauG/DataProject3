@@ -5,6 +5,7 @@ import { Category, CommunityReport, MapItem, ReportType, SavedItem, RestaurantDB
 import { FALLBACK_CATEGORIES } from './mapService';
 import i18n from '../utils/i18n';
 import { resolveI18nLanguage } from '../utils/language';
+import { getCachedData, setCachedData } from '../utils/cache';
 import { hasMeaningfulTake } from '../utils/placeTake';
 
 // Derive the backend URL with autodetection for production
@@ -1215,10 +1216,17 @@ export interface TagRecommendationsResponse {
   matched_tags: string[];
 }
 
-export async function getCurrentUserInteractions(): Promise<UserInteractionsResponse | null> {
+export async function getCurrentUserInteractions(opts?: { forceRefresh?: boolean }): Promise<UserInteractionsResponse | null> {
   try {
     const uid = firebaseAuth?.currentUser?.uid ?? null;
     if (!uid) return null;
+
+    const cacheKey = `user_interactions_${uid}`;
+
+    if (!opts?.forceRefresh) {
+      const cached = await getCachedData<UserInteractionsResponse>(cacheKey);
+      if (cached) return cached;
+    }
 
     const res = await fetch(`${BASE_URL}/internal/users/${encodeURIComponent(uid)}/interactions`, {
       headers: {
@@ -1228,7 +1236,9 @@ export async function getCurrentUserInteractions(): Promise<UserInteractionsResp
       },
     });
     if (!res.ok) return null;
-    return await res.json();
+    const data = await res.json();
+    await setCachedData(cacheKey, data);
+    return data;
   } catch {
     return null;
   }

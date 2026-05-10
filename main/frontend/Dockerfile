@@ -5,7 +5,9 @@ WORKDIR /app
 # Optimization: increasing memory for npm and setting timeouts to avoid "stuck" installs
 ENV NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=600000 \
     NPM_CONFIG_FETCH_RETRIES=5 \
-    NODE_OPTIONS="--max-old-space-size=4096"
+    NODE_OPTIONS="--max-old-space-size=4096" \
+    LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8
 
 # Build args for Expo public env vars
 ARG EXPO_PUBLIC_BACKEND_URL
