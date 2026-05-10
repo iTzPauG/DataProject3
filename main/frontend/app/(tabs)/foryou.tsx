@@ -61,16 +61,16 @@ const ALL_SECTIONS: SectionConfig[] = [
   { titleKey: 'foryou.sections.trending', emoji: '🔥', query: 'restaurante popular Valencia', fixed: true, trending: true },
   { titleKey: 'foryou.sections.pizza', emoji: '🍕', query: 'pizzeria restaurante', affinityTags: ['pizza','italiana'], dislikeTags: [] },
   { titleKey: 'foryou.sections.burgers', emoji: '🍔', query: 'hamburguesa restaurante', affinityTags: ['hamburguesa','burger'], dislikeTags: ['hamburguesa','burger','fast food'] },
-  { titleKey: 'foryou.sections.sushi', emoji: '🍱', query: 'sushi japones restaurante', affinityTags: ['sushi','japonÃ©s','asiÃ¡tico','ramen','poke'], dislikeTags: ['sushi','japonÃ©s','asiÃ¡tico'] },
-  { titleKey: 'foryou.sections.coffeeBrunch', emoji: '☕', query: 'cafe brunch desayuno', affinityTags: ['brunch','cafÃ©','coffee','desayuno'], dislikeTags: [] },
-  { titleKey: 'foryou.sections.veganHealthy', emoji: '🌱', query: 'vegano saludable restaurante', affinityTags: ['vegano','saludable','healthy','vegan','orgÃ¡nico'], dislikeTags: ['vegano','saludable','healthy'] },
+  { titleKey: 'foryou.sections.sushi', emoji: '🍱', query: 'sushi japones restaurante', affinityTags: ['sushi','japonés','asiático','ramen','poke'], dislikeTags: ['sushi','japonés','asiático'] },
+  { titleKey: 'foryou.sections.coffeeBrunch', emoji: '☕', query: 'cafe brunch desayuno', affinityTags: ['brunch','café','coffee','desayuno'], dislikeTags: [] },
+  { titleKey: 'foryou.sections.veganHealthy', emoji: '🌱', query: 'vegano saludable restaurante', affinityTags: ['vegano','saludable','healthy','vegan','orgánico'], dislikeTags: ['vegano','saludable','healthy'] },
   { titleKey: 'foryou.sections.nightOpen', emoji: '🌙', query: 'restaurante nocturno', affinityTags: ['nocturno','noche','bar','copas'], dislikeTags: [] },
   { titleKey: 'foryou.sections.date', emoji: '🎯', query: 'restaurante romantico cena', affinityTags: [], dislikeTags: [] },
   { titleKey: 'foryou.sections.family', emoji: '👨‍👩‍👧', query: 'restaurante familiar', affinityTags: [], dislikeTags: [] },
-  { titleKey: 'foryou.sections.instagrammable', emoji: '📸', query: 'restaurante bonito moderno', affinityTags: ['moderno','fusiÃ³n','instagrameable'], dislikeTags: [] },
+  { titleKey: 'foryou.sections.instagrammable', emoji: '📸', query: 'restaurante bonito moderno', affinityTags: ['moderno','fusión','instagrameable'], dislikeTags: [] },
   { titleKey: 'foryou.sections.terraces', emoji: '🍹', query: 'restaurante terraza', affinityTags: ['terraza','exterior'], dislikeTags: [] },
   { titleKey: 'foryou.sections.new', emoji: '✨', query: 'restaurante reciente nuevo Valencia', affinityTags: [], dislikeTags: [], newish: true },
-  { titleKey: 'foryou.sections.fastFood', emoji: '🍟', query: 'comida rapida burger fast food Valencia', affinityTags: ['fast food','comida rÃ¡pida'], dislikeTags: ['fast food','comida rÃ¡pida','mcdonalds','montaditos'] },
+  { titleKey: 'foryou.sections.fastFood', emoji: '🍟', query: 'comida rapida burger fast food Valencia', affinityTags: ['fast food','comida rápida'], dislikeTags: ['fast food','comida rápida','mcdonalds','montaditos'] },
 ] as (SectionConfig & { newish?: boolean })[];
 
 interface TribeCluster {
@@ -966,7 +966,7 @@ export default function ForYouTab() {
           {auth.user?.uid && likedBaseName && likedSimilarRestaurants.length > 0 ? (
             <SectionRow
               key={`liked-similar-${auth.user.uid}`}
-              title={`Como te gustÃ³ ${likedBaseName}`}
+              title={`Como te gustó ${likedBaseName}`}
               emoji="🍽️"
               query="liked-similar"
               loadRestaurants={loadLikedSimilarSection}
@@ -984,7 +984,7 @@ export default function ForYouTab() {
           {auth.user?.uid && tribeCluster && tribeRestaurants.length > 0 ? (
             <SectionRow
               key={`tribe-${auth.user.uid}-${tribeCluster.id}`}
-              title="A tu tribu le gustÃ³"
+              title="A tu tribu le gustó"
               emoji="👥"
               subtitle={tribeCluster.title}
               query="tribe-recommendations"
