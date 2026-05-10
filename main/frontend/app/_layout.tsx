@@ -79,9 +79,10 @@ function PreferencesSyncer() {
     if (loading || !idToken) return;
 
     let cancelled = false;
+    const token = idToken;
 
     async function syncRemotePreferences() {
-      const remote = await fetchRemotePreferences(idToken);
+      const remote = await fetchRemotePreferences(token);
       if (!remote || cancelled) return;
 
       setMapPreferences(toLocalPreferences(remote, latestPreferencesRef.current));
