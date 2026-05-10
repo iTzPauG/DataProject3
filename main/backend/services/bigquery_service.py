@@ -10,21 +10,23 @@ BQ_DATASET = os.getenv("BIGQUERY_DATASET_ID", "whim_metrics")
 BQ_TABLE   = "platform_metrics"
 
 _SCHEMA = [
-    ("snapshot_at",              "TIMESTAMP"),
-    ("active_offers",            "INTEGER"),
-    ("registered_restaurants",   "INTEGER"),
-    ("active_restaurants_today", "INTEGER"),
-    ("total_offers_today",       "INTEGER"),
-    ("total_offers_alltime",     "INTEGER"),
-    ("cancelled_today",          "INTEGER"),
-    ("cancellation_rate_today",  "FLOAT"),
-    ("offers_last_hour",         "INTEGER"),
-    ("total_seats_available",    "INTEGER"),
-    ("avg_offer_price",          "FLOAT"),
-    ("min_price_active",         "FLOAT"),
-    ("max_price_active",         "FLOAT"),
-    ("avg_seats_per_offer",      "FLOAT"),
-    ("ws_connections",           "INTEGER"),
+    ("snapshot_at",               "TIMESTAMP"),
+    ("active_offers",             "INTEGER"),
+    ("registered_restaurants",    "INTEGER"),
+    ("active_restaurants_today",  "INTEGER"),
+    ("active_restaurants_week",   "INTEGER"),
+    ("total_offers_today",        "INTEGER"),
+    ("total_offers_alltime",      "INTEGER"),
+    ("cancelled_today",           "INTEGER"),
+    ("cancellation_rate_today",   "FLOAT"),
+    ("offers_last_hour",          "INTEGER"),
+    ("total_seats_available",     "INTEGER"),
+    ("avg_offer_price",           "FLOAT"),
+    ("min_price_active",          "FLOAT"),
+    ("max_price_active",          "FLOAT"),
+    ("avg_seats_per_offer",       "FLOAT"),
+    ("avg_duration_min",          "FLOAT"),
+    ("ws_connections",            "INTEGER"),
 ]
 
 

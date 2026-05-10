@@ -40,7 +40,7 @@ interface RestaurantRow {
 }
 
 // ── Login ─────────────────────────────────────────────────────────────────────
-function DirectorLogin({ onLogin }: { onLogin: () => void }) {
+function DirectorLogin({ onLogin, onClose }: { onLogin: () => void; onClose?: () => void }) {
   const { colors, typography } = useTheme();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -70,6 +70,11 @@ function DirectorLogin({ onLogin }: { onLogin: () => void }) {
 
   return (
     <SafeAreaView style={[s.safe, { backgroundColor: colors.shell }]}>
+      {onClose && (
+        <TouchableOpacity onPress={onClose} style={{ alignSelf: 'flex-end', padding: 16 }}>
+          <Text style={{ color: colors.inkMuted, fontSize: 13, fontFamily: typography.body }}>✕ Cerrar</Text>
+        </TouchableOpacity>
+      )}
       <View style={s.loginContainer}>
         <Text style={[s.loginTitle, { color: colors.ink, fontFamily: typography.heading }]}>
           Panel Directivo
@@ -210,24 +215,50 @@ function DirectorPanel({ onLogout }: { onLogout: () => void }) {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [restaurants, setRestaurants] = useState<RestaurantRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [noData, setNoData] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Read latest snapshot from BigQuery
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setNoData(false);
     try {
-      const [mRes, rRes] = await Promise.all([
-        fetch(`${BASE_URL}/dashboard/metrics`),
+      const [hRes, rRes] = await Promise.all([
+        fetch(`${BASE_URL}/dashboard/history`),
         fetch(`${BASE_URL}/dashboard/restaurants`),
       ]);
-      if (!mRes.ok || !rRes.ok) throw new Error('Error al cargar datos');
-      const [mData, rData] = await Promise.all([mRes.json(), rRes.json()]);
-      setMetrics(mData);
+      if (!hRes.ok || !rRes.ok) throw new Error('Error al cargar datos');
+      const [hData, rData] = await Promise.all([hRes.json(), rRes.json()]);
+      const snapshots: Metrics[] = hData.snapshots ?? [];
+      if (snapshots.length === 0) {
+        setNoData(true);
+      } else {
+        setMetrics(snapshots[0]);
+      }
       setRestaurants(rData.restaurants ?? []);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  // Compute fresh metrics, save to BigQuery, then update display
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    setError(null);
+    try {
+      const res = await fetch(`${BASE_URL}/dashboard/metrics`);
+      if (!res.ok) throw new Error('Error al generar snapshot');
+      const data = await res.json();
+      setMetrics(data);
+      setNoData(false);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setRefreshing(false);
     }
   }, []);
 
@@ -246,8 +277,15 @@ function DirectorPanel({ onLogout }: { onLogout: () => void }) {
           </Text>
         </View>
         <View style={{ alignItems: 'flex-end', gap: 8 }}>
-          <TouchableOpacity onPress={load} style={[s.refreshBtn, { borderColor: colors.stroke }]}>
-            <Text style={{ color: colors.inkMuted, fontSize: 12, fontFamily: typography.body }}>↻ Actualizar</Text>
+          <TouchableOpacity
+            onPress={refresh}
+            disabled={refreshing}
+            style={[s.refreshBtn, { borderColor: colors.brand, opacity: refreshing ? 0.5 : 1 }]}
+          >
+            {refreshing
+              ? <ActivityIndicator size="small" color={colors.brand} />
+              : <Text style={{ color: colors.brand, fontSize: 12, fontFamily: typography.body }}>↻ Generar snapshot</Text>
+            }
           </TouchableOpacity>
           <TouchableOpacity onPress={onLogout}>
             <Text style={{ color: colors.inkFaint, fontSize: 11, fontFamily: typography.body }}>Salir</Text>
@@ -270,13 +308,39 @@ function DirectorPanel({ onLogout }: { onLogout: () => void }) {
         </View>
       )}
 
+      {!loading && !error && noData && (
+        <View style={s.center}>
+          <Text style={{ color: colors.inkMuted, fontFamily: typography.body, textAlign: 'center', marginBottom: 8 }}>
+            No hay snapshots en BigQuery todavía.
+          </Text>
+          <Text style={{ color: colors.inkFaint, fontFamily: typography.body, fontSize: 12, textAlign: 'center', marginBottom: 20 }}>
+            Pulsa "Generar snapshot" para calcular las métricas y guardarlas en BigQuery.
+          </Text>
+          <TouchableOpacity
+            onPress={refresh}
+            disabled={refreshing}
+            style={[s.btn, { backgroundColor: colors.brand, paddingHorizontal: 28, opacity: refreshing ? 0.5 : 1 }]}
+          >
+            {refreshing
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={[s.btnText, { fontFamily: typography.heading }]}>Generar primer snapshot</Text>
+            }
+          </TouchableOpacity>
+        </View>
+      )}
+
       {!loading && !error && metrics && (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
 
-          {/* Snapshot time */}
-          <Text style={[s.snapshotTime, { color: colors.inkFaint, fontFamily: typography.body }]}>
-            Última actualización: {new Date(metrics.snapshot_at).toLocaleTimeString('es-ES')}
-          </Text>
+          {/* Source + timestamp */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <Text style={{ color: colors.brand, fontSize: 10, fontFamily: typography.body, letterSpacing: 1.5, fontWeight: '700' }}>
+              FUENTE: BIGQUERY
+            </Text>
+            <Text style={[s.snapshotTime, { color: colors.inkFaint, fontFamily: typography.body, marginBottom: 0 }]}>
+              {new Date(metrics.snapshot_at).toLocaleString('es-ES')}
+            </Text>
+          </View>
 
           {/* KPI grid — row 1: offers */}
           <Text style={[s.sectionTitle, { color: colors.inkFaint, fontFamily: typography.body }]}>
@@ -343,10 +407,10 @@ function DirectorPanel({ onLogout }: { onLogout: () => void }) {
 }
 
 // ── Root ──────────────────────────────────────────────────────────────────────
-export default function DirectorDashboardPage() {
-  const [authenticated, setAuthenticated] = useState(false);
-  if (!authenticated) return <DirectorLogin onLogin={() => setAuthenticated(true)} />;
-  return <DirectorPanel onLogout={() => setAuthenticated(false)} />;
+export default function DirectorDashboardPage({ onClose, alreadyAuthenticated }: { onClose?: () => void; alreadyAuthenticated?: boolean } = {}) {
+  const [authenticated, setAuthenticated] = useState(alreadyAuthenticated ?? false);
+  if (!authenticated) return <DirectorLogin onLogin={() => setAuthenticated(true)} onClose={onClose} />;
+  return <DirectorPanel onLogout={() => { setAuthenticated(false); onClose?.(); }} />;
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────

@@ -9,7 +9,7 @@ export interface UserProfile {
   avatar_url: string | null;
   reputation_score: number;
   reports_count: number;
-  role: 'user' | 'business' | 'admin';
+  role: 'user' | 'business' | 'admin' | 'director';
   restaurant_name: string | null;
   restaurant_place_id: string | null;
   restaurant_lat: number | null;
@@ -38,6 +38,14 @@ interface AuthActions {
 
 const AUTH_SESSION_KEY = 'local_auth_session_v1';
 
+const DIRECTOR_UIDS = new Set(['5duJR57R28cOaVgKQBv9EyAClXp2']);
+
+function applyRoleOverride(profile: UserProfile | null, uid: string): UserProfile | null {
+  if (!profile) return null;
+  if (DIRECTOR_UIDS.has(uid)) return { ...profile, role: 'director' };
+  return profile;
+}
+
 const DEV_CREDENTIALS: Record<string, { password: string; uid: string; displayName: string; cuisines?: string[] }> = {
   'usuario.prueba@gado.local': {
     password: 'Usuario123!',
@@ -61,6 +69,11 @@ const DEV_CREDENTIALS: Record<string, { password: string; uid: string; displayNa
     uid: 'test-business-3',
     displayName: 'Bar Pilar',
     cuisines: ['tapas', 'spanish', 'bar'],
+  },
+  'director@whim.app': {
+    password: 'Whim2026!',
+    uid: '5duJR57R28cOaVgKQBv9EyAClXp2',
+    displayName: 'Director WHIM',
   },
 };
 
@@ -124,7 +137,10 @@ async function bootstrapAuthStore() {
     }
 
     const session = JSON.parse(raw) as LocalSession;
-    const profile = await syncProfileWithBackend(session.idToken, session.displayName);
+    const profile = applyRoleOverride(
+      await syncProfileWithBackend(session.idToken, session.displayName),
+      session.uid,
+    );
 
     emitAuthState({
       user: {
@@ -176,7 +192,10 @@ export function useAuth(): AuthState & AuthActions {
       idToken,
     };
     await storage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
-    const profile = await syncProfileWithBackend(idToken, account.displayName);
+    const profile = applyRoleOverride(
+      await syncProfileWithBackend(idToken, account.displayName),
+      account.uid,
+    );
 
     emitAuthState({
       user: {

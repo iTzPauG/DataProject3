@@ -1,14 +1,34 @@
-"""Mock Auth helpers — bypassing Firebase for local development."""
+"""Auth helpers — Firebase JWT decoding + local dev fallbacks."""
+import base64
 import hashlib
+import json
 from typing import Optional
 
-def get_optional_user(request) -> Optional[str]:
-    """Resolve user ID from Bearer token in local/dev mode.
 
-    Supported local formats:
+def _decode_firebase_jwt(token: str) -> Optional[str]:
+    """Extract Firebase UID (sub) from a JWT without verifying signature."""
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:
+            return None
+        payload_b64 = parts[1]
+        padding = 4 - len(payload_b64) % 4
+        if padding != 4:
+            payload_b64 += "=" * padding
+        payload = json.loads(base64.b64decode(payload_b64))
+        return payload.get("sub") or payload.get("user_id")
+    except Exception:
+        return None
+
+
+def get_optional_user(request) -> Optional[str]:
+    """Resolve Firebase UID from Bearer token.
+
+    Supported formats:
     - Bearer local-token                -> local-user
-    - Bearer local-token:<firebase_uid> -> <firebase_uid>
-    - Bearer <firebase_uid>             -> <firebase_uid>
+    - Bearer local-token:<uid>          -> <uid>
+    - Bearer <firebase_jwt>             -> decoded sub claim
+    - Bearer <uid>                      -> <uid> (local dev)
     """
     auth_header = request.headers.get("authorization", "")
     if not auth_header.lower().startswith("bearer "):
@@ -25,7 +45,12 @@ def get_optional_user(request) -> Optional[str]:
         uid = token.split(":", 1)[1].strip()
         return uid or "local-user"
 
-    # In local dev we also allow directly passing the uid as bearer token.
+    # Real Firebase JWT — decode and extract sub
+    uid = _decode_firebase_jwt(token)
+    if uid:
+        return uid
+
+    # Fallback for local dev (bare UID passed directly)
     return token
 
 def get_voter_id(request) -> str:

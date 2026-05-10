@@ -145,24 +145,9 @@ export default function TabsLayout() {
           tabBarIcon: ({ focused }) => renderTab('profile', focused),
         }}
       />
-      <Tabs.Screen
-        name="restaurant"
-        options={{
-          tabBarIcon: ({ focused }) => renderTab('restaurant', focused),
-        }}
-      />
-      <Tabs.Screen
-        name="dashboard"
-        options={{
-          tabBarIcon: ({ focused }) => renderTab('dashboard', focused),
-        }}
-      />
-      <Tabs.Screen
-        name="director"
-        options={{
-          tabBarIcon: ({ focused }) => renderTab('director', focused),
-        }}
-      />
+      <Tabs.Screen name="restaurant" options={{ href: null }} />
+      <Tabs.Screen name="dashboard" options={{ href: null }} />
+      <Tabs.Screen name="director" options={{ href: null }} />
     </Tabs>
   );
 }
