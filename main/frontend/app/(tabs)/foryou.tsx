@@ -1,4 +1,4 @@
-// v3 — real-profile-driven personalization
+﻿// v3 â€” real-profile-driven personalization
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import {
   Dimensions,
@@ -58,19 +58,19 @@ interface SectionConfig {
 }
 
 const ALL_SECTIONS: SectionConfig[] = [
-  { titleKey: 'foryou.sections.trending', emoji: '🔥', query: 'restaurante popular Valencia', fixed: true, trending: true },
-  { titleKey: 'foryou.sections.pizza', emoji: '🍕', query: 'pizzeria restaurante', affinityTags: ['pizza','italiana'], dislikeTags: [] },
-  { titleKey: 'foryou.sections.burgers', emoji: '🍔', query: 'hamburguesa restaurante', affinityTags: ['hamburguesa','burger'], dislikeTags: ['hamburguesa','burger','fast food'] },
-  { titleKey: 'foryou.sections.sushi', emoji: '🍱', query: 'sushi japones restaurante', affinityTags: ['sushi','japonés','asiático','ramen','poke'], dislikeTags: ['sushi','japonés','asiático'] },
-  { titleKey: 'foryou.sections.coffeeBrunch', emoji: '☕', query: 'cafe brunch desayuno', affinityTags: ['brunch','café','coffee','desayuno'], dislikeTags: [] },
-  { titleKey: 'foryou.sections.veganHealthy', emoji: '🌱', query: 'vegano saludable restaurante', affinityTags: ['vegano','saludable','healthy','vegan','orgánico'], dislikeTags: ['vegano','saludable','healthy'] },
-  { titleKey: 'foryou.sections.nightOpen', emoji: '🌙', query: 'restaurante nocturno', affinityTags: ['nocturno','noche','bar','copas'], dislikeTags: [] },
-  { titleKey: 'foryou.sections.date', emoji: '🎯', query: 'restaurante romantico cena', affinityTags: [], dislikeTags: [] },
-  { titleKey: 'foryou.sections.family', emoji: '👨‍👩‍👧', query: 'restaurante familiar', affinityTags: [], dislikeTags: [] },
-  { titleKey: 'foryou.sections.instagrammable', emoji: '📸', query: 'restaurante bonito moderno', affinityTags: ['moderno','fusión','instagrameable'], dislikeTags: [] },
-  { titleKey: 'foryou.sections.terraces', emoji: '🍹', query: 'restaurante terraza', affinityTags: ['terraza','exterior'], dislikeTags: [] },
-  { titleKey: 'foryou.sections.new', emoji: '✨', query: 'restaurante reciente nuevo Valencia', affinityTags: [], dislikeTags: [], newish: true },
-  { titleKey: 'foryou.sections.fastFood', emoji: '🍟', query: 'comida rapida burger fast food Valencia', affinityTags: ['fast food','comida rápida'], dislikeTags: ['fast food','comida rápida','mcdonalds','montaditos'] },
+  { titleKey: 'foryou.sections.trending', emoji: 'ðŸ”¥', query: 'restaurante popular Valencia', fixed: true, trending: true },
+  { titleKey: 'foryou.sections.pizza', emoji: 'ðŸ•', query: 'pizzeria restaurante', affinityTags: ['pizza','italiana'], dislikeTags: [] },
+  { titleKey: 'foryou.sections.burgers', emoji: 'ðŸ”', query: 'hamburguesa restaurante', affinityTags: ['hamburguesa','burger'], dislikeTags: ['hamburguesa','burger','fast food'] },
+  { titleKey: 'foryou.sections.sushi', emoji: 'ðŸ±', query: 'sushi japones restaurante', affinityTags: ['sushi','japonÃ©s','asiÃ¡tico','ramen','poke'], dislikeTags: ['sushi','japonÃ©s','asiÃ¡tico'] },
+  { titleKey: 'foryou.sections.coffeeBrunch', emoji: 'â˜•', query: 'cafe brunch desayuno', affinityTags: ['brunch','cafÃ©','coffee','desayuno'], dislikeTags: [] },
+  { titleKey: 'foryou.sections.veganHealthy', emoji: 'ðŸŒ±', query: 'vegano saludable restaurante', affinityTags: ['vegano','saludable','healthy','vegan','orgÃ¡nico'], dislikeTags: ['vegano','saludable','healthy'] },
+  { titleKey: 'foryou.sections.nightOpen', emoji: 'ðŸŒ™', query: 'restaurante nocturno', affinityTags: ['nocturno','noche','bar','copas'], dislikeTags: [] },
+  { titleKey: 'foryou.sections.date', emoji: 'ðŸŽ¯', query: 'restaurante romantico cena', affinityTags: [], dislikeTags: [] },
+  { titleKey: 'foryou.sections.family', emoji: 'ðŸ‘¨â€ðŸ‘©â€ðŸ‘§', query: 'restaurante familiar', affinityTags: [], dislikeTags: [] },
+  { titleKey: 'foryou.sections.instagrammable', emoji: 'ðŸ“¸', query: 'restaurante bonito moderno', affinityTags: ['moderno','fusiÃ³n','instagrameable'], dislikeTags: [] },
+  { titleKey: 'foryou.sections.terraces', emoji: 'ðŸ¹', query: 'restaurante terraza', affinityTags: ['terraza','exterior'], dislikeTags: [] },
+  { titleKey: 'foryou.sections.new', emoji: 'âœ¨', query: 'restaurante reciente nuevo Valencia', affinityTags: [], dislikeTags: [], newish: true },
+  { titleKey: 'foryou.sections.fastFood', emoji: 'ðŸŸ', query: 'comida rapida burger fast food Valencia', affinityTags: ['fast food','comida rÃ¡pida'], dislikeTags: ['fast food','comida rÃ¡pida','mcdonalds','montaditos'] },
 ] as (SectionConfig & { newish?: boolean })[];
 
 interface TribeCluster {
@@ -242,7 +242,7 @@ function assignTribeFromInteractions(data: Awaited<ReturnType<typeof getCurrentU
   };
 }
 
-// Cuenta cuántos `affinityTags` de una sección coinciden con los positiveTags
+// Cuenta cuÃ¡ntos `affinityTags` de una secciÃ³n coinciden con los positiveTags
 // del usuario, restando coincidencias de `dislikeTags`.
 function sectionAffinityScore(
   section: SectionConfig,
@@ -264,7 +264,7 @@ function sectionAffinityScore(
  * Devuelve las secciones ordenadas por relevancia para el perfil del usuario.
  * - Las marcadas `fixed` van siempre primero (tendencias).
  * - El resto se ordena por `sectionAffinityScore` descendente.
- * - A igualdad de score se aplica un pequeño aleatorio para introducir variedad.
+ * - A igualdad de score se aplica un pequeÃ±o aleatorio para introducir variedad.
  */
 function getOrderedSections(
   positiveTags: Set<string>,
@@ -285,7 +285,7 @@ function getOrderedSections(
 }
 
 /**
- * "¿Te atreves?" — secciones cuyo `affinityTags` tiene cero solape con el
+ * "Â¿Te atreves?" â€” secciones cuyo `affinityTags` tiene cero solape con el
  * perfil del usuario. Mezcla 3 al azar para producir una query variada.
  */
 function buildSurpriseQuery(positiveTags: Set<string>, city: string): string {
@@ -301,12 +301,12 @@ function buildSurpriseQuery(positiveTags: Set<string>, city: string): string {
 }
 
 const CLUSTER_MAP: [string[], string][] = [
-  [['sushi','japonés','asiático','ramen','poke','thai','chino'], 'Asian'],
+  [['sushi','japonÃ©s','asiÃ¡tico','ramen','poke','thai','chino'], 'Asian'],
   [['pizza','italiana','pasta','risotto'], 'Italian'],
-  [['hamburguesa','burger','fast food','comida rápida'], 'Burgers'],
-  [['vegano','saludable','healthy','vegan','orgánico'], 'Healthy'],
-  [['brunch','café','coffee','desayuno'], 'Brunch'],
-  [['tapas','pintxos','español','tradicional'], 'Spanish'],
+  [['hamburguesa','burger','fast food','comida rÃ¡pida'], 'Burgers'],
+  [['vegano','saludable','healthy','vegan','orgÃ¡nico'], 'Healthy'],
+  [['brunch','cafÃ©','coffee','desayuno'], 'Brunch'],
+  [['tapas','pintxos','espaÃ±ol','tradicional'], 'Spanish'],
   [['terraza','exterior','rooftop'], 'Outdoor'],
 ];
 
@@ -346,9 +346,9 @@ function buildTribeQuery(positiveTags: Set<string>, city: string): string {
     : 'restaurante popular recomendado ' + city;
 }
 
-// Tendencias: 60% volumen de reseñas + 40% rating + bonus viral
-// + pequeño bonus por palabras clave virales en reseñas (máx +0.1)
-const TRENDING_KEYWORDS = ['increíble', 'espectacular', 'imprescindible', 'lleno', 'cola', 'viral', 'amazing', 'incredible', 'must', 'packed', 'queue', 'incroyable', 'génial'];
+// Tendencias: 60% volumen de reseÃ±as + 40% rating + bonus viral
+// + pequeÃ±o bonus por palabras clave virales en reseÃ±as (mÃ¡x +0.1)
+const TRENDING_KEYWORDS = ['increÃ­ble', 'espectacular', 'imprescindible', 'lleno', 'cola', 'viral', 'amazing', 'incredible', 'must', 'packed', 'queue', 'incroyable', 'gÃ©nial'];
 function trendingScore(r: RestaurantDBResult): number {
   const rating = r.metadata?.rating ?? 0;
   const count = r.metadata?.user_rating_count ?? 0;
@@ -362,11 +362,11 @@ function trendingScore(r: RestaurantDBResult): number {
   return base + bonus;
 }
 
-// "Lo más nuevo": pocas reseñas + palabras en reseñas que sugieren novedad
-const NEWISH_KEYWORDS = ['nuevo', 'nueva', 'recién', 'reciente', 'abierto', 'inaugurado', 'estreno', 'new', 'just opened', 'recently opened', 'brand new', 'nouveau'];
+// "Lo mÃ¡s nuevo": pocas reseÃ±as + palabras en reseÃ±as que sugieren novedad
+const NEWISH_KEYWORDS = ['nuevo', 'nueva', 'reciÃ©n', 'reciente', 'abierto', 'inaugurado', 'estreno', 'new', 'just opened', 'recently opened', 'brand new', 'nouveau'];
 function newishScore(r: RestaurantDBResult): number {
   const count = r.metadata?.user_rating_count ?? 0;
-  // Penaliza sitios con muchas reseñas (más antiguos)
+  // Penaliza sitios con muchas reseÃ±as (mÃ¡s antiguos)
   const freshnessScore = 1 / Math.log10(count + 2);
   const reviews: string[] = ((r as any).google_reviews ?? []).map((rv: any) => (rv.text ?? '').toLowerCase());
   const allText = reviews.join(' ');
@@ -538,7 +538,7 @@ function SectionRow({
                     style={sectionStyles.image}
                   />
                 ) : (
-                  <Text style={sectionStyles.emojiPlaceholder}>🍽️</Text>
+                  <Text style={sectionStyles.emojiPlaceholder}>ðŸ½ï¸</Text>
                 )}
               </View>
 
@@ -556,8 +556,8 @@ function SectionRow({
 
                 {restaurant.metadata?.rating && (
                   <Text style={[sectionStyles.rating, { color: colors.inkMuted }]}>
-                    ★ {restaurant.metadata.rating.toFixed(1)}
-                    {restaurant.metadata.price_level && ` · ${formatPrice(restaurant.metadata.price_level)}`}
+                    â˜… {restaurant.metadata.rating.toFixed(1)}
+                    {restaurant.metadata.price_level && ` Â· ${formatPrice(restaurant.metadata.price_level)}`}
                   </Text>
                 )}
 
@@ -788,14 +788,14 @@ export default function ForYouTab() {
         const data = await res.json();
         const precipitation = data?.current?.precipitation ?? 0;
         const code = data?.current?.weathercode ?? 0;
-        // Bad: lluvia/tormenta (51-99), nublado/muy nublado (2-3), o precipitación activa
+        // Bad: lluvia/tormenta (51-99), nublado/muy nublado (2-3), o precipitaciÃ³n activa
         const isBadWeather = precipitation > 0 || (code >= 51 && code <= 99) || code === 2 || code === 3;
-        // Good: despejado o casi despejado (0-1) sin precipitación
+        // Good: despejado o casi despejado (0-1) sin precipitaciÃ³n
         const isGoodWeather = !isBadWeather && (code === 0 || code === 1);
         if (isBadWeather) {
-          setWeatherSection({ titleKey: 'foryou.weather.cozy', emoji: '🌧️', query: 'restaurante interior acogedor' });
+          setWeatherSection({ titleKey: 'foryou.weather.cozy', emoji: 'ðŸŒ§ï¸', query: 'restaurante interior acogedor' });
         } else if (isGoodWeather) {
-          setWeatherSection({ titleKey: 'foryou.weather.sunny', emoji: '☀️', query: 'restaurante terraza exterior' });
+          setWeatherSection({ titleKey: 'foryou.weather.sunny', emoji: 'â˜€ï¸', query: 'restaurante terraza exterior' });
         } else {
           setWeatherSection(null);
         }
@@ -828,7 +828,7 @@ export default function ForYouTab() {
         if (results.length > 0) {
           setHeroRestaurant(results[0]);
           // We intentionally do NOT add the hero id to seenIdsRef so that the
-          // Tendencias row right below can still surface the same place — the
+          // Tendencias row right below can still surface the same place â€” the
           // visual treatment is different (full-bleed hero vs scrollable card)
           // and downstream sections will dedupe via feedDedupeOnly.
         }
@@ -937,9 +937,9 @@ export default function ForYouTab() {
                     <Text style={dynamicStyles.heroName}>{heroRestaurant.name}</Text>
 
                     <Text style={dynamicStyles.heroDetails}>
-                      ★ {heroRestaurant.metadata.rating?.toFixed(1)} 
-                      {heroRestaurant.metadata.price_level && ` · ${formatPrice(heroRestaurant.metadata.price_level)}`}
-                      {heroRestaurant.metadata.distance_m && ` · ${(heroRestaurant.metadata.distance_m / 1000).toFixed(1)}km`}
+                      â˜… {heroRestaurant.metadata.rating?.toFixed(1)} 
+                      {heroRestaurant.metadata.price_level && ` Â· ${formatPrice(heroRestaurant.metadata.price_level)}`}
+                      {heroRestaurant.metadata.distance_m && ` Â· ${(heroRestaurant.metadata.distance_m / 1000).toFixed(1)}km`}
                     </Text>
                   </View>
                 </ImageBackground>
@@ -953,9 +953,9 @@ export default function ForYouTab() {
                     <Text style={dynamicStyles.heroName}>{heroRestaurant.name}</Text>
 
                     <Text style={dynamicStyles.heroDetails}>
-                      ★ {heroRestaurant.metadata?.rating?.toFixed(1)} 
-                      {heroRestaurant.metadata?.price_level && ` · ${formatPrice(heroRestaurant.metadata.price_level)}`}
-                      {heroRestaurant.metadata?.distance_m && ` · ${(heroRestaurant.metadata.distance_m / 1000).toFixed(1)}km`}
+                      â˜… {heroRestaurant.metadata?.rating?.toFixed(1)} 
+                      {heroRestaurant.metadata?.price_level && ` Â· ${formatPrice(heroRestaurant.metadata.price_level)}`}
+                      {heroRestaurant.metadata?.distance_m && ` Â· ${(heroRestaurant.metadata.distance_m / 1000).toFixed(1)}km`}
                     </Text>
                   </View>
                 </View>
@@ -966,8 +966,8 @@ export default function ForYouTab() {
           {auth.user?.uid && likedBaseName && likedSimilarRestaurants.length > 0 ? (
             <SectionRow
               key={`liked-similar-${auth.user.uid}`}
-              title={`Como te gustó ${likedBaseName}`}
-              emoji="*"
+              title={`Como te gustÃ³ ${likedBaseName}`}
+              emoji="🍽️"
               query="liked-similar"
               loadRestaurants={loadLikedSimilarSection}
               lat={location.lat}
@@ -984,8 +984,8 @@ export default function ForYouTab() {
           {auth.user?.uid && tribeCluster && tribeRestaurants.length > 0 ? (
             <SectionRow
               key={`tribe-${auth.user.uid}-${tribeCluster.id}`}
-              title="A tu tribu le gustó"
-              emoji="*"
+              title="A tu tribu le gustÃ³"
+              emoji="👥"
               subtitle={tribeCluster.title}
               query="tribe-recommendations"
               loadRestaurants={loadTribeSection}
@@ -1001,7 +1001,7 @@ export default function ForYouTab() {
           ) : null}
 
           {/* Dynamic Sections */}
-          {/* First section (Tendencias) — always renders, doesn't filter by
+          {/* First section (Tendencias) â€” always renders, doesn't filter by
               earlier sections, but feeds seenIdsRef for downstream dedupe. */}
           {sectionsRef.current.slice(0, 1).map((section) => (
             <SectionRow
@@ -1020,7 +1020,7 @@ export default function ForYouTab() {
               onRestaurantPress={handleRestaurantPress}
             />
           ))}
-          {/* Personalized — only render if we have at least one positive tag. */}
+          {/* Personalized â€” only render if we have at least one positive tag. */}
           {false && profile.positiveTags.size > 0 && (() => {
             const sig = getRecommendationSignals(profile.positiveTags, city);
             const personalLabel = sig.personalTokens.length > 0
@@ -1033,7 +1033,7 @@ export default function ForYouTab() {
               <SectionRow
                 key="personalized"
                 title={t('foryou.personalizedTitle')}
-                emoji="✨"
+                emoji="âœ¨"
                 subtitle={sub}
                 query={buildPersonalizedQuery(profile.positiveTags, city)}
                 lat={location!.lat}
@@ -1052,7 +1052,7 @@ export default function ForYouTab() {
           {false && <SectionRow
             key="tribe"
             title={t('foryou.tribeTitle')}
-            emoji="👥"
+            emoji="ðŸ‘¥"
             query={buildTribeQuery(profile.positiveTags, city)}
             lat={location!.lat}
             lng={location!.lng}
@@ -1066,8 +1066,8 @@ export default function ForYouTab() {
           <SectionRow
             key="surprise"
             title={t('foryou.surpriseTitle')}
-            emoji="🎲"
-            query={buildSurpriseQuery(profile.positiveTags, city)}
+            emoji="ðŸŽ²"
+            query={`restaurante ${city}`}
             lat={location.lat}
             lng={location.lng}
             surprise
@@ -1077,7 +1077,7 @@ export default function ForYouTab() {
             radii={radii}
             onRestaurantPress={handleRestaurantPress}
           />
-          {/* Weather Section — after Tendencias */}
+          {/* Weather Section â€” after Tendencias */}
           {weatherSection && (
             <SectionRow
               key={weatherSection.query}
@@ -1093,7 +1093,7 @@ export default function ForYouTab() {
               onRestaurantPress={handleRestaurantPress}
             />
           )}
-          {/* Remaining sections — already weighted by affinity */}
+          {/* Remaining sections â€” already weighted by affinity */}
           {sectionsRef.current.slice(1).map((section) => (
             <SectionRow
               key={section.query}

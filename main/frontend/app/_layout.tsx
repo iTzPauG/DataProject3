@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppStateProvider, useAppState } from '../hooks/useAppState';
 import { useAuth } from '../hooks/useAuth';
+import { getCurrentUserInteractions } from '../services/api';
 import { fetchRemotePreferences, toLocalPreferences } from '../services/preferences';
 import { GADOLogger } from '../utils/logger';
 import { resolveI18nLanguage } from '../utils/language';
@@ -94,6 +95,17 @@ function PreferencesSyncer() {
   }, [idToken, loading, setMapPreferences]);
 
   return null;
+
+// Prefetch user interactions as soon as the user logs in so ForYou tab loads instantly
+function ForYouPrefetcher() {
+  const { idToken } = useAuth();
+  useEffect(() => {
+    if (!idToken) return;
+    void getCurrentUserInteractions();
+  }, [idToken]);
+  return null;
+}
+
 }
 
 export default function RootLayout() {
@@ -103,6 +115,7 @@ export default function RootLayout() {
       <AppStateProvider>
         <WebFontLoader />
         <ColdStartDeepLinkRedirector />
+        <ForYouPrefetcher />
         <PreferencesSyncer />
         <LanguageSyncer />
         <StatusBar style="light" />
