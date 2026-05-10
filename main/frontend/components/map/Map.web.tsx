@@ -9,6 +9,7 @@ import L from 'leaflet';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { router } from 'expo-router';
 import { VoteData } from '../../services/api';
 import { Restaurant } from '../../types/restaurant';
 import { MapItem } from '../../types/map';
@@ -550,6 +551,28 @@ export default function Map({
                     {(item.metadata.rating as number).toFixed(1)}
                   </>
                 ) : null}
+                <div style={{ marginTop: 8 }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (item.item_id.startsWith('deal:')) {
+                        onSelectItem?.(item.item_id);
+                        return;
+                      }
+                      const pathname = item.item_type === 'event'
+                        ? '/(modals)/event-details'
+                        : '/(modals)/place-details';
+                      router.push({ pathname: pathname as any, params: { id: item.item_id, type: item.item_type } });
+                    }}
+                    style={{
+                      background: '#22C55E', color: 'white', border: 'none',
+                      borderRadius: 999, padding: '5px 14px', fontSize: 11,
+                      fontWeight: 700, cursor: 'pointer', width: '100%',
+                    }}
+                  >
+                    Ver ficha →
+                  </button>
+                </div>
               </Popup>
             </Marker>
           );
