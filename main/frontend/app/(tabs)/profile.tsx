@@ -85,6 +85,20 @@ export default function ProfileTab() {
         description: t('profile.menu.settingsDesc'),
         icon: 'sliders',
       },
+      {
+        id: 'restaurant',
+        label: 'Portal Restaurante',
+        description: 'Publica y gestiona ofertas de mesa en tiempo real',
+        icon: 'tag',
+        route: '/restaurant',
+      },
+      {
+        id: 'dashboard',
+        label: 'Dashboard Directiva',
+        description: 'Métricas de plataforma y snapshots en BigQuery',
+        icon: 'compass',
+        route: '/dashboard',
+      },
     ],
     [t],
   );
@@ -395,7 +409,8 @@ export default function ProfileTab() {
   }
 
   function handleMenuPress(item: MenuEntry) {
-    if (!user && item.id !== 'settings') {
+    const noAuthRequired = ['settings', 'restaurant', 'dashboard'];
+    if (!user && !noAuthRequired.includes(item.id)) {
       Alert.alert(t('profile.restrictedAccess'), t('profile.restrictedAccessMsg'), [
         { text: t('common.cancel'), style: 'cancel' },
         { text: t('auth.signIn'), onPress: handleSignIn },
