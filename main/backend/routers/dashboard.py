@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter
 
 from database import get_db
-from routers.table_events import manager as ws_manager
+from .table_events import manager as ws_manager
 from services import bigquery_service
 
 logger = logging.getLogger(__name__)

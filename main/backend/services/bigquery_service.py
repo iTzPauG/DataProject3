@@ -32,8 +32,11 @@ def _client():
     if not BQ_PROJECT:
         return None
     try:
-        from google.cloud import bigquery
+        from google.cloud import bigquery  # noqa: F401
         return bigquery.Client(project=BQ_PROJECT)
+    except ImportError:
+        logger.warning("[BQ] google-cloud-bigquery not installed — BigQuery disabled")
+        return None
     except Exception as e:
         logger.warning("[BQ] client init failed: %s", e)
         return None
