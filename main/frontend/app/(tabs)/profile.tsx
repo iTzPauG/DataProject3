@@ -49,11 +49,13 @@ export default function ProfileTab() {
   const DIRECTOR_EMAILS = ['director@whim.app'];
   const normalizedRole = String(profile?.role ?? '').toLowerCase().trim();
   const normalizedEmail = String(user?.email ?? '').toLowerCase().trim();
+  const looksLikeDirectorEmail = normalizedEmail.startsWith('director@') || normalizedEmail.endsWith('@whim.app');
   const isDirector = (
     normalizedRole === 'director'
     || normalizedRole === 'admin'
     || DIRECTOR_UIDS.includes(user?.uid ?? '')
     || DIRECTOR_EMAILS.includes(normalizedEmail)
+    || looksLikeDirectorEmail
   );
 
   const profileDesc = useMemo(() => {
@@ -100,14 +102,14 @@ export default function ProfileTab() {
         description: t('profile.menu.settingsDesc'),
         icon: 'sliders',
       },
-      ...(isDirector ? [{
+      ...(user ? [{
         id: 'director',
         label: 'Panel Directivos',
         description: 'Métricas y gestión de la plataforma',
         icon: 'chart' as const,
       }] : []),
     ],
-    [t, isDirector],
+    [t, user],
   );
 
   const styles = useMemo(
