@@ -31,6 +31,23 @@ export interface SynthesizedTake {
   cons: string[];
 }
 
+export function hasMeaningfulTake(
+  take:
+    | {
+        verdict?: string | null;
+        pros?: string[] | null;
+        cons?: string[] | null;
+      }
+    | null
+    | undefined,
+): boolean {
+  if (!take) return false;
+  const verdict = typeof take.verdict === 'string' ? take.verdict.trim() : '';
+  const pros = Array.isArray(take.pros) ? take.pros.filter(Boolean) : [];
+  const cons = Array.isArray(take.cons) ? take.cons.filter(Boolean) : [];
+  return verdict.length > 0 || pros.length > 0 || cons.length > 0;
+}
+
 const SPECIFIC_POSITIVE =
   /(servicio|atenci[oó]n|trato|sushi|pizza|pasta|carne|postre|vino|cerveza|terraza|ambiente|carta|menú|men[ñn]u|precio|relación calidad|relaci[oó]n calidad|napolitana|fresc[oa])/i;
 const STRONG_POSITIVE =
@@ -137,13 +154,11 @@ export function pickEffectiveTake<T extends { verdict?: string; pros?: string[];
   backendTake: T | null | undefined,
   fallback: SynthesizedTake | null,
 ): (T & SynthesizedTake) | SynthesizedTake | null {
-  if (backendTake && (backendTake.verdict || (backendTake.pros && backendTake.pros.length))) {
-    // If the backend generated pros but no cons, fill cons from the fallback so
-    // the Whim's Take card never shows an empty "Ojo con esto" section.
-    if ((!backendTake.cons || backendTake.cons.length === 0) && fallback && fallback.cons.length > 0) {
-      return { ...backendTake, cons: fallback.cons } as T & SynthesizedTake;
-    }
-    return backendTake as T & SynthesizedTake;
+  if (!backendTake || !hasMeaningfulTake(backendTake)) return fallback;
+  // If the backend generated pros but no cons, fill cons from the fallback so
+  // the Whim's Take card never shows an empty "Ojo con esto" section.
+  if ((!backendTake.cons || backendTake.cons.length === 0) && fallback && fallback.cons.length > 0) {
+    return { ...backendTake, cons: fallback.cons } as T & SynthesizedTake;
   }
-  return fallback;
+  return backendTake as T & SynthesizedTake;
 }

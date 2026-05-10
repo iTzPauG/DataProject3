@@ -11,7 +11,7 @@ const TAB_GLYPHS: Record<string, IconName> = {
   explore: 'compass',
   publish: 'plus',
   'mis-ofertas': 'tag',
-  'mis-reservas': 'bookmark',
+  'mis-reservas': 'for-you',
 };
 
 export default function TabsLayout() {

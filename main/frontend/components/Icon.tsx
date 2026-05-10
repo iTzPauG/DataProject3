@@ -34,6 +34,7 @@ export type IconName =
   | 'pin'
   | 'map'
   | 'compass'
+  | 'for-you'
   | 'person'
   | 'bookmark'
   | 'sliders'
@@ -426,26 +427,55 @@ const ICONS: Record<IconName, IconRenderer> = {
   },
 
   map: ({ size, color, strokeWidth: sw }) => {
-    const w = size * 0.82;
-    const h = size * 0.64;
-    const dotSize = size * 0.14;
+    const frameW = size * 0.82;
+    const frameH = size * 0.62;
+    const foldInset = size * 0.16;
+    const foldH = frameH - size * 0.12;
+    const ring = size * 0.22;
+    const dot = size * 0.09;
+    const frameTop = (size - frameH) / 2;
+    const frameLeft = (size - frameW) / 2;
     return (
       <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
         <View style={box({
-          top: (size - h) / 2,
-          left: (size - w) / 2,
-          width: w,
-          height: h,
+          top: frameTop,
+          left: frameLeft,
+          width: frameW,
+          height: frameH,
           borderWidth: sw,
           borderColor: color,
-          borderRadius: 3,
+          borderRadius: size * 0.08,
         })} />
         <View style={box({
-          top: size / 2 - dotSize / 2,
-          left: size / 2 - dotSize / 2,
-          width: dotSize,
-          height: dotSize,
-          borderRadius: dotSize / 2,
+          top: frameTop + size * 0.06,
+          left: frameLeft + foldInset,
+          width: sw,
+          height: foldH,
+          backgroundColor: color,
+        })} />
+        <View style={box({
+          top: frameTop + size * 0.06,
+          right: frameLeft + foldInset,
+          width: sw,
+          height: foldH,
+          backgroundColor: color,
+        })} />
+        <View style={box({
+          top: size * 0.34,
+          left: size * 0.5 - ring / 2,
+          width: ring,
+          height: ring,
+          borderRadius: ring / 2,
+          borderWidth: sw,
+          borderColor: color,
+          backgroundColor: 'transparent',
+        })} />
+        <View style={box({
+          top: size * 0.34 + (ring - dot) / 2,
+          left: size * 0.5 - dot / 2,
+          width: dot,
+          height: dot,
+          borderRadius: dot / 2,
           backgroundColor: color,
         })} />
       </View>
@@ -453,8 +483,12 @@ const ICONS: Record<IconName, IconRenderer> = {
   },
 
   compass: ({ size, color, strokeWidth: sw }) => {
-    const needleH = size * 0.46;
-    const needleW = size * 0.1;
+    const inner = size * 0.62;
+    const head = size * 0.24;
+    const tail = size * 0.15;
+    const stemH = size * 0.34;
+    const stemW = sw;
+    const axle = size * 0.12;
     return (
       <View style={{ width: size, height: size }}>
         <View style={box({
@@ -465,27 +499,91 @@ const ICONS: Record<IconName, IconRenderer> = {
           borderColor: color,
         })} />
         <View style={box({
-          top: (size - needleH) / 2,
-          left: (size - needleW) / 2,
-          width: needleW,
-          height: needleH,
-        })}>
-          <View style={{
-            width: needleW,
-            height: needleH / 2,
-            backgroundColor: color,
-            borderTopLeftRadius: needleW,
-            borderTopRightRadius: needleW,
-          }} />
-          <View style={{
-            width: needleW,
-            height: needleH / 2,
-            backgroundColor: color,
-            opacity: 0.3,
-            borderBottomLeftRadius: needleW,
-            borderBottomRightRadius: needleW,
-          }} />
-        </View>
+          top: (size - inner) / 2,
+          left: (size - inner) / 2,
+          width: inner,
+          height: inner,
+          borderRadius: inner / 2,
+          borderWidth: sw,
+          borderColor: color,
+          opacity: 0.22,
+        })} />
+        <View style={box({
+          top: size * 0.24,
+          left: size / 2 - stemW / 2,
+          width: stemW,
+          height: stemH,
+          backgroundColor: color,
+          borderRadius: stemW / 2,
+        })} />
+        <View style={box({
+          top: size * 0.16,
+          left: size / 2 - head / 2,
+          width: head,
+          height: head,
+          backgroundColor: color,
+          transform: [{ rotate: '45deg' }],
+          borderRadius: sw / 2,
+        })} />
+        <View style={box({
+          bottom: size * 0.2,
+          left: size / 2 - tail / 2,
+          width: tail,
+          height: tail,
+          borderWidth: sw,
+          borderColor: color,
+          transform: [{ rotate: '45deg' }],
+          borderRadius: sw / 2,
+          opacity: 0.38,
+          backgroundColor: 'transparent',
+        })} />
+        <View style={box({
+          top: size / 2 - axle / 2,
+          left: size / 2 - axle / 2,
+          width: axle,
+          height: axle,
+          borderRadius: axle / 2,
+          backgroundColor: color,
+        })} />
+      </View>
+    );
+  },
+
+  'for-you': ({ size, color, strokeWidth: sw }) => {
+    const ring = size * 0.66;
+    const focus = size * 0.26;
+    const accent = size * 0.16;
+    return (
+      <View style={{ width: size, height: size }}>
+        <View style={box({
+          top: size * 0.18,
+          left: size * 0.11,
+          width: ring,
+          height: ring,
+          borderRadius: ring / 2,
+          borderWidth: sw,
+          borderColor: color,
+          backgroundColor: 'transparent',
+        })} />
+        <View style={box({
+          top: size * 0.44,
+          left: size * 0.28,
+          width: focus,
+          height: focus,
+          borderRadius: focus / 2,
+          borderWidth: sw,
+          borderColor: color,
+          backgroundColor: 'transparent',
+          opacity: 0.7,
+        })} />
+        <View style={box({
+          top: size * 0.18,
+          right: size * 0.12,
+          width: accent,
+          height: accent,
+          borderRadius: accent / 2,
+          backgroundColor: color,
+        })} />
       </View>
     );
   },

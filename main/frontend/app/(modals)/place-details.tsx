@@ -22,7 +22,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { fetchPlaceExtra, getPlaceData, toggleBookmark, checkBookmark } from '../../services/api';
 import { formatDistance } from '../../utils/format';
-import { synthesizeFallbackTake, pickEffectiveTake } from '../../utils/placeTake';
+import { hasMeaningfulTake } from '../../utils/placeTake';
 import { useTheme } from '../../utils/theme';
 import WhimIcon from '../../components/WhimIcon';
 
@@ -48,12 +48,11 @@ const DEFAULT_STYLE = { color: '#9E9E9E', icon: '📍', label: 'Lugar' };
 export default function PlaceDetailsModal() {
   const { t } = useTranslation();
   const { id, prefill } = useLocalSearchParams<{ id: string; prefill?: string }>();
-  const { colors, typography, shadows, radii } = useTheme();
+  const { colors, typography, shadows } = useTheme();
   const router = useRouter();
   const { user } = useAuth();
   const { nearbyItems } = useAppState();
   const { recordRecentView } = useUserProfile();
-  const bookmarkedIds: string[] = []; // Default fallback since it's missing from AppState
 
   const [loadingExtra, setLoadingExtra] = useState(true);
   const [placeTake, setPlaceTake] = useState<any>(null);
@@ -250,29 +249,6 @@ export default function PlaceDetailsModal() {
   const expiresAt = item?.metadata?.expires_at as string | undefined;
   const description = item?.metadata?.description as string | undefined;
 
-  /**
-   * Brutally honest client-side fallback when the backend LLM take is missing.
-   * Runs a small heuristic over the Google reviews already in metadata so we
-   * never end up showing "Análisis no disponible" — at minimum the user sees
-   * the rating context plus signal extracted from reviews.
-   *
-   * Honesty rules (mirror the backend prompt):
-   *  - If rating is high but most reviews are short / lukewarm → flag mixed signal.
-   *  - Cons are pulled from low-rated reviews (≤3) when available; if not, from
-   *    any review that explicitly mentions slow service, overpricing, etc.
-   *  - Pros are only included when they contain a SPECIFIC mention (food name,
-   *    service descriptor, price/value); generic praise like "muy bueno" gets dropped.
-   */
-  // Delegate to the shared synthesizer so the same honesty rules apply
-  // everywhere a Whim's Take is rendered (modal, flow screen, etc.).
-  const fallbackTake = useMemo(() => {
-    if (!item || item.item_type !== 'place') return null;
-    return synthesizeFallbackTake({
-      rating: item.metadata?.rating as number | undefined,
-      reviews: ((item.metadata as any)?.google_reviews ?? []) as Array<{ text?: string; rating?: number }>,
-    });
-  }, [item]);
-
   const renderBoldText = (text: string, baseStyle: any) => {
     if (!text) return null;
     const parts = text.split(/\*\*(.*?)\*\*/g);
@@ -377,22 +353,30 @@ export default function PlaceDetailsModal() {
             ) : null}
 
             {item.item_type === 'place' && (() => {
-              const effective = pickEffectiveTake(placeTake, fallbackTake);
-              const pros = effective?.pros || [];
-              const cons = effective?.cons || [];
+              const takeReady = hasMeaningfulTake(placeTake);
+              const pros = takeReady && Array.isArray(placeTake?.pros) ? placeTake.pros : [];
+              const cons = takeReady && Array.isArray(placeTake?.cons) ? placeTake.cons : [];
               return (
                 <View style={styles.takeCard}>
                   <Text style={styles.sectionEyebrow}>{t('placeDetails.whimTake')}</Text>
 
-                  {!effective ? (
+                  {loadingExtra && !takeReady ? (
                     <View style={styles.takeLoading}>
                       <ActivityIndicator size="small" color={colors.brand} />
                       <Text style={styles.takeLoadingText}>{t('placeDetails.analyzing')}</Text>
                     </View>
+                  ) : !takeReady ? (
+                    <View style={styles.takePlaceholder}>
+                      <Text style={styles.takePlaceholderText}>
+                        {t('placeDetails.takeUnavailable', {
+                          defaultValue: 'Whim todavia no tiene un take para este sitio.',
+                        })}
+                      </Text>
+                    </View>
                   ) : (
                     <>
-                      {(effective.verdict || (effective as any).why) ? (
-                        <Text style={styles.takeVerdict}>{effective.verdict || (effective as any).why}</Text>
+                      {placeTake.verdict ? (
+                        <Text style={styles.takeVerdict}>{placeTake.verdict}</Text>
                       ) : null}
 
                       <View style={styles.signalBox}>
@@ -547,5 +531,7 @@ const styles = StyleSheet.create({
   signalBad: { color: '#A8AEC7', fontSize: 13, flex: 1 },
   takeLoading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   takeLoadingText: { fontSize: 14, color: '#A8AEC7' },
+  takePlaceholder: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: 12 },
+  takePlaceholderText: { fontSize: 14, lineHeight: 22, color: '#A8AEC7' },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 100 },
 });

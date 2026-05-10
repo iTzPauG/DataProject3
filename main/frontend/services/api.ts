@@ -4,6 +4,7 @@ import { storage } from '../utils/storage';
 import { Category, CommunityReport, MapItem, ReportType, SavedItem, RestaurantDBResult } from '../types';
 import { FALLBACK_CATEGORIES } from './mapService';
 import i18n from '../utils/i18n';
+import { hasMeaningfulTake } from '../utils/placeTake';
 
 // Derive the backend URL with autodetection for Railway production
 const getBaseUrl = () => {
@@ -1051,44 +1052,87 @@ export async function fetchNearbyItems(
         return data.items || [];
     } catch {
         return [];
-    }
+  }
+}
+
+function normalizeTakeCategory(raw: unknown): string {
+  const value = String(raw || '').trim().toLowerCase();
+  if (!value) return 'food';
+  return value === 'restaurant' ? 'food' : value;
+}
+
+function normalizeTakePriceLevel(raw: unknown): number | undefined {
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    if (raw <= 1) return 1;
+    if (raw >= 3) return 3;
+    return 2;
+  }
+  const value = String(raw || '').toUpperCase().trim();
+  if (!value) return undefined;
+  if (value === 'PRICE_LEVEL_INEXPENSIVE') return 1;
+  if (value === 'PRICE_LEVEL_MODERATE') return 2;
+  if (value === 'PRICE_LEVEL_EXPENSIVE' || value === 'PRICE_LEVEL_VERY_EXPENSIVE') return 3;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return undefined;
+  if (parsed <= 1) return 1;
+  if (parsed >= 3) return 3;
+  return 2;
+}
+
+function coerceFiniteNumber(raw: unknown): number | undefined {
+  const value = typeof raw === 'number' ? raw : Number(raw);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function toAbsolutePhotoUrl(raw: unknown): string | undefined {
+  const value = String(raw || '').trim();
+  if (!value) return undefined;
+  return value.startsWith('/') ? `${BASE_URL}${value}` : value;
 }
 
 export async function fetchPlaceExtra(placeId: string, metadata?: any): Promise<{ take: any; live: any; vote: VoteData | null }> {
   try {
-    const url = new URL(`${BASE_URL}/places/${placeId}/take`);
-    const allowedTakeParams = new Set([
-      'lat',
-      'lng',
-      'name',
-      'address',
-      'photo_url',
-      'rating',
-      'price_level',
-      'user_rating_count',
-      'subcategory',
-      'category',
-      'language',
-    ]);
-    if (metadata) {
-      Object.entries(metadata).forEach(([k, v]) => {
-        if (!allowedTakeParams.has(k)) return;
-        if (v === undefined || v === null) return;
-        if (Array.isArray(v)) return;
-        if (typeof v === 'object') return;
-        const value = String(v).trim();
-        if (!value) return;
-        url.searchParams.append(k, value);
-      });
-    }
+    const lat = coerceFiniteNumber(metadata?.lat) ?? VALENCIA_LAT;
+    const lng = coerceFiniteNumber(metadata?.lng) ?? VALENCIA_LNG;
+    const category = normalizeTakeCategory(metadata?.category ?? metadata?.category_id);
+    const subcategory = String(metadata?.subcategory || category || 'food');
+    const name = typeof metadata?.name === 'string' ? metadata.name : undefined;
+    const address = typeof metadata?.address === 'string' ? metadata.address : undefined;
+    const city = typeof metadata?.city === 'string' ? metadata.city : undefined;
+    const website = typeof metadata?.website === 'string' ? metadata.website : undefined;
 
-    const [takeRes, liveRes, voteRes] = await Promise.all([
-      fetch(url.toString()).catch(() => null),
-      fetch(`${BASE_URL}/places/${placeId}/live-data`).catch(() => null),
-      fetch(`${BASE_URL}/votes/${placeId}`).catch(() => null),
+    const [take, live, voteRes] = await Promise.all([
+      getPlaceTake({
+        placeId,
+        lat,
+        lng,
+        category,
+        subcategory,
+        language: i18n.resolvedLanguage || i18n.language || 'es',
+        name,
+        address,
+        photoUrl: toAbsolutePhotoUrl(metadata?.photo_url ?? metadata?.photoUrl),
+        rating: coerceFiniteNumber(metadata?.rating),
+        priceLevel: normalizeTakePriceLevel(metadata?.price_level),
+        reviewsCount: coerceFiniteNumber(metadata?.user_rating_count ?? metadata?.review_count),
+      }).then((result) => (hasMeaningfulTake(result) ? result : null)),
+      getPlaceLiveData({
+        placeId,
+        lat,
+        lng,
+        category,
+        subcategory,
+        website,
+        name,
+        city,
+      }).then((result) => (result.type !== 'none' ? result : null)),
+      fetch(`${BASE_URL}/votes/${placeId}`, {
+        headers: {
+          Accept: 'application/json',
+          'Accept-Language': i18n.language || 'es',
+        },
+      }).catch(() => null),
     ]);
-    const take = takeRes?.ok ? await takeRes.json() : null;
-    const live = liveRes?.ok ? await liveRes.json() : null;
     const vote = voteRes?.ok ? await voteRes.json() : null;
     return { take, live, vote };
   } catch (err) {
