@@ -77,16 +77,70 @@ async def table_events_ws(websocket: WebSocket):
         manager.disconnect(websocket)
 
 
+@router.get("/history")
+async def list_events_history(restaurant_name: Optional[str] = None):
+    """Historial completo de eventos (incluidos inactivos) para un restaurante."""
+    async with get_db() as db:
+        if restaurant_name:
+            events = await _fetch_all(
+                db,
+                "SELECT * FROM table_events WHERE restaurant_name=? ORDER BY created_at DESC LIMIT 200",
+                (restaurant_name,),
+            )
+        else:
+            events = await _fetch_all(
+                db,
+                "SELECT * FROM table_events ORDER BY created_at DESC LIMIT 200",
+            )
+    return {"events": events}
+
+
+@router.get("/stats")
+async def get_restaurant_stats(restaurant_name: str):
+    """Estadísticas agregadas para un restaurante."""
+    async with get_db() as db:
+        cursor = await db.execute(
+            """SELECT
+                COUNT(*) as total_offers,
+                SUM(CASE WHEN is_active=1 THEN 1 ELSE 0 END) as active_offers,
+                SUM(CASE WHEN is_active=0 THEN 1 ELSE 0 END) as cancelled_offers,
+                COALESCE(AVG(price), 0) as avg_price,
+                COALESCE(MIN(price), 0) as min_price,
+                COALESCE(MAX(price), 0) as max_price,
+                COALESCE(SUM(seats), 0) as total_seats,
+                COALESCE(AVG(seats), 0) as avg_seats,
+                MIN(created_at) as first_activity,
+                MAX(created_at) as last_activity
+            FROM table_events WHERE restaurant_name=?""",
+            (restaurant_name,),
+        )
+        row = await cursor.fetchone()
+        stats = dict(row) if row else {}
+    if stats:
+        stats["avg_price"] = round(float(stats.get("avg_price") or 0), 2)
+        stats["min_price"] = round(float(stats.get("min_price") or 0), 2)
+        stats["max_price"] = round(float(stats.get("max_price") or 0), 2)
+        stats["avg_seats"] = round(float(stats.get("avg_seats") or 0), 1)
+    return {"stats": stats, "restaurant_name": restaurant_name}
+
+
 @router.get("")
-async def list_events():
-    """Lista las ofertas de mesa activas."""
+async def list_events(restaurant_name: Optional[str] = None):
+    """Lista las ofertas de mesa activas, opcionalmente filtradas por restaurante."""
     async with get_db() as db:
         now_str = datetime.now(timezone.utc).isoformat()
-        events = await _fetch_all(
-            db,
-            "SELECT * FROM table_events WHERE is_active=1 AND (ends_at IS NULL OR ends_at >= ?) ORDER BY created_at DESC",
-            (now_str,),
-        )
+        if restaurant_name:
+            events = await _fetch_all(
+                db,
+                "SELECT * FROM table_events WHERE is_active=1 AND restaurant_name=? AND (ends_at IS NULL OR ends_at >= ?) ORDER BY created_at DESC",
+                (restaurant_name, now_str),
+            )
+        else:
+            events = await _fetch_all(
+                db,
+                "SELECT * FROM table_events WHERE is_active=1 AND (ends_at IS NULL OR ends_at >= ?) ORDER BY created_at DESC",
+                (now_str,),
+            )
     return {"events": events}
 
 

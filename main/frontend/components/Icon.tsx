@@ -42,7 +42,8 @@ export type IconName =
   | 'dot'
   | 'ring'
   | 'triangle'
-  | 'logout';
+  | 'logout'
+  | 'chart';
 
 interface IconProps {
   name: IconName;
@@ -815,6 +816,43 @@ const ICONS: Record<IconName, IconRenderer> = {
             height: sw * 2.5,
             borderRadius: sw * 1.25,
             backgroundColor: color,
+          })}
+        />
+      </View>
+    );
+  },
+  // Bar chart — three vertical bars (short, tall, medium)
+  chart: ({ size, color, strokeWidth: sw }) => {
+    const barW = size * 0.18;
+    const gap = size * 0.09;
+    const totalW = barW * 3 + gap * 2;
+    const x0 = (size - totalW) / 2;
+    const base = size * 0.82;
+    const heights = [size * 0.38, size * 0.66, size * 0.5];
+    return (
+      <View style={{ width: size, height: size }}>
+        {heights.map((h, i) => (
+          <View
+            key={i}
+            style={box({
+              bottom: size - base,
+              left: x0 + i * (barW + gap),
+              width: barW,
+              height: h,
+              borderWidth: sw,
+              borderColor: color,
+              borderRadius: 2,
+            })}
+          />
+        ))}
+        <View
+          style={box({
+            top: base,
+            left: x0 - sw,
+            width: totalW + sw * 2,
+            height: sw,
+            backgroundColor: color,
+            borderRadius: sw / 2,
           })}
         />
       </View>

@@ -1,9 +1,11 @@
 """Executive dashboard — platform metrics saved to BigQuery on every request."""
 import asyncio
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from database import get_db
 from .table_events import manager as ws_manager
@@ -11,6 +13,12 @@ from services import bigquery_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+
+async def _fetch_all(db, sql: str, params: tuple = ()) -> list[dict]:
+    cursor = await db.execute(sql, params)
+    rows = await cursor.fetchall()
+    return [dict(row) for row in rows]
 
 
 async def _compute_metrics() -> dict:
@@ -93,3 +101,39 @@ async def get_history():
         None, bigquery_service.get_recent_snapshots, 48
     )
     return {"snapshots": snapshots, "count": len(snapshots)}
+
+
+class DirectorLoginBody(BaseModel):
+    code: str
+
+
+@router.post("/director-login")
+async def director_login(body: DirectorLoginBody):
+    """Verifies the director access code."""
+    expected = os.getenv("DIRECTOR_CODE", "gado2024")
+    if body.code != expected:
+        raise HTTPException(status_code=401, detail="Código incorrecto")
+    return {"success": True}
+
+
+@router.get("/restaurants")
+async def get_restaurants_summary():
+    """Per-restaurant stats for the director ranking table."""
+    async with get_db() as db:
+        rows = await _fetch_all(db, """
+            SELECT restaurant_name,
+                   COUNT(*) as total_offers,
+                   SUM(CASE WHEN is_active=1 THEN 1 ELSE 0 END) as active_offers,
+                   AVG(price) as avg_price,
+                   COALESCE(SUM(seats), 0) as total_seats,
+                   MAX(created_at) as last_activity
+            FROM table_events
+            GROUP BY restaurant_name
+            ORDER BY total_offers DESC
+        """)
+    return {
+        "restaurants": [
+            {**r, "avg_price": round(float(r["avg_price"] or 0), 2)}
+            for r in rows
+        ]
+    }
