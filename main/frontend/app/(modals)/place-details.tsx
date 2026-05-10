@@ -24,6 +24,7 @@ import { fetchPlaceExtra, getPlaceData, toggleBookmark } from '../../services/ap
 import { formatDistance } from '../../utils/format';
 import { synthesizeFallbackTake } from '../../utils/placeTake';
 import { useTheme } from '../../utils/theme';
+import WhimIcon from '../../components/WhimIcon';
 
 const CATEGORY_STYLES: Record<string, { color: string; icon: string; label: string }> = {
   food:       { color: '#FF6B35', icon: '🍴', label: 'Comida' },
@@ -377,65 +378,69 @@ export default function PlaceDetailsModal() {
               </View>
             ) : null}
 
-            {(item.item_type === 'place' || item.item_type === 'event') && (
+            {item.item_type === 'place' && (() => {
+              const effective = placeTake || fallbackTake;
+              const pros = effective?.pros || [];
+              const cons = effective?.cons || [];
+              return (
+                <View style={styles.takeCard}>
+                  <Text style={styles.sectionEyebrow}>{t('placeDetails.whimTake')}</Text>
+
+                  {!effective ? (
+                    <View style={styles.takeLoading}>
+                      <ActivityIndicator size="small" color={colors.brand} />
+                      <Text style={styles.takeLoadingText}>{t('placeDetails.analyzing')}</Text>
+                    </View>
+                  ) : (
+                    <>
+                      {(effective.verdict || (effective as any).why) ? (
+                        <Text style={styles.takeVerdict}>{effective.verdict || (effective as any).why}</Text>
+                      ) : null}
+
+                      <View style={styles.signalBox}>
+                        {pros.length > 0 ? pros.map((pro: string, i: number) => (
+                          <View key={`pro-${i}`} style={styles.signalRow}>
+                            <WhimIcon name="like" category="feedback" size={14} color={colors.success} />
+                            {renderBoldText(pro, styles.signalGood)}
+                          </View>
+                        )) : (
+                          <View style={styles.signalRow}>
+                            <WhimIcon name="like" category="feedback" size={14} color={colors.success} />
+                            <Text style={styles.signalGood}>{t('placeDetails.strengths')}</Text>
+                          </View>
+                        )}
+                        {cons.map((con: string, i: number) => (
+                          <View key={`con-${i}`} style={styles.signalRow}>
+                            <WhimIcon name="warning" category="feedback" size={14} color={colors.warning} />
+                            {renderBoldText(con, styles.signalBad)}
+                          </View>
+                        ))}
+                      </View>
+                    </>
+                  )}
+
+                  <VoteButtons
+                    itemId={id}
+                    itemType="place"
+                    initial={voteData}
+                    title={t('placeDetails.verdict')}
+                    canVote={!!user}
+                  />
+                </View>
+              );
+            })()}
+
+            {item.item_type === 'event' && (
               <View style={dynamicStyles.voteContainer}>
                 <VoteButtons
                   itemId={id}
-                  itemType={item.item_type as 'place' | 'event'}
+                  itemType="event"
                   initial={voteData}
                   title={t('vote.worthIt')}
                   canVote={!!user}
                 />
               </View>
             )}
-
-            {item.item_type === 'place' && (() => {
-              // Effective take: prefer backend LLM result, fall back to the
-              // deterministic client-side synthesis. The synthesizer now
-              // always returns a non-null take, so the card stays mounted
-              // for the whole lifetime of the screen — no "appears and
-              // disappears" flicker when the backend round-trip resolves to
-              // null. We still show the spinner *only* until the fallback
-              // is ready, never after.
-              const effective = placeTake || fallbackTake;
-              return (
-              <View style={styles.takeCard}>
-                <Text style={styles.sectionEyebrow}>{t('placeDetails.whimTake')}</Text>
-                {!effective ? (
-                  <View style={styles.takeLoading}>
-                    <ActivityIndicator size="small" color={colors.brand} />
-                    <Text style={styles.takeLoadingText}>{t('placeDetails.analyzing')}</Text>
-                  </View>
-                ) : (
-                  <>
-                    <Text style={styles.takeVerdict}>{effective.verdict || (effective as any).why}</Text>
-                    {(effective.pros || []).length > 0 && (
-                      <>
-                        <Text style={styles.takeBlockTitle}>{t('placeDetails.theBest')}</Text>
-                        {effective.pros.map((pro: string) => (
-                          <View key={pro} style={styles.takeRow}>
-                            <Ionicons name="thumbs-up-outline" size={16} color={colors.success} />
-                            {renderBoldText(pro, styles.takeText)}
-                          </View>
-                        ))}
-                      </>
-                    )}
-                    {(effective.cons || []).length > 0 && (
-                      <>
-                        <Text style={[styles.takeBlockTitle, styles.takeBlockTitleWarn]}>{t('placeDetails.watchOut')}</Text>
-                        {effective.cons.map((con: string) => (
-                          <View key={con} style={styles.takeRow}>
-                            <Ionicons name="warning-outline" size={16} color={colors.warning} />
-                            {renderBoldText(con, styles.takeText)}
-                          </View>
-                        ))}
-                      </>
-                    )}
-                  </>
-                )}
-              </View>
-              );
-            })()}
 
             <ReviewList reviews={(placeTake?.reviews as any[] | undefined) || item.metadata?.google_reviews as any[] || []} />
 
@@ -538,10 +543,10 @@ const styles = StyleSheet.create({
   takeCard: { marginTop: 20, padding: 16, borderRadius: 16, backgroundColor: '#171A2A', gap: 10 },
   sectionEyebrow: { fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: '#7C6CF2' },
   takeVerdict: { fontSize: 16, lineHeight: 24, fontWeight: '700', color: '#F2F0EA' },
-  takeBlockTitle: { marginTop: 4, fontSize: 13, fontWeight: '700', color: '#A7F3D0' },
-  takeBlockTitleWarn: { color: '#FDE68A' },
-  takeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  takeText: { flex: 1, fontSize: 14, lineHeight: 20, color: '#D6D9E6' },
+  signalBox: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: 12, gap: 8 },
+  signalRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  signalGood: { color: '#F2F0EA', fontSize: 13, flex: 1 },
+  signalBad: { color: '#A8AEC7', fontSize: 13, flex: 1 },
   takeLoading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   takeLoadingText: { fontSize: 14, color: '#A8AEC7' },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 100 },
