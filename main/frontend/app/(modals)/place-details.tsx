@@ -20,7 +20,7 @@ import VoteButtons from '../../components/VoteButtons';
 import { useAppState } from '../../hooks/useAppState';
 import { useAuth } from '../../hooks/useAuth';
 import { useUserProfile } from '../../hooks/useUserProfile';
-import { fetchPlaceExtra, getPlaceData, toggleBookmark } from '../../services/api';
+import { fetchPlaceExtra, getPlaceData, toggleBookmark, checkBookmark } from '../../services/api';
 import { formatDistance } from '../../utils/format';
 import { synthesizeFallbackTake, pickEffectiveTake } from '../../utils/placeTake';
 import { useTheme } from '../../utils/theme';
@@ -206,9 +206,7 @@ export default function PlaceDetailsModal() {
 
   useEffect(() => {
     if (user) {
-      import('../../services/api').then(({ checkBookmark }) => {
-        checkBookmark(id).then(setIsBookmarked).catch(() => {});
-      });
+      checkBookmark(id).then(setIsBookmarked).catch(() => {});
     }
   }, [id, user]);
 
