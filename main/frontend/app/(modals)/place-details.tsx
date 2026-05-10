@@ -380,27 +380,29 @@ export default function PlaceDetailsModal() {
             )}
 
             {item.item_type === 'place' && (() => {
-              // Effective take: prefer backend LLM result, fall back to a
-              // client-side synthesis from rating + Google reviews. Hide the
-              // card entirely only if both are missing AND we're not still
-              // loading.
+              // Effective take: prefer backend LLM result, fall back to the
+              // deterministic client-side synthesis. The synthesizer now
+              // always returns a non-null take, so the card stays mounted
+              // for the whole lifetime of the screen — no "appears and
+              // disappears" flicker when the backend round-trip resolves to
+              // null. We still show the spinner *only* until the fallback
+              // is ready, never after.
               const effective = placeTake || fallbackTake;
-              if (!loadingExtra && !effective) return null;
               return (
               <View style={styles.takeCard}>
                 <Text style={styles.sectionEyebrow}>{t('placeDetails.whimTake')}</Text>
-                {loadingExtra && !effective ? (
+                {!effective ? (
                   <View style={styles.takeLoading}>
                     <ActivityIndicator size="small" color={colors.brand} />
                     <Text style={styles.takeLoadingText}>{t('placeDetails.analyzing')}</Text>
                   </View>
                 ) : (
                   <>
-                    <Text style={styles.takeVerdict}>{effective?.verdict || (effective as any)?.why}</Text>
-                    {(effective?.pros || []).length > 0 && (
+                    <Text style={styles.takeVerdict}>{effective.verdict || (effective as any).why}</Text>
+                    {(effective.pros || []).length > 0 && (
                       <>
                         <Text style={styles.takeBlockTitle}>{t('placeDetails.theBest')}</Text>
-                        {effective?.pros.map((pro: string) => (
+                        {effective.pros.map((pro: string) => (
                           <View key={pro} style={styles.takeRow}>
                             <Ionicons name="thumbs-up-outline" size={16} color={colors.success} />
                             {renderBoldText(pro, styles.takeText)}
@@ -408,10 +410,10 @@ export default function PlaceDetailsModal() {
                         ))}
                       </>
                     )}
-                    {(effective?.cons || []).length > 0 && (
+                    {(effective.cons || []).length > 0 && (
                       <>
                         <Text style={[styles.takeBlockTitle, styles.takeBlockTitleWarn]}>{t('placeDetails.watchOut')}</Text>
-                        {effective?.cons.map((con: string) => (
+                        {effective.cons.map((con: string) => (
                           <View key={con} style={styles.takeRow}>
                             <Ionicons name="warning-outline" size={16} color={colors.warning} />
                             {renderBoldText(con, styles.takeText)}

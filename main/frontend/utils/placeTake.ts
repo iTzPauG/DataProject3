@@ -39,14 +39,23 @@ const NEGATIVE_PATTERNS =
   /(tarde|tard[oó]|fría|frío|fri[oa]|caro|car[ií]simo|sucio|lent[oa]|esperar|cola|peor|horrible|nada del otro mundo|del montón|mediocre|regular|nothing special|slow|cold|overpriced|rude|not worth)/i;
 
 /**
- * Returns a synthesized take, or null if there's not enough signal to say
- * anything honest. Callers can then decide whether to render a "no analysis"
- * UI (rare) or hide the section entirely.
+ * Returns a synthesized take. Always non-null so the UI never has to
+ * conditionally render the take card (which caused the "appears and
+ * disappears at the instant" flicker on screens opened from outside the
+ * explore flow). When there's literally no signal we still emit a short,
+ * honest "no data yet" verdict instead of yanking the card off the page.
  */
-export function synthesizeFallbackTake(input: SynthInput): SynthesizedTake | null {
+export function synthesizeFallbackTake(input: SynthInput): SynthesizedTake {
   const rating = typeof input.rating === 'number' && Number.isFinite(input.rating) ? input.rating : null;
   const reviews: ReviewLike[] = Array.isArray(input.reviews) ? input.reviews : [];
-  if (rating == null && reviews.length === 0) return null;
+  if (rating == null && reviews.length === 0) {
+    return {
+      verdict:
+        'Aún no tenemos reseñas ni puntuación para este sitio — guarda el lugar y vuelve cuando haya más datos.',
+      pros: [],
+      cons: [],
+    };
+  }
 
   const reviewCount = reviews.length;
   const lowRated = reviews.filter((r) => (r.rating ?? 5) <= 3).length;
