@@ -90,7 +90,7 @@ export function synthesizeFallbackTake(input: SynthInput): SynthesizedTake {
       if (
         cons.length < 2 &&
         NEGATIVE_PATTERNS.test(s) &&
-        ((r.rating ?? 5) <= 3 || hasMixedSignal)
+        ((r.rating ?? 5) <= 4 || (rating !== null && rating < 4.5) || hasMixedSignal)
       ) {
         cons.push(s);
         seen.add(key);
@@ -138,6 +138,11 @@ export function pickEffectiveTake<T extends { verdict?: string; pros?: string[];
   fallback: SynthesizedTake | null,
 ): (T & SynthesizedTake) | SynthesizedTake | null {
   if (backendTake && (backendTake.verdict || (backendTake.pros && backendTake.pros.length))) {
+    // If the backend generated pros but no cons, fill cons from the fallback so
+    // the Whim's Take card never shows an empty "Ojo con esto" section.
+    if ((!backendTake.cons || backendTake.cons.length === 0) && fallback && fallback.cons.length > 0) {
+      return { ...backendTake, cons: fallback.cons } as T & SynthesizedTake;
+    }
     return backendTake as T & SynthesizedTake;
   }
   return fallback;

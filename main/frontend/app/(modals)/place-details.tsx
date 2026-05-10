@@ -22,7 +22,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { fetchPlaceExtra, getPlaceData, toggleBookmark } from '../../services/api';
 import { formatDistance } from '../../utils/format';
-import { synthesizeFallbackTake } from '../../utils/placeTake';
+import { synthesizeFallbackTake, pickEffectiveTake } from '../../utils/placeTake';
 import { useTheme } from '../../utils/theme';
 import WhimIcon from '../../components/WhimIcon';
 
@@ -379,7 +379,7 @@ export default function PlaceDetailsModal() {
             ) : null}
 
             {item.item_type === 'place' && (() => {
-              const effective = placeTake || fallbackTake;
+              const effective = pickEffectiveTake(placeTake, fallbackTake);
               const pros = effective?.pros || [];
               const cons = effective?.cons || [];
               return (
