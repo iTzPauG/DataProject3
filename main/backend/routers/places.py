@@ -1,9 +1,10 @@
 """Map / Places endpoints — nearby items and place details."""
 import asyncio
+import json
 import logging
 import uuid
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -23,6 +24,58 @@ from services.live_data_service import get_live_data
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/places", tags=["places"])
+
+
+def _json_or_value(value: Any) -> Any:
+    if value is None or value == "":
+        return None
+    if isinstance(value, (dict, list)):
+        return value
+    try:
+        return json.loads(value)
+    except (TypeError, ValueError):
+        return value
+
+
+def _tag_set(value: Any) -> set[str]:
+    parsed = _json_or_value(value)
+    if isinstance(parsed, dict):
+        return {
+            str(key).strip().lower()
+            for key, enabled in parsed.items()
+            if enabled and str(key).strip()
+        }
+    if isinstance(parsed, list):
+        return {str(item).strip().lower() for item in parsed if str(item).strip()}
+    if isinstance(parsed, str):
+        return {part.strip().lower() for part in parsed.split(",") if part.strip()}
+    return set()
+
+
+def _metadata_dict(value: Any) -> dict[str, Any]:
+    parsed = _json_or_value(value)
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _price_level_label(value: Any) -> Any:
+    try:
+        numeric = int(value)
+    except (TypeError, ValueError):
+        return value
+    return {
+        0: "PRICE_LEVEL_FREE",
+        1: "PRICE_LEVEL_INEXPENSIVE",
+        2: "PRICE_LEVEL_MODERATE",
+        3: "PRICE_LEVEL_EXPENSIVE",
+        4: "PRICE_LEVEL_VERY_EXPENSIVE",
+    }.get(numeric, value)
+
+
+def _as_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 @router.get("/nearby")
@@ -231,6 +284,141 @@ async def place_take(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{place_id}/similar")
+async def similar_places_by_tags(
+    place_id: str,
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    limit: int = Query(20, ge=1, le=50),
+):
+    """Return places with the highest tag overlap with a base restaurant."""
+    async with get_db() as db:
+        cursor = await db.execute(
+            """
+            SELECT CAST(id AS TEXT) AS id,
+                   external_id,
+                   name,
+                   category_id,
+                   subcategory,
+                   amenity,
+                   tags
+            FROM places
+            WHERE CAST(id AS TEXT) = ? OR external_id = ?
+            LIMIT 1
+            """,
+            (place_id, place_id),
+        )
+        base_row = await cursor.fetchone()
+        if not base_row:
+            raise HTTPException(status_code=404, detail=f"Place '{place_id}' not found")
+
+        base = dict(base_row)
+        base_tags = _tag_set(base.get("tags"))
+        if not base_tags:
+            return {
+                "base_place": {
+                    "id": base["id"],
+                    "name": base.get("name"),
+                    "tags": [],
+                },
+                "recommendations": [],
+            }
+
+        cursor = await db.execute(
+            """
+            SELECT CAST(id AS TEXT) AS id,
+                   external_id,
+                   source,
+                   category_id,
+                   subcategory,
+                   amenity,
+                   name,
+                   address,
+                   photo_url,
+                   rating,
+                   price_level,
+                   lat,
+                   lng,
+                   tags,
+                   metadata
+            FROM places
+            WHERE category_id = ?
+              AND CAST(id AS TEXT) != ?
+            LIMIT 1500
+            """,
+            (base.get("category_id"), base["id"]),
+        )
+        rows = await cursor.fetchall()
+
+    scored: list[dict[str, Any]] = []
+    for raw_row in rows:
+        row = dict(raw_row)
+        candidate_tags = _tag_set(row.get("tags"))
+        matched_tags = sorted(base_tags & candidate_tags)
+        if not matched_tags:
+            continue
+
+        metadata = _metadata_dict(row.get("metadata"))
+        rating = _as_float(row.get("rating") or metadata.get("rating"))
+        reviews_count = int(_as_float(metadata.get("user_ratings_count") or metadata.get("user_rating_count")))
+        distance_m = None
+        if lat is not None and lng is not None and row.get("lat") is not None and row.get("lng") is not None:
+            distance_m = int(_haversine_m(lat, lng, _as_float(row.get("lat")), _as_float(row.get("lng"))))
+
+        overlap = len(matched_tags)
+        union = len(base_tags | candidate_tags) or 1
+        jaccard = overlap / union
+        distance_penalty = (distance_m or 0) / 50000
+        score = overlap * 100 + jaccard * 20 + rating * 2 + min(reviews_count, 2000) / 500 - distance_penalty
+
+        metadata.update(
+            {
+                "photo_url": row.get("photo_url") or metadata.get("photo_url"),
+                "rating": rating,
+                "price_level": _price_level_label(row.get("price_level") or metadata.get("price_level")),
+                "address": row.get("address") or metadata.get("address"),
+                "distance_m": distance_m,
+                "subcategory": row.get("subcategory"),
+                "amenity": row.get("amenity"),
+                "tags": sorted(candidate_tags),
+                "matched_tags": matched_tags,
+                "tag_match_count": overlap,
+                "similarity_score": round(score, 3),
+                "user_rating_count": reviews_count,
+            }
+        )
+
+        scored.append(
+            {
+                "id": row["id"],
+                "name": row.get("name") or "",
+                "lat": row.get("lat"),
+                "lng": row.get("lng"),
+                "metadata": metadata,
+            }
+        )
+
+    scored.sort(
+        key=lambda item: (
+            item["metadata"].get("tag_match_count", 0),
+            item["metadata"].get("similarity_score", 0),
+            item["metadata"].get("rating", 0),
+        ),
+        reverse=True,
+    )
+
+    return {
+        "base_place": {
+            "id": base["id"],
+            "name": base.get("name"),
+            "category_id": base.get("category_id"),
+            "subcategory": base.get("subcategory"),
+            "tags": sorted(base_tags),
+        },
+        "recommendations": scored[:limit],
+    }
 
 # ─── Per-place live comments ────────────────────────────────────────────────
 

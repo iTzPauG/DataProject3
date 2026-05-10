@@ -148,8 +148,16 @@ export type RestaurantDBResult = {
   metadata: {
     rating?: number;
     photo_url?: string;
-    price_level?: string;
+    price_level?: string | number | null;
     address?: string;
     distance_m?: number;
+    user_rating_count?: number;
+    user_ratings_count?: number;
+    subcategory?: string;
+    amenity?: string;
+    tags?: string[];
+    matched_tags?: string[];
+    tag_match_count?: number;
+    similarity_score?: number;
   };
 };

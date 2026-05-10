@@ -1166,7 +1166,93 @@ export async function getPlaceData(placeId: string): Promise<MapItem | null> {
   }
 }
 
-export const RESTAURANT_DB_URL = 'https://restaurant-api-dev-ia-149307894342.europe-west1.run.app';
+export const RESTAURANT_DB_URL = BASE_URL;
+
+export interface UserPlaceInteraction {
+  item_id: string;
+  item_type?: string;
+  title?: string | null;
+  category_id?: string | null;
+  subcategory?: string | null;
+  amenity?: string | null;
+  tags?: Record<string, unknown> | string[] | null;
+  metadata?: Record<string, unknown> | null;
+  rating?: number | null;
+  price_level?: number | string | null;
+  lat?: number | null;
+  lng?: number | null;
+  created_at?: string | null;
+}
+
+export interface UserVoteInteraction extends UserPlaceInteraction {
+  vote: 1 | -1;
+}
+
+export interface UserInteractionsResponse {
+  firebase_uid: string;
+  profile: Record<string, unknown>;
+  interactions: {
+    votes: UserVoteInteraction[];
+    saved_items: UserPlaceInteraction[];
+    search_history: Array<Record<string, unknown>>;
+  };
+  summary: Record<string, unknown>;
+}
+
+export interface SimilarPlacesResponse {
+  base_place: {
+    id: string;
+    name?: string | null;
+    category_id?: string | null;
+    subcategory?: string | null;
+    tags?: string[];
+  };
+  recommendations: RestaurantDBResult[];
+}
+
+export async function getCurrentUserInteractions(): Promise<UserInteractionsResponse | null> {
+  try {
+    const uid = firebaseAuth?.currentUser?.uid ?? null;
+    if (!uid) return null;
+
+    const res = await fetch(`${BASE_URL}/internal/users/${encodeURIComponent(uid)}/interactions`, {
+      headers: {
+        Accept: 'application/json',
+        'Accept-Language': i18n.language || 'es',
+        'X-Internal-Secret': 'for-you',
+      },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function getSimilarPlacesByTags(params: {
+  placeId: string;
+  lat?: number;
+  lng?: number;
+  limit?: number;
+}): Promise<SimilarPlacesResponse | null> {
+  try {
+    const url = new URL(`${BASE_URL}/places/${encodeURIComponent(params.placeId)}/similar`);
+    if (params.lat != null) url.searchParams.set('lat', String(params.lat));
+    if (params.lng != null) url.searchParams.set('lng', String(params.lng));
+    url.searchParams.set('limit', String(params.limit ?? 20));
+
+    const res = await fetch(url.toString(), {
+      headers: {
+        Accept: 'application/json',
+        'Accept-Language': i18n.language || 'es',
+      },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
 
 export async function searchRestaurantDB({
   query,

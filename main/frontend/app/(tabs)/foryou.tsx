@@ -15,11 +15,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AnimatedTabScene from '../../components/AnimatedTabScene';
 import { useTheme } from '../../utils/theme';
-import { getCurrentLocation, searchRestaurantDB, RESTAURANT_DB_URL } from '../../services/api';
+import {
+  getCurrentLocation,
+  getCurrentUserInteractions,
+  getSimilarPlacesByTags,
+  searchRestaurantDB,
+  RESTAURANT_DB_URL,
+} from '../../services/api';
 import { RestaurantDBResult } from '../../types';
+import { useAuth } from '../../hooks/useAuth';
 import { useUserProfile } from '../../hooks/useUserProfile';
 import { useLocation as useDeviceLocation } from '../../hooks/useLocation';
-const formatPrice = (p: string) => {
+const formatPrice = (p: string | number | null | undefined) => {
+  if (p == null) return '';
   const map: Record<string, string> = {
     PRICE_LEVEL_FREE: 'Gratis',
     PRICE_LEVEL_INEXPENSIVE: '$',
@@ -27,7 +35,7 @@ const formatPrice = (p: string) => {
     PRICE_LEVEL_EXPENSIVE: '$',
     PRICE_LEVEL_VERY_EXPENSIVE: '',
   };
-  return map[p] ?? p;
+  return map[String(p)] ?? String(p);
 };
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -105,111 +113,6 @@ function getOrderedSections(
 }
 
 /**
- * Construye una query para "Por tus gustos" combinando varias señales.
- *
- *   1. Hasta 3 tokens **personales** del usuario (saved + recent views) que
- *      no sean stopwords genéricas. Capturan lo distintivo del perfil.
- *   2. Los tags del **cluster asignado** (asiático / tradicional / healthy).
- *      Aporta sinónimos de la categoría para que el motor encuentre más sitios
- *      aunque el usuario sólo haya visitado un nombre concreto.
- *   3. La ciudad detectada para acotar geográficamente.
- *
- * Se expone `getRecommendationSignals()` para que la UI pueda enseñar al
- * usuario qué señales se están usando ("estamos recomendando porque vimos
- * X, Y, Z").
- */
-const GENERIC_STOPWORDS = new Set([
-  'restaurante', 'restaurant', 'bar', 'cafe', 'café', 'food', 'comida',
-  'valencia', 'madrid', 'barcelona', 'plaza', 'calle', 'avda', 'avenida',
-  'gran', 'casa', 'local', 'sitio', 'place', 'good', 'best',
-]);
-
-interface RecommendationSignals {
-  personalTokens: string[];
-  clusterTags: string[];
-  cluster: UserCluster;
-  city: string;
-}
-
-function getRecommendationSignals(positiveTags: Set<string>, city: string): RecommendationSignals {
-  const personalTokens = Array.from(positiveTags)
-    .filter(t => !GENERIC_STOPWORDS.has(t))
-    .slice(0, 3);
-  const cluster = assignCluster(positiveTags);
-  // Use a slice of the cluster's centroid to broaden recall without flooding
-  // the query with noise.
-  const clusterTags = cluster.tags.slice(0, 5);
-  return { personalTokens, clusterTags, cluster, city };
-}
-
-function buildPersonalizedQuery(positiveTags: Set<string>, city: string): string {
-  const sig = getRecommendationSignals(positiveTags, city);
-  const terms = [...sig.personalTokens, ...sig.clusterTags];
-  // Deduplicate while preserving order so personal tokens stay first.
-  const seen = new Set<string>();
-  const unique = terms.filter(t => {
-    const k = t.toLowerCase();
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
-  if (unique.length === 0) unique.push('popular', 'destacado');
-  return [...unique, city].join(' ');
-}
-
-// ── Collaborative filtering (clustering) ─────────────────────────────────────
-// Cada cluster tiene un centroide (tags) y los restaurantes que sus usuarios
-// han dado like/guardado. El usuario actual se asigna al cluster más cercano
-// por intersección de tags, y se recomiendan restaurantes de ese cluster.
-
-interface UserCluster {
-  id: string;
-  tags: string[];           // centroide del cluster
-  poolQueries: string[];    // queries que representan los likes colectivos del cluster
-}
-
-const CLUSTERS: UserCluster[] = [
-  {
-    id: 'asiatico',
-    tags: ['sushi', 'ramen', 'poke', 'japonés', 'asiático', 'fusión', 'nozomi', 'koku', 'ohana', 'kagura'],
-    poolQueries: ['sushi japonés Valencia', 'ramen poke asiático Valencia', 'restaurante japonés moderno Valencia'],
-  },
-  {
-    id: 'tradicional',
-    tags: ['tapas', 'paella', 'terraza', 'vino', 'español', 'mediterráneo', 'pepica', 'lateral', 'kaymus', 'carolina'],
-    poolQueries: ['tapas terraza mediterráneo Valencia', 'restaurante español tradicional Valencia', 'paella mariscos Valencia'],
-  },
-  {
-    id: 'healthy',
-    tags: ['vegano', 'brunch', 'saludable', 'café', 'orgánico', 'ensalada', 'smoothie', 'healthy', 'vegan'],
-    poolQueries: ['restaurante vegano saludable Valencia', 'brunch café orgánico Valencia', 'healthy bowl ensalada Valencia'],
-  },
-];
-
-/** Asigna al usuario al cluster cuyo centroide tiene mayor solape con sus positiveTags. */
-function assignCluster(positiveTags: Set<string>): UserCluster {
-  let best = CLUSTERS[0];
-  let bestScore = -1;
-  for (const cluster of CLUSTERS) {
-    const score = cluster.tags.reduce(
-      (acc, t) => acc + (positiveTags.has(t.toLowerCase()) ? 1 : 0),
-      0,
-    );
-    if (score > bestScore) { bestScore = score; best = cluster; }
-  }
-  return best;
-}
-
-/** Una query del pool del cluster asignado, con la ciudad sustituida por la actual. */
-function buildTribeQuery(positiveTags: Set<string>, city: string): string {
-  const cluster = assignCluster(positiveTags);
-  const queries = cluster.poolQueries;
-  const base = queries[Math.floor(Math.random() * queries.length)];
-  // Sustituye cualquier ciudad existente en la query de pool por la detectada.
-  return base.replace(/Valencia/gi, city);
-}
-
-/**
  * "¿Te atreves?" — secciones cuyo `affinityTags` tiene cero solape con el
  * perfil del usuario. Mezcla 3 al azar para producir una query variada.
  */
@@ -258,6 +161,7 @@ interface SectionRowProps {
   title: string;
   emoji: string;
   query: string;
+  loadRestaurants?: () => Promise<RestaurantDBResult[]>;
   lat: number;
   lng: number;
   trending?: boolean;
@@ -281,7 +185,6 @@ interface SectionRowProps {
   colors: ReturnType<typeof useTheme>['colors'];
   typography: ReturnType<typeof useTheme>['typography'];
   radii: ReturnType<typeof useTheme>['radii'];
-  shadows: ReturnType<typeof useTheme>['shadows'];
   onRestaurantPress: (restaurant: RestaurantDBResult) => void;
 }
 
@@ -289,6 +192,7 @@ function SectionRow({
   title,
   emoji,
   query,
+  loadRestaurants,
   lat,
   lng,
   trending,
@@ -302,7 +206,6 @@ function SectionRow({
   colors,
   typography,
   radii,
-  shadows,
   onRestaurantPress,
 }: SectionRowProps) {
   const [restaurants, setRestaurants] = useState<RestaurantDBResult[]>([]);
@@ -312,14 +215,16 @@ function SectionRow({
     const fetchRestaurants = async () => {
       setLoading(true);
       try {
-        const results = await searchRestaurantDB({
-          query,
-          lat,
-          lng,
-          radiusM: radiusM ?? 5000,
-          useBrain: false,
-          category: 'restaurant',
-        });
+        const results = loadRestaurants
+          ? await loadRestaurants()
+          : await searchRestaurantDB({
+              query,
+              lat,
+              lng,
+              radiusM: radiusM ?? 5000,
+              useBrain: false,
+              category: 'restaurant',
+            });
         let sorted = trending
           ? [...results].sort((a, b) => trendingScore(b) - trendingScore(a)).slice(0, 10)
           : surprise
@@ -348,7 +253,7 @@ function SectionRow({
     };
 
     fetchRestaurants();
-  }, [query, lat, lng, trending, seenIdsRef, feedDedupeOnly, radiusM, maxItems]);
+  }, [query, loadRestaurants, lat, lng, trending, seenIdsRef, feedDedupeOnly, radiusM, maxItems]);
 
   // Don't render if no results
   if (!loading && restaurants.length === 0) {
@@ -456,10 +361,13 @@ function SectionRow({
 export default function ForYouTab() {
   const { colors, typography, radii, shadows } = useTheme();
   const router = useRouter();
+  const auth = useAuth();
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [heroRestaurant, setHeroRestaurant] = useState<RestaurantDBResult | null>(null);
   const [heroLoading, setHeroLoading] = useState(true);
   const [weatherSection, setWeatherSection] = useState<SectionConfig | null>(null);
+  const [likedBaseName, setLikedBaseName] = useState<string | null>(null);
+  const [likedSimilarRestaurants, setLikedSimilarRestaurants] = useState<RestaurantDBResult[]>([]);
 
   // Real user signals: bookmarks (cloud) + saved pins (local) + recent views.
   const profile = useUserProfile();
@@ -484,6 +392,63 @@ export default function ForYouTab() {
   useEffect(() => {
     seenIdsRef.current = new Set();
   }, [location?.lat, location?.lng]);
+
+  const loadLikedSimilarRestaurants = useCallback(async () => {
+    if (!auth.user?.uid || !location) {
+      setLikedBaseName(null);
+      return [];
+    }
+
+    const data = await getCurrentUserInteractions();
+    const likedVotes = data?.interactions.votes.filter((vote) => {
+      if (vote.vote !== 1 || !vote.item_id) return false;
+      const category = (vote.category_id || vote.item_type || '').toLowerCase();
+      return category === 'food' || category === 'restaurant' || category === 'place';
+    }) ?? [];
+
+    for (const liked of likedVotes) {
+      const similar = await getSimilarPlacesByTags({
+        placeId: liked.item_id,
+        lat: location.lat,
+        lng: location.lng,
+        limit: 20,
+      });
+
+      if (similar && similar.recommendations.length > 0) {
+        setLikedBaseName(similar.base_place?.name || liked.title || null);
+        return similar.recommendations;
+      }
+    }
+
+    if (likedVotes.length > 0) {
+      setLikedBaseName(likedVotes[0].title || null);
+      return [];
+    }
+
+    setLikedBaseName(null);
+    return [];
+  }, [auth.user?.uid, location]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLikedBaseName(null);
+      setLikedSimilarRestaurants([]);
+      const restaurants = await loadLikedSimilarRestaurants();
+      if (!cancelled) {
+        setLikedSimilarRestaurants(restaurants);
+      }
+    }
+
+    if (auth.user?.uid && location) {
+      void load();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.user?.uid, location, loadLikedSimilarRestaurants]);
 
   const handleRestaurantPress = useCallback((restaurant: RestaurantDBResult) => {
     const photoUrl = restaurant.metadata?.photo_url;
@@ -721,6 +686,24 @@ export default function ForYouTab() {
             </TouchableOpacity>
           ) : null}
 
+          {auth.user?.uid && likedBaseName && likedSimilarRestaurants.length > 0 ? (
+            <SectionRow
+              key={`liked-similar-${auth.user.uid}`}
+              title={`Como te gustó ${likedBaseName}`}
+              emoji="*"
+              query="liked-similar"
+              loadRestaurants={() => Promise.resolve(likedSimilarRestaurants)}
+              lat={location.lat}
+              lng={location.lng}
+              maxItems={20}
+              seenIdsRef={seenIdsRef}
+              colors={colors}
+              typography={typography}
+              radii={radii}
+              onRestaurantPress={handleRestaurantPress}
+            />
+          ) : null}
+
           {/* Dynamic Sections */}
           {/* First section (Tendencias) — always renders, doesn't filter by
               earlier sections, but feeds seenIdsRef for downstream dedupe. */}
@@ -738,56 +721,9 @@ export default function ForYouTab() {
               colors={colors}
               typography={typography}
               radii={radii}
-              shadows={shadows}
               onRestaurantPress={handleRestaurantPress}
             />
           ))}
-          {/* Personalized — only render if we have at least one positive tag.
-              The subtitle explicitly tells the user which signals are being
-              used, so the recommendation feels less like a black box. */}
-          {profile.positiveTags.size > 0 && (() => {
-            const sig = getRecommendationSignals(profile.positiveTags, city);
-            const personalLabel = sig.personalTokens.length > 0
-              ? sig.personalTokens.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ')
-              : null;
-            const sub = personalLabel
-              ? `Basado en lo que has visto y guardado: ${personalLabel}. Cluster · ${sig.cluster.id}.`
-              : `Basado en tu cluster · ${sig.cluster.id}.`;
-            return (
-              <SectionRow
-                key="personalized"
-                title="Por tus gustos"
-                emoji="✨"
-                subtitle={sub}
-                query={buildPersonalizedQuery(profile.positiveTags, city)}
-                lat={location.lat}
-                lng={location.lng}
-                radiusM={8000}
-                maxItems={12}
-                seenIdsRef={seenIdsRef}
-                colors={colors}
-                typography={typography}
-                radii={radii}
-                shadows={shadows}
-                onRestaurantPress={handleRestaurantPress}
-              />
-            );
-          })()}
-          {/* Collaborative-style cluster recommendation */}
-          <SectionRow
-            key="tribe"
-            title="Tu tribu recomienda"
-            emoji="👥"
-            query={buildTribeQuery(profile.positiveTags, city)}
-            lat={location.lat}
-            lng={location.lng}
-            seenIdsRef={seenIdsRef}
-            colors={colors}
-            typography={typography}
-            radii={radii}
-            shadows={shadows}
-            onRestaurantPress={handleRestaurantPress}
-          />
           {/* Surprise / out of comfort zone */}
           <SectionRow
             key="surprise"
@@ -801,7 +737,6 @@ export default function ForYouTab() {
             colors={colors}
             typography={typography}
             radii={radii}
-            shadows={shadows}
             onRestaurantPress={handleRestaurantPress}
           />
           {/* Weather Section — after Tendencias */}
@@ -817,7 +752,6 @@ export default function ForYouTab() {
               colors={colors}
               typography={typography}
               radii={radii}
-              shadows={shadows}
               onRestaurantPress={handleRestaurantPress}
             />
           )}
@@ -836,7 +770,6 @@ export default function ForYouTab() {
               colors={colors}
               typography={typography}
               radii={radii}
-              shadows={shadows}
               onRestaurantPress={handleRestaurantPress}
             />
           ))}
