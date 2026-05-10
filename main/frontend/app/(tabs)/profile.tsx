@@ -6,6 +6,7 @@ import {
   Alert,
   Dimensions,
   Image,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -23,6 +24,8 @@ import { monogramFor } from '../../constants/design';
 import { useAuth } from '../../hooks/useAuth';
 import { BASE_URL } from '../../services/api';
 import { useTheme } from '../../utils/theme';
+import ExecutiveDashboard from '../(views)/dashboard';
+import RestaurantPage from '../(views)/restaurant';
 
 const { width, height } = Dimensions.get('window');
 
@@ -40,6 +43,7 @@ export default function ProfileTab() {
   const router = useRouter();
   const { user, profile, signOut, getToken, refreshProfile } = useAuth();
   const [uploadingRestaurantPhoto, setUploadingRestaurantPhoto] = React.useState(false);
+  const [activeView, setActiveView] = React.useState<'dashboard' | 'restaurant' | null>(null);
 
   const profileDesc = useMemo(() => {
     const variations = t("profile_variations", { returnObjects: true });
@@ -417,6 +421,8 @@ export default function ProfileTab() {
       ]);
       return;
     }
+    if (item.id === 'restaurant') { setActiveView('restaurant'); return; }
+    if (item.id === 'dashboard') { setActiveView('dashboard'); return; }
     if (item.route) {
       router.push(item.route as any);
     } else {
@@ -673,6 +679,31 @@ export default function ProfileTab() {
           </View>
         </ScrollView>
       </SafeAreaView>
+      <Modal
+        visible={activeView !== null}
+        animationType="slide"
+        onRequestClose={() => setActiveView(null)}
+      >
+        <View style={{ flex: 1 }}>
+          {activeView === 'dashboard' && <ExecutiveDashboard />}
+          {activeView === 'restaurant' && <RestaurantPage />}
+          <TouchableOpacity
+            onPress={() => setActiveView(null)}
+            style={{
+              position: 'absolute',
+              top: 52,
+              left: 16,
+              zIndex: 100,
+              backgroundColor: 'rgba(0,0,0,0.55)',
+              borderRadius: 20,
+              paddingHorizontal: 14,
+              paddingVertical: 7,
+            }}
+          >
+            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>← Volver</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </AnimatedTabScene>
   );
 }
