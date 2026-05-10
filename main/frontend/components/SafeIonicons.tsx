@@ -76,12 +76,15 @@ const ICON_MAP: Record<string, IconName> = {
   heart: 'bookmark',
   'heart-outline': 'bookmark',
 
+  // stars
+  star: 'star',
+  'star-outline': 'star-outline',
+
   // status (no dedicated glyph yet — fall back to ring/triangle)
   'alert-circle': 'triangle',
   'alert-circle-outline': 'triangle',
   warning: 'triangle',
   ellipse: 'dot',
-  star: 'triangle',
   radio: 'dot',
 
   // communication / auth (neutral ring)

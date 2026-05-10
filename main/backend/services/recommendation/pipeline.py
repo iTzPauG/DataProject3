@@ -1135,7 +1135,7 @@ async def enrich_place_result(
         "types": [],
         "phone": details.get("phone", ""),
         "website": details.get("website", ""),
-        "google_reviews": google_reviews if google_reviews else details.get("google_reviews", []),
+        "google_reviews": [r for r in (google_reviews or []) if isinstance(r, dict)] or details.get("google_reviews", []),
         "yelp_reviews": details.get("yelp_reviews", []),
         "tripadvisor_reviews": details.get("tripadvisor_reviews", []),
         "review_summary": review_summary or details.get("review_summary", ""),

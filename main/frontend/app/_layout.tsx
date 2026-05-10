@@ -10,7 +10,7 @@ import WebFontLoader from '../components/WebFontLoader';
 import '../utils/i18n';
 import { useTranslation } from 'react-i18next';
 
-// Syncs i18n language with the language set in AppState
+// Sync i18n language with the language set in AppState
 function LanguageSyncer() {
   const { mapPreferences, isHydrated } = useAppState();
   const { i18n } = useTranslation();

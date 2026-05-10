@@ -69,7 +69,7 @@ def _extract_reviews(place: dict, source_language: str | None = None) -> list[di
         if not text:
             continue
         reviews.append({
-            "author": rev.get("authorAttribution", {}).get("displayName", ""),
+            "author": (lambda a: a.get("displayName", "") if isinstance(a, dict) else str(a) if a else "")(rev.get("authorAttribution")),
             "rating": rev.get("rating", 0),
             "text": text,
             "relative_time": rev.get("relativePublishTimeDescription", ""),
@@ -465,13 +465,14 @@ async def get_place_details(place_id: str, language: str = "es", include_yelp: b
 
     if include_yelp:
         try:
-            yelp_reviews = await get_yelp_reviews(
+            yelp_result = await get_yelp_reviews(
                 name=data.get("displayName", {}).get("text", ""),
                 lat=float(data.get("location", {}).get("latitude") or 0.0),
                 lng=float(data.get("location", {}).get("longitude") or 0.0),
                 address=data.get("formattedAddress", ""),
                 language=language,
             )
+            yelp_reviews: list[dict] = yelp_result.get("reviews", []) if isinstance(yelp_result, dict) else []
         except Exception as exc:
             log.info("Yelp enrichment failed for %s: %s", place_id, exc)
             yelp_reviews = []

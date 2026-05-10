@@ -12,7 +12,7 @@
  * to preserve family resemblance.
  */
 import React from 'react';
-import { StyleProp, View, ViewStyle } from 'react-native';
+import { StyleProp, Text, View, ViewStyle } from 'react-native';
 
 type IconRenderer = (args: {
   size: number;
@@ -42,7 +42,9 @@ export type IconName =
   | 'dot'
   | 'ring'
   | 'triangle'
-  | 'logout';
+  | 'logout'
+  | 'star'
+  | 'star-outline';
 
 interface IconProps {
   name: IconName;
@@ -787,6 +789,12 @@ const ICONS: Record<IconName, IconRenderer> = {
       </View>
     );
   },
+  star: ({ size, color }) => (
+    <Text style={{ fontSize: size * 0.92, color, textAlign: 'center', width: size, lineHeight: size }}>{'\u2605'}</Text>
+  ),
+  'star-outline': ({ size, color }) => (
+    <Text style={{ fontSize: size * 0.92, color, textAlign: 'center', width: size, lineHeight: size }}>{'\u2606'}</Text>
+  ),
   // Price tag icon for "Mis Ofertas"
   tag: ({ size, color, strokeWidth: sw }) => {
     const s = size * 0.72;

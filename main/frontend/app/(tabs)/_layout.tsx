@@ -11,6 +11,7 @@ const TAB_GLYPHS: Record<string, IconName> = {
   explore: 'compass',
   publish: 'plus',
   'mis-ofertas': 'tag',
+  'mis-reservas': 'bookmark',
   profile: 'person',
 };
 
@@ -74,7 +75,7 @@ export default function TabsLayout() {
     [colors, typography, TAB_H],
   );
 
-  const renderTab = (routeName: 'index' | 'explore' | 'publish' | 'mis-ofertas' | 'profile', focused: boolean) => {
+  const renderTab = (routeName: 'index' | 'explore' | 'publish' | 'mis-ofertas' | 'mis-reservas' | 'profile', focused: boolean) => {
     const label = t(`tabs.${routeName}`);
     const glyph = TAB_GLYPHS[routeName];
     const color = focused ? colors.ink : colors.inkFaint;
@@ -134,6 +135,13 @@ export default function TabsLayout() {
         options={{
           href: isBusiness ? undefined : null,
           tabBarIcon: ({ focused }) => renderTab('mis-ofertas', focused),
+        }}
+      />
+      <Tabs.Screen
+        name="mis-reservas"
+        options={{
+          href: isBusiness ? null : undefined,
+          tabBarIcon: ({ focused }) => renderTab('mis-reservas', focused),
         }}
       />
       <Tabs.Screen

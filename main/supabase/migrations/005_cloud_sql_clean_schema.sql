@@ -131,6 +131,20 @@ CREATE TABLE IF NOT EXISTS public.saved_items (
   UNIQUE (user_id, item_type, item_id)
 );
 
+-- Reservations
+CREATE TABLE IF NOT EXISTS public.reservations (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  restaurant_id     TEXT NOT NULL,
+  user_id           UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  restaurant_name   TEXT NOT NULL,
+  reservation_date  TIMESTAMPTZ NOT NULL,
+  party_size        INT NOT NULL,
+  notes             TEXT,
+  status            TEXT DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'cancelled', 'completed')),
+  created_at        TIMESTAMPTZ DEFAULT now(),
+  updated_at        TIMESTAMPTZ DEFAULT now()
+);
+
 -- User Preferences
 CREATE TABLE IF NOT EXISTS public.user_preferences (
   user_id           UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -180,6 +194,7 @@ CREATE INDEX IF NOT EXISTS idx_reports_active ON public.community_reports(is_act
 CREATE UNIQUE INDEX IF NOT EXISTS idx_confirm_user ON public.report_confirmations(report_id, user_id) WHERE user_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_confirm_anon ON public.report_confirmations(report_id, anon_fingerprint) WHERE anon_fingerprint IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_confirm_actor ON public.report_confirmations(report_id, actor_key) WHERE actor_key IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_reservations_restaurant ON public.reservations(restaurant_id, reservation_date);
 
 -- Search vector trigger
 CREATE OR REPLACE FUNCTION public.update_places_search_vector()
