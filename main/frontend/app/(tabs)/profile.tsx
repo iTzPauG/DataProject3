@@ -6,6 +6,7 @@ import {
   Alert,
   Dimensions,
   Image,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -24,6 +25,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { BASE_URL } from '../../services/api';
 import { useTheme } from '../../utils/theme';
 import { resolveAccountName, resolveGreetingName } from '../../utils/account';
+import DirectorDashboardPage from '../(views)/director-dashboard';
 
 const { width, height } = Dimensions.get('window');
 
@@ -41,6 +43,10 @@ export default function ProfileTab() {
   const router = useRouter();
   const { user, profile, signOut, getToken, refreshProfile } = useAuth();
   const [uploadingRestaurantPhoto, setUploadingRestaurantPhoto] = React.useState(false);
+  const [showDirectorPanel, setShowDirectorPanel] = React.useState(false);
+
+  const DIRECTOR_UIDS = ['5duJR57R28cOaVgKQBv9EyAClXp2'];
+  const isDirector = profile?.role === 'director' || DIRECTOR_UIDS.includes(user?.uid ?? '');
 
   const profileDesc = useMemo(() => {
     const variations = t("profile_variations", { returnObjects: true });
@@ -86,8 +92,14 @@ export default function ProfileTab() {
         description: t('profile.menu.settingsDesc'),
         icon: 'sliders',
       },
+      ...(isDirector ? [{
+        id: 'director',
+        label: 'Panel Directivos',
+        description: 'Métricas y gestión de la plataforma',
+        icon: 'chart' as const,
+      }] : []),
     ],
-    [t],
+    [t, isDirector],
   );
 
   const styles = useMemo(
@@ -396,6 +408,10 @@ export default function ProfileTab() {
   }
 
   function handleMenuPress(item: MenuEntry) {
+    if (item.id === 'director') {
+      setShowDirectorPanel(true);
+      return;
+    }
     if (!user && item.id !== 'settings') {
       Alert.alert(t('profile.restrictedAccess'), t('profile.restrictedAccessMsg'), [
         { text: t('common.cancel'), style: 'cancel' },
@@ -484,7 +500,7 @@ export default function ProfileTab() {
   const guestTitleSub = guestTitleParts[1]?.trim() || '';
 
   return (
-    <AnimatedTabScene>
+    <>
       <View style={StyleSheet.absoluteFillObject}>
         <Animated.View style={[styles.blob, { backgroundColor: colors.brandDeep }, blob1Style]} />
         <Animated.View style={[styles.blob, { backgroundColor: colors.accent, width: width * 1.1, height: width * 1.1 }, blob2Style]} />
@@ -663,6 +679,19 @@ export default function ProfileTab() {
         </ScrollView>
       </SafeAreaView>
     </AnimatedTabScene>
+
+      <Modal
+        visible={showDirectorPanel}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowDirectorPanel(false)}
+      >
+        <DirectorDashboardPage
+          onClose={() => setShowDirectorPanel(false)}
+          alreadyAuthenticated={isDirector}
+        />
+      </Modal>
+    </>
   );
 }
 

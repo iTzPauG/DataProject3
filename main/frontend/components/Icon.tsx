@@ -45,7 +45,8 @@ export type IconName =
   | 'triangle'
   | 'logout'
   | 'star'
-  | 'star-outline';
+  | 'star-outline'
+  | 'chart';
 
 interface IconProps {
   name: IconName;
@@ -765,6 +766,41 @@ const ICONS: Record<IconName, IconRenderer> = {
           height: holeSize,
           borderRadius: holeSize / 2,
           backgroundColor: color,
+        })} />
+      </View>
+    );
+  },
+
+  // Simple 3-bar chart icon for director dashboard
+  chart: ({ size, color, strokeWidth: sw }) => {
+    const barW = size * 0.18;
+    const gap = size * 0.1;
+    const totalW = barW * 3 + gap * 2;
+    const startX = (size - totalW) / 2;
+    const baseY = size * 0.82;
+    const heights = [size * 0.42, size * 0.64, size * 0.28];
+    return (
+      <View style={{ width: size, height: size }}>
+        {heights.map((h, i) => (
+          <View
+            key={i}
+            style={box({
+              bottom: size - baseY,
+              left: startX + i * (barW + gap),
+              width: barW,
+              height: h,
+              backgroundColor: color,
+              borderRadius: barW / 2,
+            })}
+          />
+        ))}
+        <View style={box({
+          bottom: size - baseY,
+          left: startX - gap,
+          width: totalW + gap * 2,
+          height: sw,
+          backgroundColor: color,
+          borderRadius: sw / 2,
         })} />
       </View>
     );

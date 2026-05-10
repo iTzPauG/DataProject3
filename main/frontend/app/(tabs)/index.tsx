@@ -66,6 +66,8 @@ export default function MapTab() {
   useAuth();
   // Measured bottom edge of the header+filter panel (set via onLayout) so NearbySheet starts below it
   const [listTopOffset, setListTopOffset] = useState(() => insets.top + 165);
+  // Measured height of the flex:1 map container (excludes tab bar)
+  const [mapContainerHeight, setMapContainerHeight] = useState(0);
   const {
     nearbyItems,
     setNearbyItems,
@@ -584,7 +586,10 @@ export default function MapTab() {
   return (
     <AnimatedTabScene>
       <LocationGate>
-      <View style={{ flex: 1, position: 'relative' }}>
+      <View
+        style={{ flex: 1, position: 'relative' }}
+        onLayout={(e) => setMapContainerHeight(e.nativeEvent.layout.height)}
+      >
         <View style={styles.container}>
           <Map
             items={displayItems}
@@ -605,10 +610,6 @@ export default function MapTab() {
               top: insets.top + 14,
               left: leftOffset,
               right: rightOffset,
-            }}
-            onLayout={(e) => {
-              const { height } = e.nativeEvent.layout;
-              setListTopOffset(insets.top + 14 + height + 8);
             }}
           >
             <View style={styles.panel}>
@@ -702,7 +703,13 @@ export default function MapTab() {
             </View>
 
             {/* Filter chips row: Anuncios → Favoritos → tipologías */}
-            <View style={styles.filterPanel}>
+            <View
+              style={styles.filterPanel}
+              onLayout={(e) => {
+                const { y, height } = e.nativeEvent.layout;
+                setListTopOffset(insets.top + 14 + y + height);
+              }}
+            >
               <BlurView intensity={60} tint="dark" style={[styles.panelBlur, { borderRadius: 16 }]}>
                 <ScrollView
                   horizontal
@@ -826,6 +833,7 @@ export default function MapTab() {
           loading={loading}
           hasSearched={true}
           topOffset={listTopOffset}
+          containerHeight={mapContainerHeight || undefined}
         />
 
         {selectedDeal && (
