@@ -687,6 +687,26 @@ async def _init_postgres() -> None:
             logger.info("Migrated saved_items.item_id from UUID to TEXT")
         except Exception as e:
             logger.debug(f"saved_items.item_id migration (expected if already TEXT): {e}")
+        # saved_items.user_id was UUID — migrate to TEXT so string params match.
+        try:
+            await conn.execute(
+                "ALTER TABLE saved_items ALTER COLUMN user_id TYPE TEXT USING user_id::TEXT"
+            )
+            logger.info("Migrated saved_items.user_id from UUID to TEXT")
+        except Exception as e:
+            logger.debug(f"saved_items.user_id migration (expected if already TEXT): {e}")
+        # Add metadata columns to saved_items so lat/lng/title are stored at bookmark time.
+        for col_sql in [
+            "ALTER TABLE saved_items ADD COLUMN IF NOT EXISTS title TEXT",
+            "ALTER TABLE saved_items ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION",
+            "ALTER TABLE saved_items ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION",
+            "ALTER TABLE saved_items ADD COLUMN IF NOT EXISTS photo_url TEXT",
+            "ALTER TABLE saved_items ADD COLUMN IF NOT EXISTS category_id TEXT",
+        ]:
+            try:
+                await conn.execute(col_sql)
+            except Exception as e:
+                logger.debug(f"saved_items column migration (may already exist): {e}")
         await _seed_db(db)
     finally:
         await conn.close()

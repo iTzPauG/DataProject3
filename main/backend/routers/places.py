@@ -263,7 +263,7 @@ async def list_place_comments(
 ):
     """Recent reports near a place — used as 'live comments' on the restaurant page."""
     min_lat, max_lat, min_lng, max_lng = _bbox_for(lat, lng, radius_m)
-    cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     async with get_db() as db:
         try:
             cursor = await db.execute(

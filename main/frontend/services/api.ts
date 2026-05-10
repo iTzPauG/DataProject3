@@ -777,7 +777,8 @@ export async function createReport(input: CreateReportInput): Promise<{ report: 
 export async function toggleBookmark(
   itemId: string,
   itemType: 'place' | 'event' | 'report',
-  isBookmarked: boolean
+  isBookmarked: boolean,
+  metadata?: { title?: string; lat?: number; lng?: number; photoUrl?: string; categoryId?: string }
 ): Promise<void> {
   const token = await auth.currentUser?.getIdToken() ?? null;
   const session = token ? { access_token: token } : null;
@@ -799,7 +800,15 @@ export async function toggleBookmark(
     const res = await fetch(`${BASE_URL}/bookmarks`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ item_id: itemId, item_type: itemType }),
+      body: JSON.stringify({
+        item_id: itemId,
+        item_type: itemType,
+        title: metadata?.title ?? '',
+        lat: metadata?.lat ?? 0,
+        lng: metadata?.lng ?? 0,
+        photo_url: metadata?.photoUrl ?? '',
+        category_id: metadata?.categoryId ?? '',
+      }),
     });
     if (!res.ok) throw new Error(`Failed to add bookmark: ${res.status}`);
   }

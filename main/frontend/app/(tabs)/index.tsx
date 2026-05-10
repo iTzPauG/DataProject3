@@ -21,7 +21,7 @@ import { useAppState } from '../../hooks/useAppState';
 import { useDeviceType } from '../../hooks/useDeviceType';
 import { useLiveDeals, type LiveDeal } from '../../hooks/useLiveDeals';
 import { useLocation } from '../../hooks/useLocation';
-import { BASE_URL } from '../../services/api';
+import { BASE_URL, getBookmarks } from '../../services/api';
 import { fetchNearbyItems } from '../../services/mapService';
 import { MapItem } from '../../types';
 import { storage } from '../../utils/storage';
@@ -77,6 +77,8 @@ export default function MapTab() {
   const [selectedFoodSubcat, setSelectedFoodSubcat] = useState<string | null>(null);
   const [showDealsOnly, setShowDealsOnly] = useState(true);
   const [todayDealsOnly, setTodayDealsOnly] = useState(false);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [bookmarkedItems, setBookmarkedItems] = useState<MapItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [acResults, setAcResults] = useState<AutocompleteResult[]>([]);
   const [selectedSearchItem, setSelectedSearchItem] = useState<AutocompleteResult | null>(null);
@@ -510,6 +512,10 @@ export default function MapTab() {
   }, [liveDeals, todayDealsOnly]);
 
   const displayItems = useMemo(() => {
+    // Favorites filter overrides everything
+    if (showFavoritesOnly) {
+      return bookmarkedItems;
+    }
     // In "deals only" mode, show only deal pins (no restaurants)
     if (showDealsOnly && !selectedSearchItem) {
       return liveDealItems;
@@ -533,7 +539,7 @@ export default function MapTab() {
     const savedPinsOnly = savedPins.filter((sp: MapItem) => !baseIds.has(sp.item_id));
     const extra = [...dealPins, ...savedPinsOnly];
     return extra.length > 0 ? [...base, ...extra] : base;
-  }, [nearbyItems, selectedSearchItem, savedPins, liveDealItems, showDealsOnly]);
+  }, [nearbyItems, selectedSearchItem, savedPins, liveDealItems, showDealsOnly, showFavoritesOnly, bookmarkedItems]);
 
   return (
     <AnimatedTabScene>
@@ -665,6 +671,7 @@ export default function MapTab() {
                     ]}
                     onPress={() => {
                       setShowDealsOnly(true);
+                      setShowFavoritesOnly(false);
                       setSelectedFoodSubcat(null);
                     }}
                     activeOpacity={0.7}
@@ -693,11 +700,34 @@ export default function MapTab() {
 
                   {/* Favoritos */}
                   <TouchableOpacity
-                    style={[styles.foodSubcatChip, { borderColor: '#FFD700', backgroundColor: 'rgba(255,215,0,0.1)' }]}
-                    onPress={() => router.push('/(modals)/saved-items')}
+                    style={[styles.foodSubcatChip, { borderColor: '#FFD700', backgroundColor: showFavoritesOnly ? '#FFD700' : 'rgba(255,215,0,0.1)' }]}
+                    onPress={async () => {
+                      const next = !showFavoritesOnly;
+                      setShowFavoritesOnly(next);
+                      setShowDealsOnly(false);
+                      setSelectedFoodSubcat(null);
+                      if (next) {
+                        const items = await getBookmarks();
+                        const pins: MapItem[] = items
+                          .filter((s) => s.lat && s.lng)
+                          .map((s) => ({
+                            item_id: s.item_id,
+                            item_type: s.item_type,
+                            title: s.title,
+                            category_id: s.category_id,
+                            lat: s.lat,
+                            lng: s.lng,
+                            distance_m: 0,
+                            color: '#FFD700',
+                            icon: '⭐',
+                            metadata: s.metadata,
+                          }));
+                        setBookmarkedItems(pins);
+                      }
+                    }}
                     activeOpacity={0.7}
                   >
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#FFD700' }}>⭐ Favoritos</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: showFavoritesOnly ? '#000' : '#FFD700' }}>⭐ Favoritos</Text>
                   </TouchableOpacity>
 
                   {/* Tipologías */}
@@ -709,6 +739,7 @@ export default function MapTab() {
                         style={[styles.foodSubcatChip, active && styles.foodSubcatChipActive]}
                         onPress={() => {
                           setShowDealsOnly(false);
+                          setShowFavoritesOnly(false);
                           setSelectedCategory('food');
                           handleFoodSubcatSelect(active ? null : sub.id);
                         }}

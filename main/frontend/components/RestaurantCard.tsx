@@ -52,7 +52,13 @@ export default function RestaurantCard({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!auth.currentUser) return;
     try {
-      await toggleBookmark(restaurant.id, 'place', isBookmarked);
+      await toggleBookmark(restaurant.id, 'place', isBookmarked, {
+        title: restaurant.name,
+        lat: restaurant.lat,
+        lng: restaurant.lng,
+        photoUrl: restaurant.photoUrl,
+        categoryId: (restaurant as any).category_id ?? '',
+      });
       setIsBookmarked(!isBookmarked);
     } catch (e) {
       console.warn('[WHIM] Error toggling bookmark:', e);
@@ -282,7 +288,7 @@ export default function RestaurantCard({
           </View>
         )}
         <TouchableOpacity 
-          style={styles.bookmarkBtn} 
+          style={[styles.bookmarkBtn, isBookmarked && { borderWidth: 1.5, borderColor: '#FFD700' }]} 
           onPress={handleToggleBookmark}
           activeOpacity={0.7}
         >
