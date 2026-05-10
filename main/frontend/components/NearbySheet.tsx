@@ -45,6 +45,7 @@ interface Props {
   loading?: boolean;
   hasSearched?: boolean;
   topOffset?: number;
+  containerHeight?: number;
 }
 
 function NearbyItem({
@@ -240,15 +241,16 @@ function NearbyItem({
   );
 }
 
-export default function NearbySheet({ items, selectedId, onSelectItem, loading, hasSearched, topOffset }: Props) {
+export default function NearbySheet({ items, selectedId, onSelectItem, loading, hasSearched, topOffset, containerHeight }: Props) {
   const { colors, typography, space } = useTheme();
   const { t } = useTranslation();
   const { isDesktop } = useDeviceType();
   const [expanded, setExpanded] = useState(false);
 
   // Expanded height stops exactly at the bottom of the filter panel (topOffset),
-  // growing upward from bottom: 0. We subtract a 8px gap for breathing room.
-  const expandedHeight = SCREEN_HEIGHT - (topOffset ?? SCREEN_HEIGHT * 0.2) - 8;
+  // growing upward from bottom: 0 of the actual map container (not full SCREEN_HEIGHT).
+  const availableHeight = containerHeight && containerHeight > 0 ? containerHeight : SCREEN_HEIGHT;
+  const expandedHeight = availableHeight - (topOffset ?? availableHeight * 0.2) - 8;
   const animHeight = useRef(new Animated.Value(COLLAPSED_HEIGHT)).current;
 
   const styles = useMemo(() => StyleSheet.create({
