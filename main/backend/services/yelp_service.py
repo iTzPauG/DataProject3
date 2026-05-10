@@ -1,4 +1,4 @@
-"""Yelp Fusion wrapper for secondary review enrichment."""
+﻿"""Yelp Fusion wrapper for secondary review enrichment."""
 
 from __future__ import annotations
 
@@ -71,7 +71,7 @@ def _get_http_client() -> httpx.AsyncClient:
 
 
 def _is_api_key_configured() -> bool:
-    """A real API key is required — placeholder values like 'mock', 'changeme',
+    """A real API key is required â€” placeholder values like 'mock', 'changeme',
     or 'TODO' are explicitly treated as missing so we don't burn requests on
     guaranteed-401 responses.
     """

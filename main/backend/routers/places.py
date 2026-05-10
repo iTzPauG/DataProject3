@@ -1,4 +1,4 @@
-"""Map / Places endpoints — nearby items and place details."""
+﻿"""Map / Places endpoints â€” nearby items and place details."""
 import asyncio
 import json
 import logging
@@ -20,6 +20,7 @@ from services.recommendation.tools import search_generic_category_places
 from services.overpass_service import search_overpass
 from services.recommendation.pipeline import enrich_place_result
 from services.live_data_service import get_live_data
+from services.yelp_service import get_yelp_reviews
 
 logger = logging.getLogger(__name__)
 
@@ -548,7 +549,7 @@ async def similar_places_by_tags(
         "recommendations": scored[:limit],
     }
 
-# ─── Per-place live comments ────────────────────────────────────────────────
+# â”€â”€â”€ Per-place live comments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class PlaceCommentCreate(BaseModel):
     place_id: str
@@ -579,7 +580,7 @@ async def list_place_comments(
     radius_m: float = 80.0,
     hours: int = 24,
 ):
-    """Recent reports near a place — used as 'live comments' on the restaurant page."""
+    """Recent reports near a place â€” used as 'live comments' on the restaurant page."""
     min_lat, max_lat, min_lng, max_lng = _bbox_for(lat, lng, radius_m)
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     async with get_db() as db:
@@ -673,7 +674,7 @@ async def summarise_place_comments(
         title = c.get("title") or ""
         desc = c.get("description") or ""
         rt = c.get("report_type") or "comment"
-        snippets.append(f"- [{rt}] {title}{(' — ' + desc) if desc else ''}")
+        snippets.append(f"- [{rt}] {title}{(' â€” ' + desc) if desc else ''}")
 
     name_part = f" en {place_name}" if place_name else ""
     prompt = (
@@ -699,3 +700,8 @@ async def summarise_place_comments(
     }
     await cache_set(cache_key, result, ttl=120)
     return result
+@router.get("/{place_id}/reviews")
+async def place_reviews(place_id: str, name: str, lat: float, lng: float):
+    """Return Yelp reviews for a place matched by name + coordinates."""
+    yelp = await get_yelp_reviews(name=name, lat=lat, lng=lng)
+    return {"yelp_reviews": yelp}

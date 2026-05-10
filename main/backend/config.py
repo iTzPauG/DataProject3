@@ -64,6 +64,7 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
 TMDB_API_KEY = os.getenv("TMDB_API_KEY", "")
+YELP_API_KEY = os.getenv("YELP_API_KEY", "")
 
 # App settings
 MAX_DISTANCE_KM = float(os.getenv("MAX_DISTANCE_KM", "5.0"))
