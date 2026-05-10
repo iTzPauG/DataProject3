@@ -766,7 +766,7 @@ export default function ResultsMapScreen() {
           <View style={styles.resultsSummary}>
             <View style={styles.resultsSummaryTop}>
               <View>
-                <Text style={styles.resultsSummaryTitle}>Resultados cercanos</Text>
+                <Text style={styles.resultsSummaryTitle}>{t('flow.nearbyResults')}</Text>
                 <Text style={styles.resultsSummaryCount}>
                   {`${visibleRestaurants.length} de ${restaurants.length} ${restaurants.length === 1 ? "sitio" : "sitios"}`}
                   {totalExpected != null && totalExpected > restaurants.length
@@ -775,7 +775,7 @@ export default function ResultsMapScreen() {
                 </Text>
               </View>
               <TouchableOpacity style={styles.resultsMapBtn} onPress={() => sheetRef.current?.snapToIndex(0)}>
-                <Text style={styles.resultsMapBtnText}>Ver mapa</Text>
+                <Text style={styles.resultsMapBtnText}>{t('flow.viewMap')}</Text>
               </TouchableOpacity>
             </View>
             {activeFilters.length > 0 ? (

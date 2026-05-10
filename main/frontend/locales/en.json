@@ -149,7 +149,8 @@
       "Feel",
       "Track",
       "Know"
-    ]
+    ],
+    "subtitle": "Discover the best places to eat in your city"
   },
   "saved": {
     "title": "Saved",
@@ -190,7 +191,8 @@
     "rating": "Rating: {{rating}}",
     "whimTake": "WHIM's Take",
     "bookmarkSignInHint": "Sign in to save your favorite places.",
-    "placeFallback": "Place"
+    "placeFallback": "Place",
+    "searchExpired": "Your search state expired. Start a fresh search to see updated results."
   },
   "fuel": {
     "gasolina_95": "Gasolina 95",
@@ -240,7 +242,9 @@
     "moodTitle": "What's the plan?",
     "moodSubtitle": "Choose the perfect mood",
     "loadMore": "Find more places",
-    "allResultsShown": "You have seen all available results."
+    "allResultsShown": "You have seen all available results.",
+    "nearbyResults": "Nearby results",
+    "viewMap": "View map"
   },
   "category": {
     "food": "Food",
@@ -768,5 +772,16 @@
         "Checking ratings and distance..."
       ]
     }
+  },
+  "myOffers": {
+    "accessRestricted": "Access restricted",
+    "reserved": "Reserved",
+    "client": "Client",
+    "withdrawOffer": "Withdraw offer",
+    "noOffersFiltered": "No offers in this filter",
+    "reasonPlaceholder": "Write the reason here..."
+  },
+  "savedItems": {
+    "empty": "No saved items"
   }
 }

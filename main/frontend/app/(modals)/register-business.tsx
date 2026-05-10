@@ -245,7 +245,7 @@ export default function RegisterBusinessModal() {
           {/* ── STEP: form ── */}
           {(step === 'form' || step === 'verifying') && (
             <>
-              <Text style={s.title}>Registra tu restaurante</Text>
+              <Text style={s.title}>{t('businessRegistration.title')}</Text>
               <Text style={s.subtitle}>{t('businessRegistration.formSubtitle')}</Text>
 
               <Text style={s.label}>{t('businessRegistration.restaurantName')}</Text>

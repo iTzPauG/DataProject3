@@ -266,23 +266,23 @@ export default function SavedItemsModal() {
       ) : error ? (
         <View style={styles.center}>
           <Ionicons name="alert-circle-outline" size={48} color={colors.inkMuted} />
-          <Text style={styles.emptyTitle}>Error</Text>
+          <Text style={styles.emptyTitle}>{t('common.error')}</Text>
           <Text style={styles.emptyText}>{error}</Text>
           <TouchableOpacity
             style={styles.retryButton}
             onPress={fetchBookmarks}
             accessibilityRole="button"
-            accessibilityLabel="Reintentar"
+            accessibilityLabel={t('common.retry')}
           >
-            <Text style={styles.retryText}>Reintentar</Text>
+            <Text style={styles.retryText}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : bookmarks.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="bookmark-outline" size={48} color={colors.inkMuted} />
-          <Text style={styles.emptyTitle}>Sin guardados</Text>
+          <Text style={styles.emptyTitle}>{t('savedItems.empty')}</Text>
           <Text style={styles.emptyText}>
-            Los lugares, eventos y reportes que guardes aparecerán aquí.
+            {t('savedItems.emptyBody', { defaultValue: 'Los lugares, eventos y reportes que guardes aparecerán aquí.' })}
           </Text>
         </View>
       ) : (

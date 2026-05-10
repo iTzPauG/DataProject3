@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ScrollView,
   StyleSheet,
@@ -26,6 +27,7 @@ const FOOD_SUBCATEGORIES = [
 ];
 
 export default function ExploreTab() {
+  const { t } = useTranslation();
   const { colors, typography, radii, shadows } = useTheme();
   const { reset, setParentCategory, setCategory } = useFlowState();
 
@@ -131,7 +133,7 @@ export default function ExploreTab() {
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={dynamicStyles.title}>🍽️ ¿Qué te apetece comer?</Text>
-          <Text style={dynamicStyles.subtitle}>Descubre los mejores lugares para comer en tu ciudad</Text>
+          <Text style={dynamicStyles.subtitle}>{t('explore.subtitle')}</Text>
         </View>
 
         <ScrollView

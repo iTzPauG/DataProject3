@@ -4,6 +4,7 @@
  * Real-time notifications via WebSocket when a customer reserves.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
@@ -102,6 +103,7 @@ function normalizeDeal(raw: any): DealWithReservation {
 }
 
 export default function MisOfertasTab() {
+  const { t } = useTranslation();
   const { colors, typography, shadows } = useTheme();
   const { profile, getToken } = useAuth();
   const [deals, setDeals] = useState<DealWithReservation[]>([]);
@@ -601,7 +603,7 @@ export default function MisOfertasTab() {
         <SafeAreaView style={styles.safe} edges={['top']}>
           <View style={styles.empty}>
             <Text style={styles.emptyEmoji}>🔒</Text>
-            <Text style={styles.emptyTitle}>Acceso restringido</Text>
+            <Text style={styles.emptyTitle}>{t('myOffers.accessRestricted')}</Text>
             <Text style={styles.emptySubtitle}>
               Esta sección es solo para cuentas de restaurante verificadas.
             </Text>
@@ -650,7 +652,7 @@ export default function MisOfertasTab() {
           {isReserved && (
             <View style={styles.reservedBadge}>
               <Text style={{ fontSize: 10 }}>●</Text>
-              <Text style={styles.reservedText}>Reservada</Text>
+              <Text style={styles.reservedText}>{t('myOffers.reserved')}</Text>
             </View>
           )}
         </View>
@@ -660,9 +662,9 @@ export default function MisOfertasTab() {
             {isReserved && item.reservation && (
               <View style={styles.clientRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.clientLabel}>Cliente</Text>
+                  <Text style={styles.clientLabel}>{t('myOffers.client')}</Text>
                   <Text style={styles.clientValue}>{item.reservation.customer_name}</Text>
-                  <Text style={styles.clientLabel}>Teléfono</Text>
+                  <Text style={styles.clientLabel}>{t('common.phone')}</Text>
                   <Text style={styles.clientValue}>{item.reservation.customer_phone}</Text>
                 </View>
               </View>
@@ -691,7 +693,7 @@ export default function MisOfertasTab() {
                   onPress={() => openReasonModal(item.id, 'withdraw')}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.withdrawText}>Retirar oferta</Text>
+                  <Text style={styles.withdrawText}>{t('myOffers.withdrawOffer')}</Text>
                 </TouchableOpacity>
               )}
               {isReserved && !isNoShow && !isCancelled && !isNotPresented && !isFinalized && (
@@ -753,7 +755,7 @@ export default function MisOfertasTab() {
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void fetchDeals(); }} />}
           >
             <Text style={styles.emptyEmoji}>📋</Text>
-            <Text style={styles.emptyTitle}>No hay ofertas en este filtro</Text>
+            <Text style={styles.emptyTitle}>{t('myOffers.noOffersFiltered')}</Text>
             <Text style={styles.emptySubtitle}>
               Ve a la pestaña Publicar para crear tu primera oferta de última hora.
             </Text>
@@ -808,7 +810,7 @@ export default function MisOfertasTab() {
                   if (reasonError) setReasonError(null);
                 }}
                 style={styles.reasonInput}
-                placeholder="Escribe aquí el motivo..."
+                placeholder={t('myOffers.reasonPlaceholder')}
                 placeholderTextColor={colors.inkMuted}
                 multiline
                 numberOfLines={4}
@@ -824,7 +826,7 @@ export default function MisOfertasTab() {
                   onPress={closeReasonModal}
                   disabled={reasonSubmitting}
                 >
-                  <Text style={styles.noShowText}>Cancelar</Text>
+                  <Text style={styles.noShowText}>{t('common.cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.actionBtn, styles.withdrawBtn]}
