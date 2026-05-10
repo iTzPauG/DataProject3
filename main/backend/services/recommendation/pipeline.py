@@ -775,7 +775,13 @@ def _build_ai_context(r: dict) -> dict:
 
 # ────────── LLM batch helper ──────────
 
-_LANG_MAP = {"es": "Spanish", "en": "English", "fr": "French"}
+_LANG_MAP = {
+    "es": "Spanish",
+    "en": "English",
+    "fr": "French",
+    "pt": "Portuguese",
+    "de": "German",
+}
 
 
 def _requested_budget_label(price_level: int | None) -> str:
@@ -793,7 +799,8 @@ def _build_llm_prompts(
 ) -> tuple[str, str]:
     """Build instruction + prompt for a batch of places."""
     label = _category_label(parent_category)
-    target_lang = _LANG_MAP.get(language, "Spanish")
+    normalized_language = (language or "es").strip().lower().replace("_", "-").split("-", 1)[0]
+    target_lang = _LANG_MAP.get(normalized_language, "Spanish")
     requested_type = (subcategory or parent_category or "food").replace("_", " ").strip()
     requested_budget = _requested_budget_label(price_level)
     ai_payload = [_build_ai_context(r) for r in places]
@@ -1324,5 +1331,4 @@ async def recommend_stream(
         log.info("[STREAM v2] DONE in %.2fs, yielded %d results", total_time, result_index)
     finally:
         yield {"event": "done", "total": result_index}
-
 

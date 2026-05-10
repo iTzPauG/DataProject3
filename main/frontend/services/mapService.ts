@@ -1,4 +1,5 @@
 import { Category, MapItem } from '../types';
+import { resolveI18nLanguage } from '../utils/language';
 
 // Derive the backend URL with autodetection for Railway production
 const getBaseUrl = () => {
@@ -51,10 +52,11 @@ export async function fetchNearbyItems(
   subcategory?: string,
 ): Promise<MapItem[]> {
   try {
+    const resolvedLanguage = resolveI18nLanguage(language);
     const params: any = { lat, lng, radius };
     if (category) params.categories = category;
     if (subcategory) params.subcategory = subcategory;
-    params.language = language;
+    params.language = resolvedLanguage;
     
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {
@@ -65,7 +67,10 @@ export async function fetchNearbyItems(
     }
 
     const res = await fetch(`${BASE_URL}/places/nearby?${qs.toString()}`, {
-      headers: { 'Accept': 'application/json' }
+      headers: {
+        'Accept': 'application/json',
+        'Accept-Language': resolvedLanguage,
+      }
     });
     if (!res.ok) throw new Error(`Failed to fetch nearby items: ${res.status}`);
     const data = await res.json() as { items?: MapItem[] };

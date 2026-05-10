@@ -4,6 +4,7 @@ import { storage } from '../utils/storage';
 import { Category, CommunityReport, MapItem, ReportType, SavedItem, RestaurantDBResult } from '../types';
 import { FALLBACK_CATEGORIES } from './mapService';
 import i18n from '../utils/i18n';
+import { resolveI18nLanguage } from '../utils/language';
 import { hasMeaningfulTake } from '../utils/placeTake';
 
 // Derive the backend URL with autodetection for Railway production
@@ -941,6 +942,7 @@ export async function getPlaceLiveData(params: {
   city?: string;
 }): Promise<LiveDataResult> {
   try {
+    const language = getRequestLanguage();
     const liveDataUrl = buildUrl(`/places/${params.placeId}/live-data`, {
       lat: params.lat.toString(),
       lng: params.lng.toString(),
@@ -954,7 +956,7 @@ export async function getPlaceLiveData(params: {
     const res = await fetch(liveDataUrl, { 
       headers: { 
         Accept: 'application/json',
-        'Accept-Language': i18n.language || 'es'
+        'Accept-Language': language
       } 
     });
     if (!res.ok) return { type: 'none' };
@@ -979,12 +981,13 @@ export async function getPlaceTake(params: {
   reviewsCount?: number;
 }): Promise<Restaurant | null> {
   try {
+    const language = getRequestLanguage(params.language);
     const takeUrl = buildUrl(`/places/${params.placeId}/take`, {
       lat: params.lat.toString(),
       lng: params.lng.toString(),
       category: params.category,
       subcategory: params.subcategory,
-      language: params.language,
+      language,
       name: params.name,
       address: params.address,
       photo_url: params.photoUrl,
@@ -995,7 +998,7 @@ export async function getPlaceTake(params: {
     const res = await fetch(takeUrl, { 
       headers: { 
         Accept: 'application/json',
-        'Accept-Language': i18n.language || 'es'
+        'Accept-Language': language
       } 
     });
     if (!res.ok) return null;
@@ -1008,11 +1011,12 @@ export async function getPlaceTake(params: {
 export async function askBrain(message: string, context?: Record<string, unknown>): Promise<{ response: string }> {
   try {
     const token = firebaseAuth?.currentUser?.uid ?? null;
+    const language = getRequestLanguage();
     const res = await fetch(`${BASE_URL}/brain`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept-Language': i18n.language || 'es',
+        'Accept-Language': language,
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({ message, context }),
@@ -1032,6 +1036,7 @@ export async function fetchNearbyItems(
     itemTypes: string[] = ["place", "event", "report"]
 ): Promise<import('../types/map').MapItem[]> {
     try {
+        const language = getRequestLanguage();
         const qsParts = [
             `lat=${encodeURIComponent(lat)}`,
             `lng=${encodeURIComponent(lng)}`,
@@ -1044,7 +1049,7 @@ export async function fetchNearbyItems(
         const res = await fetch(mapItemsUrl, {
             headers: { 
               'Accept': 'application/json',
-              'Accept-Language': i18n.language || 'es'
+              'Accept-Language': language
             }
         });
         if (!res.ok) return [];
@@ -1053,6 +1058,10 @@ export async function fetchNearbyItems(
     } catch {
         return [];
   }
+}
+
+function getRequestLanguage(raw?: string | null): string {
+  return resolveI18nLanguage(raw ?? i18n.resolvedLanguage ?? i18n.language ?? 'es');
 }
 
 function normalizeTakeCategory(raw: unknown): string {
@@ -1092,6 +1101,7 @@ function toAbsolutePhotoUrl(raw: unknown): string | undefined {
 
 export async function fetchPlaceExtra(placeId: string, metadata?: any): Promise<{ take: any; live: any; vote: VoteData | null }> {
   try {
+    const language = getRequestLanguage();
     const lat = coerceFiniteNumber(metadata?.lat) ?? VALENCIA_LAT;
     const lng = coerceFiniteNumber(metadata?.lng) ?? VALENCIA_LNG;
     const category = normalizeTakeCategory(metadata?.category ?? metadata?.category_id);
@@ -1108,7 +1118,7 @@ export async function fetchPlaceExtra(placeId: string, metadata?: any): Promise<
         lng,
         category,
         subcategory,
-        language: i18n.resolvedLanguage || i18n.language || 'es',
+        language,
         name,
         address,
         photoUrl: toAbsolutePhotoUrl(metadata?.photo_url ?? metadata?.photoUrl),
@@ -1129,7 +1139,7 @@ export async function fetchPlaceExtra(placeId: string, metadata?: any): Promise<
       fetch(`${BASE_URL}/votes/${placeId}`, {
         headers: {
           Accept: 'application/json',
-          'Accept-Language': i18n.language || 'es',
+          'Accept-Language': language,
         },
       }).catch(() => null),
     ]);

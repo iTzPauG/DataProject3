@@ -26,6 +26,7 @@ import { useLocation } from '../../hooks/useLocation';
 import { BASE_URL, getBookmarks } from '../../services/api';
 import { fetchNearbyItems } from '../../services/mapService';
 import { MapItem } from '../../types';
+import { resolveI18nLanguage } from '../../utils/language';
 import { storage } from '../../utils/storage';
 import { useTheme } from '../../utils/theme';
 import LocationGate from '../../components/LocationGate';
@@ -494,7 +495,7 @@ export default function MapTab() {
       : mapPreferences.defaultRadiusM;
     setLoading(true);
     try {
-      const lang = mapPreferences.language === 'system' ? 'es' : mapPreferences.language;
+      const lang = resolveI18nLanguage(mapPreferences.language);
       const items = await fetchNearbyItems(
         searchLat,
         searchLng,

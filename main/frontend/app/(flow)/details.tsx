@@ -25,6 +25,7 @@ import { MapItem } from "../../types";
 import { Restaurant } from "../../types/restaurant";
 import { BASE_URL, fetchPlaceExtra, getPlaceData, getPlaceLiveData, getPlaceTake, getVotes, LiveDataResult, VoteData } from "../../services/api";
 import { formatDistance, formatPriceLevel, formatRating, formatReviews } from "../../utils/format";
+import { resolveI18nLanguage } from "../../utils/language";
 import { synthesizeFallbackTake } from "../../utils/placeTake";
 import { shareRestaurant } from "../../utils/share";
 import { storage } from "../../utils/storage";
@@ -434,7 +435,7 @@ export default function DetailsScreen() {
           lng: Number(sourceItem.lng || 0),
           category: String(normalizedCategory || parentCategory || "food"),
           subcategory: String(metadata.subcategory || category || parentCategory || "food"),
-          language: i18n.resolvedLanguage || i18n.language || "es",
+          language: resolveI18nLanguage(i18n.resolvedLanguage || i18n.language),
           name: sourceItem.title,
           address: String(metadata.address || ""),
           photoUrl: withAbsolutePhotoUrl(metadata.photo_url),
