@@ -1,6 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  type User,
+} from 'firebase/auth';
 import { BASE_URL } from '../services/api';
-import { storage } from '../utils/storage';
+import { firebaseAuth } from '../services/firebase';
 
 export interface UserProfile {
   id: string;
@@ -19,7 +27,7 @@ export interface UserProfile {
 }
 
 interface AuthState {
-  user: any | null;
+  user: User | null;
   profile: UserProfile | null;
   session: { access_token: string } | null;
   loading: boolean;
@@ -36,60 +44,41 @@ interface AuthActions {
   refreshProfile: () => Promise<void>;
 }
 
-const AUTH_SESSION_KEY = 'local_auth_session_v1';
+// ── Backend helpers ─────────────────────────────────────────────────────────
 
-const DEV_CREDENTIALS: Record<string, { password: string; uid: string; displayName: string; cuisines?: string[] }> = {
-  'usuario.prueba@gado.local': {
-    password: 'Usuario123!',
-    uid: 'test-user-1',
-    displayName: 'Usuario Prueba',
-  },
-  'restaurante1@gado.local': {
-    password: 'Restaurante123!',
-    uid: 'test-business-1',
-    displayName: 'La Pepica',
-    cuisines: ['paella', 'mediterranean', 'seafood'],
-  },
-  'restaurante2@gado.local': {
-    password: 'Restaurante123!',
-    uid: 'test-business-2',
-    displayName: 'Riff Restaurante',
-    cuisines: ['creative', 'mediterranean', 'seasonal'],
-  },
-  'restaurante3@gado.local': {
-    password: 'Restaurante123!',
-    uid: 'test-business-3',
-    displayName: 'Bar Pilar',
-    cuisines: ['tapas', 'spanish', 'bar'],
-  },
-};
+/**
+ * The local backend (mock auth) treats the Bearer token value directly as the
+ * firebase_uid. So we pass user.uid — which matches profiles.firebase_uid in
+ * the DB — instead of the full JWT.
+ */
+function buildBearer(uid: string): string {
+  return uid;
+}
 
-async function syncProfileWithBackend(idToken: string, displayName?: string): Promise<UserProfile | null> {
+async function syncProfileWithBackend(
+  uid: string,
+  displayName?: string | null,
+): Promise<UserProfile | null> {
   try {
     const res = await fetch(`${BASE_URL}/auth/sync`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${idToken}`,
+        Authorization: `Bearer ${buildBearer(uid)}`,
       },
       body: JSON.stringify({
-        display_name: displayName || 'Local User',
+        display_name: displayName ?? 'Usuario',
         avatar_url: null,
       }),
     });
     if (!res.ok) return null;
-    return await res.json();
+    return (await res.json()) as UserProfile;
   } catch {
     return null;
   }
 }
 
-type LocalSession = {
-  uid: string;
-  email: string;
-  displayName: string;
-  idToken: string;
-};
+// ── Global store (shared across hook instances) ──────────────────────────────
 
 let authStore: AuthState = {
   user: null,
@@ -104,120 +93,94 @@ const listeners = new Set<(state: AuthState) => void>();
 
 function emitAuthState(next: AuthState) {
   authStore = next;
-  listeners.forEach((listener) => listener(authStore));
+  listeners.forEach((l) => l(authStore));
 }
 
-function setAuthState(patch: Partial<AuthState>) {
-  emitAuthState({ ...authStore, ...patch });
-}
+// ── Firebase Auth listener (singleton) ───────────────────────────────────────
 
-let bootstrapped = false;
+let unsubscribeFirebase: (() => void) | null = null;
 
-async function bootstrapAuthStore() {
-  if (bootstrapped) return;
-  bootstrapped = true;
-  try {
-    const raw = await storage.getItem(AUTH_SESSION_KEY);
-    if (!raw) {
-      setAuthState({ loading: false, isAnonymous: true, user: null, idToken: null, session: null, profile: null });
+function bootstrapFirebaseAuth() {
+  if (unsubscribeFirebase) return;
+  if (!firebaseAuth) {
+    // Firebase not configured — stay anonymous
+    emitAuthState({ ...authStore, loading: false });
+    return;
+  }
+
+  unsubscribeFirebase = onAuthStateChanged(firebaseAuth, async (user) => {
+    if (!user) {
+      emitAuthState({
+        user: null,
+        profile: null,
+        session: null,
+        loading: false,
+        isAnonymous: true,
+        idToken: null,
+      });
       return;
     }
 
-    const session = JSON.parse(raw) as LocalSession;
-    const profile = await syncProfileWithBackend(session.idToken, session.displayName);
-
+    const profile = await syncProfileWithBackend(user.uid, user.displayName);
     emitAuthState({
-      user: {
-        uid: session.uid,
-        email: session.email,
-        displayName: session.displayName,
-      },
+      user,
       profile,
-      session: { access_token: session.idToken },
+      session: { access_token: buildBearer(user.uid) },
       loading: false,
       isAnonymous: false,
-      idToken: session.idToken,
+      idToken: buildBearer(user.uid),
     });
-  } catch {
-    emitAuthState({
-      user: null,
-      profile: null,
-      session: null,
-      loading: false,
-      isAnonymous: true,
-      idToken: null,
-    });
-  }
+  });
 }
+
+// ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useAuth(): AuthState & AuthActions {
   const [state, setState] = useState<AuthState>(authStore);
 
   useEffect(() => {
     listeners.add(setState);
-    void bootstrapAuthStore();
+    bootstrapFirebaseAuth();
     return () => {
       listeners.delete(setState);
     };
   }, []);
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {
-    const normalizedEmail = email.trim().toLowerCase();
-    const account = DEV_CREDENTIALS[normalizedEmail];
-    if (!account || account.password !== password) {
-      throw new Error('Usuario o contraseña incorrectos');
-    }
-
-    const idToken = `local-token:${account.uid}`;
-    const session = {
-      uid: account.uid,
-      email: normalizedEmail,
-      displayName: account.displayName,
-      idToken,
-    };
-    await storage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
-    const profile = await syncProfileWithBackend(idToken, account.displayName);
-
-    emitAuthState({
-      user: {
-        uid: account.uid,
-        email: normalizedEmail,
-        displayName: account.displayName,
-      },
-      profile,
-      session: { access_token: idToken },
-      loading: false,
-      isAnonymous: false,
-      idToken,
-    });
+    if (!firebaseAuth) throw new Error('Firebase Auth no está configurado');
+    await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
+    // onAuthStateChanged fires automatically and updates the store
   }, []);
 
-  const signUpWithEmail = useCallback(async (_email: string, _password: string, _displayName?: string) => {
-    throw new Error('Registro desactivado en modo local de pruebas');
-  }, []);
+  const signUpWithEmail = useCallback(
+    async (email: string, password: string, displayName?: string) => {
+      if (!firebaseAuth) throw new Error('Firebase Auth no está configurado');
+      const { user } = await createUserWithEmailAndPassword(firebaseAuth, email.trim(), password);
+      if (displayName) await updateProfile(user, { displayName });
+      // onAuthStateChanged fires automatically
+    },
+    [],
+  );
 
   const signInWithGoogle = useCallback(async () => {
-    throw new Error('Google login no disponible en modo local de pruebas');
+    throw new Error('Google login no disponible aún');
   }, []);
 
   const signOut = useCallback(async () => {
-    await storage.removeItem(AUTH_SESSION_KEY);
-    emitAuthState({
-      user: null,
-      profile: null,
-      session: null,
-      loading: false,
-      isAnonymous: true,
-      idToken: null,
-    });
+    if (!firebaseAuth) return;
+    await firebaseSignOut(firebaseAuth);
+    // onAuthStateChanged fires with null → store resets automatically
   }, []);
 
-  const getToken = useCallback(async (): Promise<string | null> => state.idToken, [state.idToken]);
+  const getToken = useCallback(async (): Promise<string | null> => {
+    if (!authStore.user) return null;
+    return buildBearer(authStore.user.uid);
+  }, []);
 
   const refreshProfile = useCallback(async () => {
-    if (!authStore.idToken) return;
-    const profile = await syncProfileWithBackend(authStore.idToken, authStore.user?.displayName);
-    setAuthState({ profile });
+    if (!authStore.user) return;
+    const profile = await syncProfileWithBackend(authStore.user.uid, authStore.user.displayName);
+    emitAuthState({ ...authStore, profile });
   }, []);
 
   return { ...state, signInWithEmail, signUpWithEmail, signInWithGoogle, signOut, getToken, refreshProfile };

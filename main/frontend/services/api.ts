@@ -1,5 +1,5 @@
 import { Restaurant } from '../types/restaurant';
-import { auth } from './supabase';
+import { firebaseAuth } from './firebase';
 import { storage } from '../utils/storage';
 import { Category, CommunityReport, MapItem, ReportType, SavedItem } from '../types';
 import { FALLBACK_CATEGORIES } from './mapService';
@@ -325,7 +325,7 @@ export async function castVote(
   itemType: 'place' | 'event',
   vote: 1 | -1,
 ): Promise<VoteResponse> {
-  const token = await auth.currentUser?.getIdToken() ?? null;
+  const token = firebaseAuth?.currentUser?.uid ?? null;
   const res = await fetch(`${BASE_URL}/votes`, {
     method: 'POST',
     headers: {
@@ -725,7 +725,7 @@ export interface CreateReportInput {
 
 export async function createReport(input: CreateReportInput): Promise<{ report: CommunityReport }> {
   console.log('[API] Starting report creation...');
-  const token = await auth.currentUser?.getIdToken() ?? null;
+  const token = firebaseAuth?.currentUser?.uid ?? null;
   const session = token ? { access_token: token } : null;
   console.log('[API] Session obtained:', session ? 'User logged in' : 'Anonymous');
 
@@ -780,7 +780,7 @@ export async function toggleBookmark(
   isBookmarked: boolean,
   metadata?: { title?: string; lat?: number; lng?: number; photoUrl?: string; categoryId?: string }
 ): Promise<void> {
-  const token = await auth.currentUser?.getIdToken() ?? null;
+  const token = firebaseAuth?.currentUser?.uid ?? null;
   const session = token ? { access_token: token } : null;
   if (!session) throw new Error('Authentication required');
 
@@ -816,8 +816,8 @@ export async function toggleBookmark(
 
 export async function getBookmarks(): Promise<SavedItem[]> {
   try {
-    const token = await auth.currentUser?.getIdToken() ?? null;
-  const session = token ? { access_token: token } : null;
+    const token = firebaseAuth?.currentUser?.uid ?? null;
+    const session = token ? { access_token: token } : null;
     if (!session) return [];
 
     const res = await fetch(`${BASE_URL}/bookmarks`, {
@@ -836,8 +836,8 @@ export async function getBookmarks(): Promise<SavedItem[]> {
 
 export async function checkBookmark(itemId: string): Promise<boolean> {
   try {
-    const token = await auth.currentUser?.getIdToken() ?? null;
-  const session = token ? { access_token: token } : null;
+    const token = firebaseAuth?.currentUser?.uid ?? null;
+    const session = token ? { access_token: token } : null;
     if (!session) return false;
 
     const res = await fetch(`${BASE_URL}/bookmarks/${itemId}/check`, {
@@ -856,8 +856,8 @@ export async function checkBookmark(itemId: string): Promise<boolean> {
 
 export async function getMyReports(): Promise<CommunityReport[]> {
   try {
-    const token = await auth.currentUser?.getIdToken() ?? null;
-  const session = token ? { access_token: token } : null;
+    const token = firebaseAuth?.currentUser?.uid ?? null;
+    const session = token ? { access_token: token } : null;
     if (!session) return [];
 
     const res = await fetch(`${BASE_URL}/reports/me`, {
@@ -1006,7 +1006,7 @@ export async function getPlaceTake(params: {
 
 export async function askBrain(message: string, context?: Record<string, unknown>): Promise<{ response: string }> {
   try {
-    const token = await auth.currentUser?.getIdToken() ?? null;
+    const token = firebaseAuth?.currentUser?.uid ?? null;
     const res = await fetch(`${BASE_URL}/brain`, {
       method: 'POST',
       headers: {

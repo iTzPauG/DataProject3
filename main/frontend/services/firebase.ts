@@ -1,6 +1,13 @@
 import { Platform } from 'react-native';
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { initializeFirestore, type Firestore } from 'firebase/firestore';
+import {
+  initializeAuth,
+  getReactNativePersistence,
+  getAuth,
+  type Auth,
+} from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -25,3 +32,15 @@ export const firestoreDb: Firestore | null = firebaseApp
         useFetchStreams: false,
       })
   : null;
+
+function _initAuth(app: ReturnType<typeof initializeApp>): Auth {
+  // On web, use default getAuth (localStorage). On native, use AsyncStorage.
+  if (Platform.OS === 'web') {
+    return getAuth(app);
+  }
+  return initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
+  });
+}
+
+export const firebaseAuth: Auth | null = firebaseApp ? _initAuth(firebaseApp) : null;
