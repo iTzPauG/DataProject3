@@ -451,15 +451,14 @@ function SectionRow({
           ? [...results].sort((a, b) => newishScore(b) - newishScore(a))
           : results;
 
-        // De-duplicate: drop restaurants that earlier sections already rendered,
-        // unless this section is in feed-only mode (used by Tendencias so it
-        // always shows, even if its top items overlap with the hero).
-        if (seenIdsRef) {
-          if (!feedDedupeOnly) {
-            sorted = sorted.filter(r => !seenIdsRef.current.has(r.id));
-          }
-          sorted.forEach(r => seenIdsRef.current.add(r.id));
-        }
+        // Keep each row stable. Cross-row dedupe depended on async load order,
+        // so sections could appear/disappear depending on which request finished first.
+        const rowSeenIds = new Set<string>();
+        sorted = sorted.filter((restaurant) => {
+          if (rowSeenIds.has(restaurant.id)) return false;
+          rowSeenIds.add(restaurant.id);
+          return true;
+        });
 
         if (maxItems != null) sorted = sorted.slice(0, maxItems);
         setRestaurants(sorted);
@@ -718,6 +717,16 @@ export default function ForYouTab() {
     };
   }, [auth.user?.uid, location, loadTribeRecommendations]);
 
+  const loadLikedSimilarSection = useCallback(
+    () => Promise.resolve(likedSimilarRestaurants),
+    [likedSimilarRestaurants],
+  );
+
+  const loadTribeSection = useCallback(
+    () => Promise.resolve(tribeRestaurants),
+    [tribeRestaurants],
+  );
+
   const handleRestaurantPress = useCallback((restaurant: RestaurantDBResult) => {
     const photoUrl = restaurant.metadata?.photo_url;
     const fullPhotoUrl = photoUrl?.startsWith('/') ? `${RESTAURANT_DB_URL}${photoUrl}` : photoUrl;
@@ -960,7 +969,7 @@ export default function ForYouTab() {
               title={`Como te gustó ${likedBaseName}`}
               emoji="*"
               query="liked-similar"
-              loadRestaurants={() => Promise.resolve(likedSimilarRestaurants)}
+              loadRestaurants={loadLikedSimilarSection}
               lat={location.lat}
               lng={location.lng}
               maxItems={20}
@@ -979,7 +988,7 @@ export default function ForYouTab() {
               emoji="*"
               subtitle={tribeCluster.title}
               query="tribe-recommendations"
-              loadRestaurants={() => Promise.resolve(tribeRestaurants)}
+              loadRestaurants={loadTribeSection}
               lat={location.lat}
               lng={location.lng}
               maxItems={20}
@@ -1012,7 +1021,7 @@ export default function ForYouTab() {
             />
           ))}
           {/* Personalized — only render if we have at least one positive tag. */}
-          {profile.positiveTags.size > 0 && (() => {
+          {false && profile.positiveTags.size > 0 && (() => {
             const sig = getRecommendationSignals(profile.positiveTags, city);
             const personalLabel = sig.personalTokens.length > 0
               ? sig.personalTokens.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ')
@@ -1027,34 +1036,32 @@ export default function ForYouTab() {
                 emoji="✨"
                 subtitle={sub}
                 query={buildPersonalizedQuery(profile.positiveTags, city)}
-                lat={location.lat}
-                lng={location.lng}
+                lat={location!.lat}
+                lng={location!.lng}
                 radiusM={8000}
                 maxItems={12}
                 seenIdsRef={seenIdsRef}
                 colors={colors}
                 typography={typography}
                 radii={radii}
-                shadows={shadows}
                 onRestaurantPress={handleRestaurantPress}
               />
             );
           })()}
           {/* Collaborative-style cluster recommendation */}
-          <SectionRow
+          {false && <SectionRow
             key="tribe"
             title={t('foryou.tribeTitle')}
             emoji="👥"
             query={buildTribeQuery(profile.positiveTags, city)}
-            lat={location.lat}
-            lng={location.lng}
+            lat={location!.lat}
+            lng={location!.lng}
             seenIdsRef={seenIdsRef}
             colors={colors}
             typography={typography}
             radii={radii}
-            shadows={shadows}
             onRestaurantPress={handleRestaurantPress}
-          />
+          />}
           {/* Surprise / out of comfort zone */}
           <SectionRow
             key="surprise"
